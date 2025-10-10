@@ -1,6 +1,5 @@
 streamlit>=1.28.0
 pandas>=1.5.0
-sqlite3
 gspread>=5.10.0
 google-auth>=2.22.0
 google-auth-oauthlib>=1.0.0
