@@ -1,12 +1,12 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, date
+from datetime import datetime, date, time
 from urllib.parse import parse_qs
 from database import DatabaseManager
 from email_service import EmailService
 from models import InterviewRequest, InterviewSlot
 from config import Config
-from utils import get_next_weekdays, format_date_korean, validate_email, load_employee_data
+from utils import get_next_weekdays, format_date_korean, validate_email, load_employee_data, get_employee_email
 
 # 페이지 설정
 st.set_page_config(
@@ -117,20 +117,35 @@ def show_admin_page():
                     help="면접자의 이메일 주소를 입력해주세요"
                 )
                 
-                # 면접 희망일 선택
-                st.write("**면접 희망일 선택 (최대 5일)**")
+                # 면접 희망일시 선택
+                st.write("**면접 희망일시 선택 (최대 5개)**")
                 available_dates = get_next_weekdays(20)
                 
-                selected_dates = []
+                selected_datetime_slots = []
                 for i in range(5):
-                    selected_date = st.selectbox(
-                        f"희망일 {i+1}",
-                        options=["선택안함"] + available_dates,
-                        format_func=lambda x: format_date_korean(x) if x != "선택안함" else x,
-                        key=f"date_{i}"
-                    )
-                    if selected_date != "선택안함" and selected_date not in selected_dates:
-                        selected_dates.append(selected_date)
+                    st.write(f"**희망 일시 {i+1}**")
+                    
+                    col_date, col_time = st.columns([2, 1])
+                    
+                    with col_date:
+                        selected_date = st.selectbox(
+                            f"날짜 {i+1}",
+                            options=["선택안함"] + available_dates,
+                            format_func=lambda x: format_date_korean(x) if x != "선택안함" else x,
+                            key=f"date_{i}"
+                        )
+                    
+                    with col_time:
+                        selected_time = st.selectbox(
+                            f"시간 {i+1}",
+                            options=["선택안함"] + Config.TIME_SLOTS,
+                            key=f"time_{i}"
+                        )
+                    
+                    if selected_date != "선택안함" and selected_time != "선택안함":
+                        datetime_slot = f"{selected_date} {selected_time}"
+                        if datetime_slot not in selected_datetime_slots:
+                            selected_datetime_slots.append(datetime_slot)
             
             submitted = st.form_submit_button("📧 면접 일정 조율 시작", use_container_width=True)
             
@@ -146,8 +161,8 @@ def show_admin_page():
                     st.error("공고명(포지션명)을 입력해주세요.")
                 elif not validate_email(candidate_email):
                     st.error("올바른 이메일 형식을 입력해주세요.")
-                elif not selected_dates:
-                    st.error("최소 1개 이상의 면접 희망일을 선택해주세요.")
+                elif not selected_datetime_slots:
+                    st.error("최소 1개 이상의 면접 희망일시를 선택해주세요.")
                 else:
                     # 새 면접 요청 생성
                     request = InterviewRequest.create_new(
@@ -155,7 +170,7 @@ def show_admin_page():
                         candidate_email=candidate_email,
                         candidate_name=candidate_name,
                         position_name=position_name,
-                        preferred_dates=selected_dates
+                        preferred_datetime_slots=selected_datetime_slots
                     )
                     db.save_interview_request(request)
                     
@@ -259,11 +274,12 @@ def show_interviewer_page(request_id: str):
         st.info(f"**면접자 이메일:** {request.candidate_email}")
         st.info(f"**요청일:** {request.created_at.strftime('%Y-%m-%d %H:%M')}")
     
-    # 인사팀에서 선택한 희망일 표시
-    if request.preferred_dates:
-        st.subheader("📅 인사팀에서 제안한 면접 희망일")
-        for i, pref_date in enumerate(request.preferred_dates, 1):
-            st.write(f"{i}. {format_date_korean(pref_date)}")
+    # 인사팀에서 선택한 희망일시 표시
+    if request.preferred_datetime_slots:
+        st.subheader("📅 인사팀에서 제안한 면접 희망일시")
+        for i, datetime_slot in enumerate(request.preferred_datetime_slots, 1):
+            date_part, time_part = datetime_slot.split(' ')
+            st.write(f"{i}. {format_date_korean(date_part)} {time_part}")
     
     st.subheader("가능한 면접 일정을 선택해주세요")
     
@@ -276,29 +292,35 @@ def show_interviewer_page(request_id: str):
         
         for i in range(st.session_state.slot_count):
             st.write(f"**면접 일정 {i+1}**")
-            col1, col2, col3 = st.columns([2, 2, 1])
+            col1, col2, col3 = st.columns([2, 1, 1])
             
             with col1:
                 # 희망일이 있으면 우선 표시
                 available_dates = get_next_weekdays(15)
-                if request.preferred_dates:
+                
+                # 희망일시에서 날짜만 추출
+                preferred_dates = []
+                if request.preferred_datetime_slots:
+                    preferred_dates = [slot.split(' ')[0] for slot in request.preferred_datetime_slots]
+                
+                if preferred_dates:
                     # 희망일을 맨 앞에 배치
-                    ordered_dates = request.preferred_dates + [d for d in available_dates if d not in request.preferred_dates]
+                    ordered_dates = preferred_dates + [d for d in available_dates if d not in preferred_dates]
                 else:
                     ordered_dates = available_dates
                 
                 date = st.selectbox(
                     "날짜",
                     options=ordered_dates,
-                    format_func=lambda x: f"🌟 {format_date_korean(x)}" if x in (request.preferred_dates or []) else format_date_korean(x),
-                    key=f"date_{i}"
+                    format_func=lambda x: f"🌟 {format_date_korean(x)}" if x in (preferred_dates or []) else format_date_korean(x),
+                    key=f"interviewer_date_{i}"
                 )
             
             with col2:
-                time = st.selectbox(
+                time_val = st.selectbox(
                     "시간",
                     options=Config.TIME_SLOTS,
-                    key=f"time_{i}"
+                    key=f"interviewer_time_{i}"
                 )
             
             with col3:
@@ -307,11 +329,11 @@ def show_interviewer_page(request_id: str):
                     options=[30, 60, 90],
                     index=1,
                     format_func=lambda x: f"{x}분",
-                    key=f"duration_{i}"
+                    key=f"interviewer_duration_{i}"
                 )
             
-            if date and time:
-                selected_slots.append(InterviewSlot(date, time, duration))
+            if date and time_val:
+                selected_slots.append(InterviewSlot(date, time_val, duration))
         
         # 일정 추가/제거 버튼
         col1, col2, col3 = st.columns([1, 1, 3])
