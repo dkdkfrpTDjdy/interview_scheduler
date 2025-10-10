@@ -1,12 +1,12 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date
 from urllib.parse import parse_qs
 from database import DatabaseManager
 from email_service import EmailService
 from models import InterviewRequest, InterviewSlot
 from config import Config
-from utils import get_next_weekdays, format_date_korean, validate_email
+from utils import get_next_weekdays, format_date_korean, validate_email, load_employee_data
 
 # 페이지 설정
 st.set_page_config(
@@ -23,12 +23,17 @@ def init_services():
     email_service = EmailService()
     return db, email_service
 
+@st.cache_data
+def load_organization_data():
+    """조직도 데이터 로드"""
+    return load_employee_data()
+
 db, email_service = init_services()
 
 def main():
     st.title("📅 AI 면접 일정 조율 시스템")
     
-    # URL 파라미터 확인 (새로운 API 사용)
+    # URL 파라미터 확인
     query_params = st.query_params
     role = query_params.get('role', None)
     request_id = query_params.get('id', None)
@@ -44,6 +49,9 @@ def show_admin_page():
     """인사팀 관리자 페이지"""
     st.header("🏢 인사팀 관리 대시보드")
     
+    # 조직도 데이터 로드
+    org_data = load_organization_data()
+    
     # Outlook 연결 상태 확인
     with st.sidebar:
         st.subheader("🔧 시스템 상태")
@@ -56,12 +64,14 @@ def show_admin_page():
                 st.success("✅ Outlook 서버 연결 성공")
             else:
                 st.error("❌ Outlook 서버 연결 실패")
-                st.info("설정을 확인해주세요:")
-                st.write("- 이메일 주소")
-                st.write("- 앱 비밀번호")
-                st.write("- Exchange 서버 주소")
+        
+        # 조직도 데이터 상태
+        if org_data:
+            st.success(f"✅ 조직도 데이터: {len(org_data)}명")
+        else:
+            st.error("❌ 조직도 데이터 로드 실패")
     
-    tab1, tab2 = st.tabs(["새 면접 요청", "진행 현황"])
+    tab1, tab2, tab3 = st.tabs(["새 면접 요청", "진행 현황", "구글 시트 관리"])
     
     with tab1:
         st.subheader("새로운 면접 일정 조율 요청")
@@ -70,10 +80,33 @@ def show_admin_page():
             col1, col2 = st.columns(2)
             
             with col1:
-                interviewer_id = st.text_input(
-                    "면접관 사번",
-                    placeholder="예: EMP001",
-                    help="면접관의 사번을 입력해주세요"
+                # 면접관 선택 (조직도에서)
+                if org_data:
+                    interviewer_options = [f"{emp['employee_id']} - {emp['name']} ({emp['department']})" 
+                                         for emp in org_data]
+                    selected_interviewer = st.selectbox(
+                        "면접관 선택",
+                        options=interviewer_options,
+                        help="조직도에서 면접관을 선택해주세요"
+                    )
+                    interviewer_id = selected_interviewer.split(' - ')[0] if selected_interviewer else ""
+                else:
+                    interviewer_id = st.text_input(
+                        "면접관 사번",
+                        placeholder="예: EMP001",
+                        help="면접관의 사번을 입력해주세요"
+                    )
+                
+                candidate_name = st.text_input(
+                    "면접자 이름",
+                    placeholder="홍길동",
+                    help="면접자의 이름을 입력해주세요"
+                )
+                
+                position_name = st.text_input(
+                    "공고명 (포지션명)",
+                    placeholder="백엔드 개발자",
+                    help="채용 공고명 또는 포지션명을 입력해주세요"
                 )
             
             with col2:
@@ -82,20 +115,54 @@ def show_admin_page():
                     placeholder="candidate@example.com",
                     help="면접자의 이메일 주소를 입력해주세요"
                 )
+                
+                # 면접 희망일 선택 (여러 날짜 가능)
+                st.write("**면접 희망일 선택 (최대 5일)**")
+                available_dates = get_next_weekdays(20)
+                
+                selected_dates = []
+                for i in range(5):
+                    date_col, check_col = st.columns([4, 1])
+                    with date_col:
+                        selected_date = st.selectbox(
+                            f"희망일 {i+1}",
+                            options=["선택안함"] + available_dates,
+                            format_func=lambda x: format_date_korean(x) if x != "선택안함" else x,
+                            key=f"date_{i}"
+                        )
+                    with check_col:
+                        if selected_date != "선택안함":
+                            selected_dates.append(selected_date)
             
             submitted = st.form_submit_button("📧 면접 일정 조율 시작", use_container_width=True)
             
             if submitted:
+                # 유효성 검사
                 if not interviewer_id.strip():
-                    st.error("면접관 사번을 입력해주세요.")
+                    st.error("면접관을 선택해주세요.")
+                elif not candidate_name.strip():
+                    st.error("면접자 이름을 입력해주세요.")
                 elif not candidate_email.strip():
                     st.error("면접자 이메일을 입력해주세요.")
+                elif not position_name.strip():
+                    st.error("공고명(포지션명)을 입력해주세요.")
                 elif not validate_email(candidate_email):
                     st.error("올바른 이메일 형식을 입력해주세요.")
+                elif not selected_dates:
+                    st.error("최소 1개 이상의 면접 희망일을 선택해주세요.")
                 else:
                     # 새 면접 요청 생성
-                    request = InterviewRequest.create_new(interviewer_id, candidate_email)
+                    request = InterviewRequest.create_new(
+                        interviewer_id=interviewer_id,
+                        candidate_email=candidate_email,
+                        candidate_name=candidate_name,
+                        position_name=position_name,
+                        preferred_dates=selected_dates
+                    )
                     db.save_interview_request(request)
+                    
+                    # 구글 시트에 저장
+                    db.save_to_google_sheet(request)
                     
                     # 면접관에게 이메일 발송
                     if email_service.send_interviewer_invitation(request):
@@ -136,15 +203,35 @@ def show_admin_page():
             for req in requests:
                 data.append({
                     "요청ID": req.id[:8] + "...",
+                    "포지션": req.position_name,
                     "면접관": req.interviewer_id,
-                    "면접자": req.candidate_email,
+                    "면접자": f"{req.candidate_name} ({req.candidate_email})",
                     "상태": req.status,
                     "생성일시": req.created_at.strftime('%m/%d %H:%M'),
-                    "확정일시": req.selected_slot.date + " " + req.selected_slot.time if req.selected_slot else "-"
+                    "확정일시": f"{req.selected_slot.date} {req.selected_slot.time}" if req.selected_slot else "-"
                 })
             
             df = pd.DataFrame(data)
             st.dataframe(df, use_container_width=True)
+    
+    with tab3:
+        st.subheader("📊 구글 시트 관리")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🔄 구글 시트 동기화"):
+                try:
+                    requests = db.get_all_requests()
+                    for req in requests:
+                        db.update_google_sheet(req)
+                    st.success("✅ 구글 시트 동기화 완료")
+                except Exception as e:
+                    st.error(f"❌ 구글 시트 동기화 실패: {e}")
+        
+        with col2:
+            if st.button("📋 구글 시트 열기"):
+                st.markdown(f"[구글 시트 바로가기]({Config.GOOGLE_SHEET_URL})")
 
 def show_interviewer_page(request_id: str):
     """면접관 일정 입력 페이지"""
@@ -159,31 +246,50 @@ def show_interviewer_page(request_id: str):
         return
     
     st.header("📅 면접 가능 일정 입력")
-    st.info(f"면접자: **{request.candidate_email}**")
+    
+    # 면접 정보 표시
+    col1, col2 = st.columns(2)
+    with col1:
+        st.info(f"**포지션:** {request.position_name}")
+        st.info(f"**면접자:** {request.candidate_name}")
+    with col2:
+        st.info(f"**면접자 이메일:** {request.candidate_email}")
+        st.info(f"**요청일:** {request.created_at.strftime('%Y-%m-%d %H:%M')}")
+    
+    # 인사팀에서 선택한 희망일 표시
+    if request.preferred_dates:
+        st.subheader("📅 인사팀에서 제안한 면접 희망일")
+        for i, pref_date in enumerate(request.preferred_dates, 1):
+            st.write(f"{i}. {format_date_korean(pref_date)}")
     
     st.subheader("가능한 면접 일정을 선택해주세요")
     
     with st.form("interviewer_schedule"):
         st.write("**📅 날짜 및 시간 선택**")
         
-        # 날짜 선택
-        available_dates = get_next_weekdays(10)
-        
-        selected_slots = []
-        
         # 동적으로 일정 추가
         if 'slot_count' not in st.session_state:
             st.session_state.slot_count = 1
+        
+        selected_slots = []
         
         for i in range(st.session_state.slot_count):
             st.write(f"**면접 일정 {i+1}**")
             col1, col2, col3 = st.columns([2, 2, 1])
             
             with col1:
+                # 희망일이 있으면 우선 표시
+                available_dates = get_next_weekdays(15)
+                if request.preferred_dates:
+                    # 희망일을 맨 앞에 배치
+                    ordered_dates = request.preferred_dates + [d for d in available_dates if d not in request.preferred_dates]
+                else:
+                    ordered_dates = available_dates
+                
                 date = st.selectbox(
                     "날짜",
-                    options=available_dates,
-                    format_func=format_date_korean,
+                    options=ordered_dates,
+                    format_func=lambda x: f"🌟 {format_date_korean(x)}" if x in (request.preferred_dates or []) else format_date_korean(x),
                     key=f"date_{i}"
                 )
             
@@ -206,12 +312,17 @@ def show_interviewer_page(request_id: str):
             if date and time:
                 selected_slots.append(InterviewSlot(date, time, duration))
         
-        # 일정 추가 버튼
-        col1, col2 = st.columns([1, 4])
+        # 일정 추가/제거 버튼
+        col1, col2, col3 = st.columns([1, 1, 3])
         with col1:
             if st.form_submit_button("➕ 일정 추가"):
                 st.session_state.slot_count += 1
-                st.experimental_rerun()
+                st.rerun()
+        
+        with col2:
+            if st.form_submit_button("➖ 일정 제거") and st.session_state.slot_count > 1:
+                st.session_state.slot_count -= 1
+                st.rerun()
         
         # 제출 버튼
         submitted = st.form_submit_button("📧 면접자에게 일정 전송", use_container_width=True)
@@ -235,6 +346,7 @@ def show_interviewer_page(request_id: str):
                 request.updated_at = datetime.now()
                 
                 db.save_interview_request(request)
+                db.update_google_sheet(request)
                 
                 # 면접자에게 이메일 발송
                 if email_service.send_candidate_invitation(request):
@@ -258,7 +370,7 @@ def show_candidate_page(request_id: str):
     
     if request.status == Config.Status.CONFIRMED:
         st.success("✅ 면접 일정이 이미 확정되었습니다!")
-        st.info(f"**확정된 면접 일시:** {request.selected_slot}")
+        st.info(f"**확정된 면접 일시:** {format_date_korean(request.selected_slot.date)} {request.selected_slot.time} ({request.selected_slot.duration}분)")
         return
     
     if request.status != Config.Status.PENDING_CANDIDATE:
@@ -266,7 +378,15 @@ def show_candidate_page(request_id: str):
         return
     
     st.header("📅 면접 일정 선택")
-    st.info(f"면접관: **{request.interviewer_id}**")
+    
+    # 면접 정보 표시
+    col1, col2 = st.columns(2)
+    with col1:
+        st.info(f"**포지션:** {request.position_name}")
+        st.info(f"**면접관:** {request.interviewer_id}")
+    with col2:
+        st.info(f"**안녕하세요 {request.candidate_name}님**")
+        st.info(f"**요청일:** {request.created_at.strftime('%Y-%m-%d')}")
     
     st.subheader("제안된 면접 일정 중 선택해주세요")
     
@@ -277,7 +397,7 @@ def show_candidate_page(request_id: str):
             slot_text = f"{format_date_korean(slot.date)} {slot.time} ({slot.duration}분)"
             slot_options.append(slot_text)
         
-        slot_options.append("🔄 다른 일정으로 조율 필요")
+        slot_options.append("❌ 제안된 일정으로는 불가능")
         
         selected_option = st.radio(
             "원하는 면접 일정을 선택해주세요:",
@@ -285,16 +405,16 @@ def show_candidate_page(request_id: str):
             format_func=lambda x: slot_options[x]
         )
         
-        # 기타 일정 조율이 필요한 경우
+        # 다른 일정이 필요한 경우
         candidate_note = ""
         if selected_option == len(slot_options) - 1:
             candidate_note = st.text_area(
-                "희망하는 면접 일정이나 요청사항을 입력해주세요:",
-                placeholder="예: 다음 주 화요일 오후 2시 이후 가능합니다.",
+                "가능한 면접 일정이나 요청사항을 입력해주세요:",
+                placeholder="예: 다음 주 화요일 오후 2시 이후 가능합니다.\n또는 다음 주 전체 불가능하고, 그 다음 주는 가능합니다.",
                 height=100
             )
         
-        submitted = st.form_submit_button("✅ 면접 일정 확정", use_container_width=True)
+        submitted = st.form_submit_button("✅ 면접 일정 선택 완료", use_container_width=True)
         
         if submitted:
             if selected_option < len(request.available_slots):
@@ -302,30 +422,34 @@ def show_candidate_page(request_id: str):
                 selected_slot = request.available_slots[selected_option]
                 request.selected_slot = selected_slot
                 request.status = Config.Status.CONFIRMED
+                success_message = "🎉 면접 일정이 확정되었습니다!"
+                
             else:
-                # 기타 일정 조율
+                # 다른 일정 필요
                 if not candidate_note.strip():
-                    st.error("다른 일정 조율이 필요한 경우 구체적인 요청사항을 입력해주세요.")
+                    st.error("가능한 일정이 없는 경우 구체적인 가능 일정을 입력해주세요.")
                     return
                 request.status = Config.Status.PENDING_CONFIRMATION
+                success_message = "📧 일정 재조율 요청이 인사팀에 전달되었습니다!"
             
             request.candidate_note = candidate_note
             request.updated_at = datetime.now()
             
             db.save_interview_request(request)
+            db.update_google_sheet(request)
             
             # 확정 알림 발송
             if email_service.send_confirmation_notification(request):
+                st.success(success_message)
                 if request.status == Config.Status.CONFIRMED:
-                    st.success("🎉 면접 일정이 확정되었습니다!")
                     st.success("📧 관련자 모두에게 확정 알림을 발송했습니다.")
                     
                     st.subheader("📋 확정된 면접 정보")
                     st.write(f"**면접 일시:** {format_date_korean(request.selected_slot.date)} {request.selected_slot.time}")
                     st.write(f"**소요 시간:** {request.selected_slot.duration}분")
                     st.write(f"**면접관:** {request.interviewer_id}")
+                    st.write(f"**포지션:** {request.position_name}")
                 else:
-                    st.success("📧 일정 조율 요청이 인사팀에 전달되었습니다!")
                     st.info("인사팀에서 검토 후 별도 연락드리겠습니다.")
             else:
                 st.error("면접 일정은 저장되었지만 알림 발송에 실패했습니다.")
