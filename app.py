@@ -56,14 +56,24 @@ def main():
             st.error("❌ 조직도 데이터 로드 실패")
             st.info("employee_data.xlsx 파일을 확인해주세요")
         
-        # 페이지 링크 안내
+        # 🔧 수정된 페이지 링크 안내
         st.divider()
-        st.subheader("🔗 다른 페이지")
-        st.markdown("**면접관용:** `/면접관_일정입력?id=요청ID`")
-        st.markdown("**면접자용 (독립앱):** `candidate_app.py`")
-        st.caption("이메일에서 자동으로 링크가 생성됩니다")
+        st.subheader("🔗 시스템 페이지")
+        st.markdown("**면접관용:** `/면접관_일정입력`")
+        st.markdown("**면접자용:** `/면접자_일정선택`")
+        st.caption("각 페이지에서 사번/이메일로 인증합니다")
+        
+        # 빠른 링크 버튼
+        st.markdown("### 🚀 빠른 이동")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("👨‍💼 면접관", use_container_width=True):
+                st.markdown(f'<meta http-equiv="refresh" content="0; url={Config.APP_URL}/면접관_일정입력">', unsafe_allow_html=True)
+        with col2:
+            if st.button("👤 면접자", use_container_width=True):
+                st.markdown(f'<meta http-equiv="refresh" content="0; url={Config.APP_URL}/면접자_일정선택">', unsafe_allow_html=True)
     
-    tab1, tab2, tab3 = st.tabs(["새 면접 요청", "진행 현황", "구글 시트 관리"])
+    tab1, tab2, tab3, tab4 = st.tabs(["새 면접 요청", "진행 현황", "구글 시트 관리", "시스템 관리"])
     
     with tab1:
         st.subheader("새로운 면접 일정 조율 요청")
@@ -182,9 +192,13 @@ def main():
                         st.success(f"📧 면접관({interviewer_id})에게 일정 입력 요청 메일을 발송했습니다.")
                         st.info("면접관이 일정을 입력하면 자동으로 면접자에게 알림이 전송됩니다.")
                         
-                        # 생성된 링크 표시
-                        interviewer_link = f"{Config.APP_URL}/면접관_일정입력?id={request.id}"
-                        st.info(f"**면접관 링크:** {interviewer_link}")
+                        # 🔧 수정된 링크 표시
+                        st.markdown("### 📎 관련 링크")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.info(f"**면접관 페이지:** {Config.APP_URL}/면접관_일정입력")
+                        with col2:
+                            st.info(f"**면접자 페이지:** {Config.APP_URL}/면접자_일정선택")
                         
                         # 선택된 희망일시 미리보기 (HTML 테이블)
                         st.subheader("📋 전송된 희망일시")
@@ -254,9 +268,9 @@ def main():
             
             data = []
             for req in requests:
-                interviewer_link = f"{Config.APP_URL}/면접관_일정입력?id={req.id}"
-                # 🔧 수정: 독립 앱 URL 사용
-                candidate_link = f"{Config.CANDIDATE_APP_URL}?id={req.id}"
+                # 🔧 수정된 링크 (파라미터 없음)
+                interviewer_link = f"{Config.APP_URL}/면접관_일정입력"
+                candidate_link = f"{Config.APP_URL}/면접자_일정선택"
                 
                 data.append({
                     "요청ID": req.id[:8] + "...",
@@ -272,6 +286,53 @@ def main():
             
             df = pd.DataFrame(data)
             st.dataframe(df, use_container_width=True)
+            
+            # 🔧 추가: 개별 요청 관리
+            st.subheader("🔧 개별 요청 관리")
+            
+            # 요청 선택
+            selected_request_id = st.selectbox(
+                "관리할 요청을 선택하세요",
+                options=["선택하세요"] + [f"{req.id[:8]}... - {req.position_name} ({req.candidate_name})" for req in requests]
+            )
+            
+            if selected_request_id != "선택하세요":
+                # 선택된 요청 찾기
+                request_short_id = selected_request_id.split(' - ')[0]
+                selected_request = None
+                for req in requests:
+                    if req.id.startswith(request_short_id.replace('...', '')):
+                        selected_request = req
+                        break
+                
+                if selected_request:
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        if st.button("📧 면접관에게 다시 알림", use_container_width=True):
+                            if email_service.send_interviewer_invitation(selected_request):
+                                st.success("✅ 면접관에게 알림을 다시 발송했습니다.")
+                            else:
+                                st.error("❌ 알림 발송에 실패했습니다.")
+                    
+                    with col2:
+                        if st.button("📧 면접자에게 다시 알림", use_container_width=True):
+                            if selected_request.available_slots:
+                                if email_service.send_candidate_invitation(selected_request):
+                                    st.success("✅ 면접자에게 알림을 다시 발송했습니다.")
+                                else:
+                                    st.error("❌ 알림 발송에 실패했습니다.")
+                            else:
+                                st.warning("⚠️ 면접관이 아직 일정을 입력하지 않았습니다.")
+                    
+                    with col3:
+                        if st.button("❌ 요청 취소", use_container_width=True, type="secondary"):
+                            selected_request.status = Config.Status.CANCELLED
+                            selected_request.updated_at = datetime.now()
+                            db.save_interview_request(selected_request)
+                            db.update_google_sheet(selected_request)
+                            st.success("✅ 요청이 취소되었습니다.")
+                            st.rerun()
     
     with tab3:
         st.subheader("📊 구글 시트 관리")
@@ -296,6 +357,90 @@ def main():
                     st.markdown(f"[구글 시트 바로가기]({Config.GOOGLE_SHEET_URL})")
                 else:
                     st.error("구글 시트 ID가 설정되지 않았습니다.")
+        
+        # 구글 시트 설정 확인
+        st.subheader("🔧 구글 시트 설정")
+        
+        if Config.GOOGLE_SHEET_ID:
+            st.success(f"✅ 구글 시트 ID: {Config.GOOGLE_SHEET_ID}")
+            st.info(f"🔗 시트 URL: {Config.GOOGLE_SHEET_URL}")
+        else:
+            st.error("❌ 구글 시트 ID가 설정되지 않았습니다.")
+            st.info("환경변수 GOOGLE_SHEET_ID를 설정해주세요.")
+        
+        # 수동 시트 생성
+        if st.button("📝 새 구글 시트 생성 (수동)"):
+            st.info("구글 시트를 수동으로 생성하고 ID를 환경변수에 설정해주세요.")
+    
+    with tab4:
+        st.subheader("⚙️ 시스템 관리")
+        
+        # 환경 설정 확인
+        st.subheader("🔍 환경 설정 확인")
+        
+        config_status = {
+            "이메일 서버": "✅" if Config.EmailConfig.EMAIL_USER else "❌",
+            "구글 시트": "✅" if Config.GOOGLE_SHEET_ID else "❌",
+            "조직도 파일": "✅" if org_data else "❌",
+            "앱 URL": "✅" if Config.APP_URL else "❌"
+        }
+        
+        for item, status in config_status.items():
+            st.write(f"{status} {item}")
+        
+        # 데이터베이스 관리
+        st.subheader("🗄️ 데이터베이스 관리")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("📊 통계 보기"):
+                requests = db.get_all_requests()
+                st.write(f"**총 요청 수:** {len(requests)}")
+                
+                # 상태별 통계
+                status_counts = {}
+                for req in requests:
+                    status_counts[req.status] = status_counts.get(req.status, 0) + 1
+                
+                st.write("**상태별 통계:**")
+                for status, count in status_counts.items():
+                    st.write(f"- {status}: {count}건")
+        
+        with col2:
+            if st.button("🧹 완료된 요청 정리"):
+                # 30일 이상 된 확정 요청들을 아카이브
+                st.info("완료된 요청 정리 기능은 추후 구현 예정입니다.")
+        
+        with col3:
+            if st.button("📤 데이터 백업"):
+                # 데이터베이스 백업
+                st.info("데이터 백업 기능은 추후 구현 예정입니다.")
+        
+        # 로그 확인
+        st.subheader("📝 시스템 로그")
+        
+        if st.button("📋 최근 로그 보기"):
+            st.info("로그 시스템은 추후 구현 예정입니다.")
+        
+        # 🔧 페이지 링크 테스트
+        st.subheader("🔗 페이지 링크 테스트")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**면접관 페이지**")
+            interviewer_url = f"{Config.APP_URL}/면접관_일정입력"
+            st.code(interviewer_url)
+            if st.button("🧪 면접관 페이지 테스트"):
+                st.markdown(f'<a href="{interviewer_url}" target="_blank">면접관 페이지 열기</a>', unsafe_allow_html=True)
+        
+        with col2:
+            st.write("**면접자 페이지**")
+            candidate_url = f"{Config.APP_URL}/면접자_일정선택"
+            st.code(candidate_url)
+            if st.button("🧪 면접자 페이지 테스트"):
+                st.markdown(f'<a href="{candidate_url}" target="_blank">면접자 페이지 열기</a>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
