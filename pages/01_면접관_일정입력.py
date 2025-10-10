@@ -245,82 +245,112 @@ def show_request_detail(request, index):
         
         st.markdown(table_html, unsafe_allow_html=True)
     
-    # 일정 입력 폼
+    # 🔧 수정: 일정 입력 폼 (폼 밖에서 상태 관리)
     st.write("**⏰ 가능한 면접 일정을 선택해주세요**")
     
-    with st.form(f"interviewer_schedule_{index}"):
-        selected_slots = []
-        
-        if hasattr(request, 'preferred_datetime_slots') and request.preferred_datetime_slots:
-            for i, datetime_slot in enumerate(request.preferred_datetime_slots):
-                st.markdown(f"**📅 옵션 {i+1}**")
+    # 세션 상태로 선택 상태 관리
+    if f'selected_slots_{index}' not in st.session_state:
+        st.session_state[f'selected_slots_{index}'] = {}
+    
+    selected_slots = []
+    
+    if hasattr(request, 'preferred_datetime_slots') and request.preferred_datetime_slots:
+        for i, datetime_slot in enumerate(request.preferred_datetime_slots):
+            st.markdown(f"### 📅 옵션 {i+1}")
+            
+            if "면접관선택" in datetime_slot:
+                # 면접관이 시간을 직접 선택해야 하는 경우
+                date_part = datetime_slot.split(' ')[0]
                 
-                if "면접관선택" in datetime_slot:
-                    # 면접관이 시간을 직접 선택해야 하는 경우
-                    date_part = datetime_slot.split(' ')[0]
+                col1, col2, col3 = st.columns([3, 2, 1])
+                
+                with col1:
+                    # 체크박스 상태를 세션에서 관리
+                    checkbox_key = f"slot_{index}_{i}"
+                    is_selected = st.checkbox(
+                        f"📅 {format_date_korean(date_part)} (시간 선택 필요)",
+                        key=checkbox_key,
+                        help="이 날짜를 선택하고 시간을 지정해주세요"
+                    )
                     
-                    col1, col2, col3 = st.columns([3, 2, 1])
+                    # 세션 상태 업데이트
+                    st.session_state[f'selected_slots_{index}'][f'slot_{i}'] = is_selected
+                
+                with col2:
+                    # 체크박스 상태에 따라 disabled 설정
+                    selected_time = st.selectbox(
+                        "⏰ 시간 선택",
+                        options=["선택안함"] + Config.TIME_SLOTS,
+                        key=f"time_select_{index}_{i}",
+                        disabled=not is_selected,  # 실시간 반영
+                        help="면접 시작 시간을 선택해주세요"
+                    )
+                
+                with col3:
+                    duration = st.selectbox(
+                        "⏱️ 소요시간",
+                        options=[30, 60, 90, 120],
+                        index=1,
+                        format_func=lambda x: f"{x}분",
+                        key=f"duration_{index}_{i}",
+                        disabled=not is_selected,  # 실시간 반영
+                        help="예상 면접 소요 시간"
+                    )
+                
+                # 선택된 슬롯 추가
+                if is_selected and selected_time != "선택안함":
+                    selected_slots.append(InterviewSlot(date_part, selected_time, duration))
                     
-                    with col1:
-                        is_selected = st.checkbox(
-                            f"📅 {format_date_korean(date_part)} (시간 선택 필요)",
-                            key=f"slot_{index}_{i}"
-                        )
+            else:
+                # 시간이 고정된 경우
+                date_part, time_part = datetime_slot.split(' ')
+                
+                col1, col2, col3 = st.columns([3, 2, 1])
+                
+                with col1:
+                    checkbox_key = f"slot_{index}_{i}"
+                    is_selected = st.checkbox(
+                        f"📅 {format_date_korean(date_part)} {time_part}",
+                        key=checkbox_key,
+                        help="이 일정이 가능하면 선택해주세요"
+                    )
                     
-                    with col2:
-                        selected_time = st.selectbox(
-                            "⏰ 시간 선택",
-                            options=["선택안함"] + Config.TIME_SLOTS,
-                            key=f"time_select_{index}_{i}",
-                            disabled=not is_selected
-                        )
-                    
-                    with col3:
-                        duration = st.selectbox(
-                            "⏱️ 소요시간",
-                            options=[30, 60, 90, 120],
-                            index=1,
-                            format_func=lambda x: f"{x}분",
-                            key=f"duration_{index}_{i}",
-                            disabled=not is_selected
-                        )
-                    
-                    if is_selected and selected_time != "선택안함":
-                        selected_slots.append(InterviewSlot(date_part, selected_time, duration))
-                        
-                else:
-                    # 시간이 고정된 경우
-                    date_part, time_part = datetime_slot.split(' ')
-                    
-                    col1, col2, col3 = st.columns([3, 2, 1])
-                    
-                    with col1:
-                        is_selected = st.checkbox(
-                            f"📅 {format_date_korean(date_part)} {time_part}",
-                            key=f"slot_{index}_{i}"
-                        )
-                    
-                    with col2:
-                        st.markdown(f"**⏰ {time_part}** (고정)")
-                    
-                    with col3:
-                        duration = st.selectbox(
-                            "⏱️ 소요시간",
-                            options=[30, 60, 90, 120],
-                            index=1,
-                            format_func=lambda x: f"{x}분",
-                            key=f"duration_{index}_{i}",
-                            disabled=not is_selected
-                        )
-                    
-                    if is_selected:
-                        selected_slots.append(InterviewSlot(date_part, time_part, duration))
+                    # 세션 상태 업데이트
+                    st.session_state[f'selected_slots_{index}'][f'slot_{i}'] = is_selected
+                
+                with col2:
+                    st.markdown(f"**⏰ {time_part}** (고정)")
+                
+                with col3:
+                    duration = st.selectbox(
+                        "⏱️ 소요시간",
+                        options=[30, 60, 90, 120],
+                        index=1,
+                        format_func=lambda x: f"{x}분",
+                        key=f"duration_{index}_{i}",
+                        disabled=not is_selected  # 실시간 반영
+                    )
+                
+                # 선택된 슬롯 추가
+                if is_selected:
+                    selected_slots.append(InterviewSlot(date_part, time_part, duration))
+    
+    # 🔧 폼은 제출 버튼만 포함
+    with st.form(f"interviewer_schedule_{index}"):
+        # 선택된 일정 미리보기
+        if selected_slots:
+            st.write("**✅ 선택된 일정:**")
+            for i, slot in enumerate(selected_slots, 1):
+                st.write(f"{i}. {format_date_korean(slot.date)} {slot.time} ({slot.duration}분)")
+        else:
+            st.info("💡 위에서 가능한 일정을 선택해주세요.")
         
         # 제출 버튼
         submitted = st.form_submit_button(
             "📧 면접자에게 일정 전송", 
             use_container_width=True, 
-            type="primary"
+            type="primary",
+            disabled=len(selected_slots) == 0  # 선택된 슬롯이 없으면 비활성화
         )
         
         if submitted:
@@ -341,6 +371,10 @@ def show_request_detail(request, index):
                     
                     # 세션 상태에서 처리된 요청 제거
                     st.session_state.pending_requests = [r for r in st.session_state.pending_requests if r.id != request.id]
+                    
+                    # 선택 상태 초기화
+                    if f'selected_slots_{index}' in st.session_state:
+                        del st.session_state[f'selected_slots_{index}']
                     
                     # 페이지 새로고침
                     st.rerun()
