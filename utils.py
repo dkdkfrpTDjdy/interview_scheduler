@@ -100,7 +100,7 @@ def load_employee_data():
         return []
 
 def get_employee_email(employee_id: str) -> str:
-    """사번으로 직원 이메일 조회 (실제 이메일 주소 반환)"""
+    """사번으로 직원 이메일 조회 (🔧 실제 이메일 주소 반환)"""
     employees = load_employee_data()
     
     for emp in employees:
@@ -148,9 +148,10 @@ def search_employee(keyword: str) -> List[dict]:
     return results
 
 def create_calendar_invite(request) -> str:
-    """캘린더 초대장 생성 (ICS 형식)"""
+    """🔧 개선된 캘린더 초대장 생성 (ICS 형식)"""
     try:
         from datetime import datetime
+        import uuid
         
         if not request.selected_slot:
             return None
@@ -166,27 +167,56 @@ def create_calendar_invite(request) -> str:
         # 종료 시간 계산
         end_datetime = interview_datetime + timedelta(minutes=request.selected_slot.duration)
         
-        # ICS 형식으로 생성
+        # 면접관 정보 조회
+        interviewer_info = get_employee_info(request.interviewer_id)
+        interviewer_email = get_employee_email(request.interviewer_id)
+        
+        # UTC 시간으로 변환
+        utc_start = interview_datetime.strftime('%Y%m%dT%H%M%S')
+        utc_end = end_datetime.strftime('%Y%m%dT%H%M%S')
+        
+        # 고유 UID 생성
+        event_uid = f"{request.id}-{uuid.uuid4().hex[:8]}@{Config.COMPANY_DOMAIN}"
+        
+        # ICS 형식으로 생성 (개선된 버전)
         ics_content = f"""BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//AI Interview System//Interview Schedule//KR
 CALSCALE:GREGORIAN
 METHOD:REQUEST
+BEGIN:VTIMEZONE
+TZID:Asia/Seoul
+BEGIN:STANDARD
+DTSTART:19701101T000000
+TZOFFSETFROM:+0900
+TZOFFSETTO:+0900
+TZNAME:KST
+END:STANDARD
+END:VTIMEZONE
 BEGIN:VEVENT
-UID:{request.id}@{Config.COMPANY_DOMAIN}
-DTSTART:{interview_datetime.strftime('%Y%m%dT%H%M%S')}
-DTEND:{end_datetime.strftime('%Y%m%dT%H%M%S')}
+UID:{event_uid}
+DTSTART;TZID=Asia/Seoul:{utc_start}
+DTEND;TZID=Asia/Seoul:{utc_end}
+DTSTAMP:{datetime.now().strftime('%Y%m%dT%H%M%SZ')}
 SUMMARY:면접 - {request.position_name}
-DESCRIPTION:면접자: {request.candidate_name}\\n포지션: {request.position_name}\\n면접관: {request.interviewer_id}\\n\\n※ 면접 10분 전까지 도착해주세요.
+DESCRIPTION:📋 면접 정보\\n\\n• 포지션: {request.position_name}\\n• 면접자: {request.candidate_name}\\n• 면접관: {interviewer_info['name']} ({interviewer_info['department']})\\n• 소요시간: {request.selected_slot.duration}분\\n\\n⏰ 면접 10분 전까지 도착해주세요.\\n📧 문의: hr@{Config.COMPANY_DOMAIN}
 LOCATION:회사 면접실
-ORGANIZER:mailto:{get_employee_email(request.interviewer_id)}
-ATTENDEE:mailto:{request.candidate_email}
+ORGANIZER;CN={interviewer_info['name']}:mailto:{interviewer_email}
+ATTENDEE;CN={request.candidate_name};ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:{request.candidate_email}
+ATTENDEE;CN={interviewer_info['name']};ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED:mailto:{interviewer_email}
 STATUS:CONFIRMED
 TRANSP:OPAQUE
+PRIORITY:5
+CLASS:PUBLIC
 BEGIN:VALARM
 TRIGGER:-PT30M
 ACTION:DISPLAY
-DESCRIPTION:면접 30분 전 알림
+DESCRIPTION:면접 30분 전 알림 - {request.position_name}
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT10M
+ACTION:DISPLAY
+DESCRIPTION:면접 10분 전 알림 - 준비해주세요!
 END:VALARM
 END:VEVENT
 END:VCALENDAR"""
@@ -196,3 +226,44 @@ END:VCALENDAR"""
     except Exception as e:
         print(f"캘린더 초대장 생성 실패: {e}")
         return None
+
+def format_duration_korean(minutes: int) -> str:
+    """소요시간을 한국어로 포맷"""
+    if minutes < 60:
+        return f"{minutes}분"
+    else:
+        hours = minutes // 60
+        remaining_minutes = minutes % 60
+        if remaining_minutes == 0:
+            return f"{hours}시간"
+        else:
+            return f"{hours}시간 {remaining_minutes}분"
+
+def get_business_days_between(start_date: str, end_date: str) -> int:
+    """두 날짜 사이의 영업일 수 계산"""
+    try:
+        start = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end = datetime.strptime(end_date, '%Y-%m-%d').date()
+        
+        business_days = 0
+        current_date = start
+        
+        while current_date <= end:
+            if current_date.weekday() < 5:  # 월-금
+                business_days += 1
+            current_date += timedelta(days=1)
+        
+        return business_days
+    except:
+        return 0
+
+def is_business_hour(time_str: str) -> bool:
+    """업무시간 여부 확인 (9:00-18:00)"""
+    try:
+        time_obj = datetime.strptime(time_str, '%H:%M').time()
+        business_start = datetime.strptime('09:00', '%H:%M').time()
+        business_end = datetime.strptime('18:00', '%H:%M').time()
+        
+        return business_start <= time_obj <= business_end
+    except:
+        return False
