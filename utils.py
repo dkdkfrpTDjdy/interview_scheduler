@@ -27,6 +27,17 @@ def format_date_korean(date_str: str) -> str:
     except:
         return date_str
 
+def format_datetime_korean(datetime_str: str) -> str:
+    """일시를 한국어 형식으로 변환"""
+    try:
+        if ' ' in datetime_str:
+            date_part, time_part = datetime_str.split(' ')
+            return f"{format_date_korean(date_part)} {time_part}"
+        else:
+            return format_date_korean(datetime_str)
+    except:
+        return datetime_str
+
 def validate_email(email: str) -> bool:
     """이메일 유효성 검사"""
     if not email:
@@ -78,6 +89,7 @@ def load_employee_data():
         
         if not all(col in df.columns for col in required_columns):
             print("필요한 컬럼을 찾을 수 없습니다. 컬럼명을 확인해주세요.")
+            print(f"현재 컬럼: {df.columns.tolist()}")
             return []
         
         employees = []
@@ -98,7 +110,7 @@ def load_employee_data():
         return []
 
 def get_employee_email(employee_id: str) -> str:
-    """사번으로 직원 이메일 조회"""
+    """사번으로 직원 이메일 조회 (조직도 파일에서)"""
     employees = load_employee_data()
     
     for emp in employees:
@@ -123,5 +135,3 @@ def get_employee_info(employee_id: str) -> dict:
         'department': '미확인',
         'email': f"{employee_id.lower()}@{Config.COMPANY_DOMAIN}"
     }
-
-
