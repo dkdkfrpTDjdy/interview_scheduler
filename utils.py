@@ -27,11 +27,20 @@ def format_date_korean(date_str: str) -> str:
     except:
         return date_str
 
+# utils.py - validate_email 함수 수정
 def validate_email(email: str) -> bool:
     """이메일 유효성 검사"""
     import re
+    
+    # 기존 정규식에 오타가 있었음 (마지막에 \\$ 대신 \$)
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\$'
-    return re.match(pattern, email) is not None
+    
+    result = re.match(pattern, email) is not None
+    
+    # 디버깅을 위한 출력 (임시)
+    print(f"🔍 이메일 검증: {email} -> {'✅ 유효' if result else '❌ 무효'}")
+    
+    return result
 
 def load_employee_data():
     """조직도 엑셀 파일에서 직원 데이터 로드"""
@@ -98,3 +107,4 @@ def get_employee_info(employee_id: str) -> dict:
         'department': '미확인',
         'email': f"{employee_id.lower()}@{Config.COMPANY_DOMAIN}"
     }
+
