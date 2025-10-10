@@ -124,7 +124,7 @@ class EmailService:
         interviewer_email = get_employee_email(request.interviewer_id)
         interviewer_info = get_employee_info(request.interviewer_id)
         
-        link = f"{Config.APP_URL}/면접관_일정입력?id={request.id}"
+        link = f"{Config.APP_URL}/면접관_일정입력"
         
         subject = "📅 [면접 일정 조율] 면접 가능 일정 입력 요청"
         
@@ -288,7 +288,7 @@ class EmailService:
         """면접자에게 일정 선택 요청 메일 발송 (HTML 테이블 형식, 독립 앱 링크)"""
         interviewer_info = get_employee_info(request.interviewer_id)
         # 🔧 수정: 독립 앱 URL 사용
-        candidate_link = f"{Config.CANDIDATE_APP_URL}?id={request.id}"
+        candidate_link = f"https://candidate-app.streamlit.app/"
         
         # 가능한 일정 목록 HTML 테이블 생성 (날짜 + 시간 정보)
         slots_html = ""
@@ -586,3 +586,4 @@ class EmailService:
             subject=subject,
             body=body
         )
+
