@@ -31,7 +31,7 @@ class Config:
     COMPANY_DOMAIN = os.getenv("COMPANY_DOMAIN", "ajnet.co.kr")
     
     # 앱 URL
-    APP_URL = os.getenv("APP_URL", "https://your-app.streamlit.app")
+    APP_URL = os.getenv("APP_URL", "https://interview-scheduler-ajnetworks.streamlit.app")
     
     # 면접 시간 슬롯 (오전 9시 ~ 오후 5시)
     TIME_SLOTS = [
@@ -60,3 +60,4 @@ class Config:
     
     # 조직도 엑셀 파일 경로
     EMPLOYEE_DATA_PATH = os.getenv("EMPLOYEE_DATA_PATH", "employee_data.xlsx")
+
