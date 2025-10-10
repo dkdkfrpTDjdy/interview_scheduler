@@ -1,6 +1,10 @@
 import os
 from datetime import datetime, timedelta
 import pytz
+from dotenv import load_dotenv
+
+# .env 파일 로드
+load_dotenv()
 
 class Config:
     # 데이터베이스 설정
@@ -51,7 +55,7 @@ class Config:
     
     # 구글 시트 설정
     GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
-    GOOGLE_SHEET_URL = f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/edit"
+    GOOGLE_SHEET_URL = f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/edit" if os.getenv("GOOGLE_SHEET_ID") else ""
     GOOGLE_CREDENTIALS_PATH = os.getenv("GOOGLE_CREDENTIALS_PATH", "service-account.json")
     
     # 조직도 엑셀 파일 경로
