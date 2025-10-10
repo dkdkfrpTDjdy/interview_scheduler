@@ -7,6 +7,7 @@ import ssl
 from typing import List, Optional
 from config import Config
 from models import InterviewRequest, InterviewSlot
+from utils import get_employee_email, get_employee_info, format_datetime_korean
 import logging
 
 # 로깅 설정
@@ -110,17 +111,26 @@ class OutlookEmailService:
         text = re.sub(r'\s+', ' ', text)
         return text.strip()
     
-    def _get_interviewer_email(self, interviewer_id: str) -> str:
-        """면접관 사번으로 이메일 주소 생성"""
-        # 실제 구현시에는 DB에서 조회하거나 AD에서 조회
-        return f"{interviewer_id.lower()}@{self.company_domain}"
-    
     def send_interviewer_invitation(self, request: InterviewRequest):
         """면접관에게 일정 입력 요청 메일 발송"""
-        interviewer_email = self._get_interviewer_email(request.interviewer_id)
+        # 조직도에서 이메일 주소 조회
+        interviewer_email = get_employee_email(request.interviewer_id)
+        interviewer_info = get_employee_info(request.interviewer_id)
+        
         link = f"{Config.APP_URL}?role=interviewer&id={request.id}"
         
         subject = "📅 [면접 일정 조율] 면접 가능 일정 입력 요청"
+        
+        # 희망일시 목록 HTML 생성
+        preferred_slots_html = ""
+        if request.preferred_datetime_slots:
+            for i, datetime_slot in enumerate(request.preferred_datetime_slots, 1):
+                preferred_slots_html += f"""
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 8px; text-align: center; font-weight: bold;">{i}</td>
+                    <td style="padding: 8px;">{format_datetime_korean(datetime_slot)}</td>
+                </tr>
+                """
         
         body = f"""
         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -129,7 +139,7 @@ class OutlookEmailService:
             </div>
             
             <div style="padding: 20px; background-color: #f8f9fa;">
-                <p>안녕하세요, <strong>{request.interviewer_id}</strong>님</p>
+                <p>안녕하세요, <strong>{interviewer_info['name']}</strong>님 ({interviewer_info['department']})</p>
                 <p>새로운 면접 일정 조율 요청이 도착했습니다.</p>
                 
                 <div style="background-color: white; padding: 15px; border-radius: 8px; border-left: 4px solid #0078d4; margin: 20px 0;">
@@ -153,7 +163,27 @@ class OutlookEmailService:
                         </tr>
                     </table>
                 </div>
-                
+        """
+        
+        if preferred_slots_html:
+            body += f"""
+                <div style="background-color: white; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745; margin: 20px 0;">
+                    <h3 style="color: #28a745; margin-top: 0;">🗓️ 인사팀 제안 희망일시</h3>
+                    <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+                        <thead>
+                            <tr style="background-color: #f8f9fa;">
+                                <th style="padding: 10px; border-bottom: 2px solid #ddd;">번호</th>
+                                <th style="padding: 10px; border-bottom: 2px solid #ddd;">희망 일시</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {preferred_slots_html}
+                        </tbody>
+                    </table>
+                </div>
+            """
+        
+        body += f"""
                 <div style="text-align: center; margin: 30px 0;">
                     <a href="{link}" 
                        style="background-color: #0078d4; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">
@@ -164,7 +194,8 @@ class OutlookEmailService:
                 <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107; margin: 20px 0;">
                     <p style="margin: 0;"><strong>💡 안내사항</strong></p>
                     <ul style="margin: 10px 0; padding-left: 20px;">
-                        <li>가능한 면접 일정을 여러 개 제안해주세요</li>
+                        <li>가능한 면접 일시를 여러 개 제안해주세요</li>
+                        <li>인사팀 희망일시를 참고하되, 다른 일시도 제안 가능합니다</li>
                         <li>일정 입력 후 자동으로 면접자에게 알림이 전송됩니다</li>
                         <li>면접자가 일정을 선택하면 확정 알림을 받게 됩니다</li>
                     </ul>
@@ -191,7 +222,9 @@ class OutlookEmailService:
     
     def send_candidate_invitation(self, request: InterviewRequest):
         """면접자에게 일정 선택 요청 메일 발송"""
-        interviewer_email = self._get_interviewer_email(request.interviewer_id)
+        interviewer_email = get_employee_email(request.interviewer_id)
+        interviewer_info = get_employee_info(request.interviewer_id)
+        
         link = f"{Config.APP_URL}?role=candidate&id={request.id}"
         
         # 가능한 일정 목록 HTML 생성
@@ -200,13 +233,12 @@ class OutlookEmailService:
             slots_html += f"""
             <tr style="border-bottom: 1px solid #eee;">
                 <td style="padding: 10px; text-align: center; font-weight: bold;">{i}</td>
-                <td style="padding: 10px;">{slot.date}</td>
-                <td style="padding: 10px;">{slot.time}</td>
+                <td style="padding: 10px;">{format_datetime_korean(f"{slot.date} {slot.time}")}</td>
                 <td style="padding: 10px;">{slot.duration}분</td>
             </tr>
             """
         
-        subject = "📅 [면접 일정 조율] 면접 일정 선택 요청"
+        subject = f"📅 [면접 일정 조율] {request.position_name} - 면접 일정 선택 요청"
         
         body = f"""
         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -215,13 +247,25 @@ class OutlookEmailService:
             </div>
             
             <div style="padding: 20px; background-color: #f8f9fa;">
-                <p>안녕하세요,</p>
+                <p>안녕하세요, <strong>{request.candidate_name}</strong>님</p>
                 <p>면접관께서 제안하신 면접 일정 중에서 원하시는 시간을 선택해주세요.</p>
                 
                 <div style="background-color: white; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745; margin: 20px 0;">
                     <h3 style="color: #28a745; margin-top: 0;">📋 면접 정보</h3>
-                    <p><strong>면접관:</strong> {request.interviewer_id}</p>
-                    <p><strong>담당 부서:</strong> 인사팀</p>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 8px 0; font-weight: bold; width: 120px;">포지션</td>
+                            <td style="padding: 8px 0;">{request.position_name}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; font-weight: bold;">면접관</td>
+                            <td style="padding: 8px 0;">{interviewer_info['name']} ({interviewer_info['department']})</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; font-weight: bold;">면접관 이메일</td>
+                            <td style="padding: 8px 0;">{interviewer_email}</td>
+                        </tr>
+                    </table>
                 </div>
                 
                 <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
@@ -230,8 +274,7 @@ class OutlookEmailService:
                         <thead>
                             <tr style="background-color: #f8f9fa;">
                                 <th style="padding: 12px; border-bottom: 2px solid #ddd;">번호</th>
-                                <th style="padding: 12px; border-bottom: 2px solid #ddd;">날짜</th>
-                                <th style="padding: 12px; border-bottom: 2px solid #ddd;">시간</th>
+                                <th style="padding: 12px; border-bottom: 2px solid #ddd;">일시</th>
                                 <th style="padding: 12px; border-bottom: 2px solid #ddd;">소요시간</th>
                             </tr>
                         </thead>
@@ -243,7 +286,7 @@ class OutlookEmailService:
                 
                 <div style="text-align: center; margin: 30px 0;">
                     <a href="{link}" 
-                       style="background-color: #28a745; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                       style="background-color: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">
                         ✅ 면접 일정 선택하기
                     </a>
                 </div>
@@ -255,6 +298,14 @@ class OutlookEmailService:
                         <li>일정 선택 후 자동으로 모든 관련자에게 확정 알림이 전송됩니다</li>
                         <li>궁금한 사항이 있으시면 인사팀으로 연락해주세요</li>
                     </ul>
+                </div>
+                
+                <div style="background-color: #e8f5e8; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745; margin: 20px 0;">
+                    <p style="margin: 0;"><strong>🔗 링크 접속이 안 되는 경우</strong></p>
+                    <p style="margin: 5px 0;">아래 URL을 브라우저에 직접 복사해서 붙여넣으세요:</p>
+                    <p style="background-color: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; word-break: break-all; margin: 10px 0;">
+                        {link}
+                    </p>
                 </div>
             </div>
         </div>
@@ -269,21 +320,18 @@ class OutlookEmailService:
     
     def send_confirmation_notification(self, request: InterviewRequest):
         """면접 확정 알림 메일 발송"""
-        interviewer_email = self._get_interviewer_email(request.interviewer_id)
+        interviewer_email = get_employee_email(request.interviewer_id)
+        interviewer_info = get_employee_info(request.interviewer_id)
         
         if request.status == Config.Status.CONFIRMED:
-            subject = "✅ [면접 일정 확정] 면접 일정이 확정되었습니다"
+            subject = f"✅ [면접 일정 확정] {request.position_name} - 면접 일정이 확정되었습니다"
             status_color = "#28a745"
             status_text = "확정 완료"
             
-            # Outlook 달력 초대장 생성 (ICS 파일)
-            calendar_invite = self._create_calendar_invite(request)
-            
         else:
-            subject = "⏳ [면접 일정 조율] 추가 조율이 필요합니다"
+            subject = f"⏳ [면접 일정 조율] {request.position_name} - 추가 조율이 필요합니다"
             status_color = "#ffc107"
             status_text = "추가 조율 필요"
-            calendar_invite = None
         
         body = f"""
         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -296,12 +344,16 @@ class OutlookEmailService:
                     <h3 style="color: {status_color}; margin-top: 0;">📋 면접 정보</h3>
                     <table style="width: 100%; border-collapse: collapse;">
                         <tr>
-                            <td style="padding: 8px 0; font-weight: bold; width: 120px;">면접관</td>
-                            <td style="padding: 8px 0;">{request.interviewer_id} ({interviewer_email})</td>
+                            <td style="padding: 8px 0; font-weight: bold; width: 120px;">포지션</td>
+                            <td style="padding: 8px 0;">{request.position_name}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; font-weight: bold;">면접관</td>
+                            <td style="padding: 8px 0;">{interviewer_info['name']} ({interviewer_info['department']}) - {interviewer_email}</td>
                         </tr>
                         <tr>
                             <td style="padding: 8px 0; font-weight: bold;">면접자</td>
-                            <td style="padding: 8px 0;">{request.candidate_email}</td>
+                            <td style="padding: 8px 0;">{request.candidate_name} ({request.candidate_email})</td>
                         </tr>
                         <tr>
                             <td style="padding: 8px 0; font-weight: bold;">상태</td>
@@ -316,9 +368,9 @@ class OutlookEmailService:
         if request.selected_slot:
             body += f"""
                         <tr style="background-color: #e8f5e8;">
-                            <td style="padding: 8px 0; font-weight: bold;">확정 일시</td>
-                            <td style="padding: 8px 0; font-weight: bold; color: #28a745;">
-                                {request.selected_slot.date} {request.selected_slot.time} ({request.selected_slot.duration}분)
+                            <td style="padding: 12px 0; font-weight: bold; font-size: 16px;">확정 일시</td>
+                            <td style="padding: 12px 0; font-weight: bold; color: #28a745; font-size: 16px;">
+                                {format_datetime_korean(f"{request.selected_slot.date} {request.selected_slot.time}")} ({request.selected_slot.duration}분)
                             </td>
                         </tr>
             """
@@ -365,45 +417,6 @@ class OutlookEmailService:
             subject=subject,
             body=body
         )
-    
-    def _create_calendar_invite(self, request: InterviewRequest) -> str:
-        """Outlook 달력 초대장 생성 (ICS 형식)"""
-        if not request.selected_slot:
-            return None
-        
-        # 실제 프로덕션에서는 icalendar 라이브러리 사용 권장
-        # 여기서는 간단한 ICS 형식 생성
-        
-        from datetime import datetime, timedelta
-        import uuid
-        
-        # 면접 시간 계산
-        interview_date = datetime.strptime(request.selected_slot.date, '%Y-%m-%d')
-        interview_time = datetime.strptime(request.selected_slot.time, '%H:%M').time()
-        start_datetime = datetime.combine(interview_date.date(), interview_time)
-        end_datetime = start_datetime + timedelta(minutes=request.selected_slot.duration)
-        
-        ics_content = f"""BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//면접 일정 조율 시스템//NONSGML v1.0//EN
-BEGIN:VEVENT
-UID:{uuid.uuid4()}@{Config.COMPANY_DOMAIN}
-DTSTAMP:{datetime.now().strftime('%Y%m%dT%H%M%SZ')}
-DTSTART:{start_datetime.strftime('%Y%m%dT%H%M%S')}
-DTEND:{end_datetime.strftime('%Y%m%dT%H%M%S')}
-SUMMARY:면접 - {request.candidate_email}
-DESCRIPTION:면접자: {request.candidate_email}\\n면접관: {request.interviewer_id}\\n소요시간: {request.selected_slot.duration}분
-LOCATION:회사 면접실
-ORGANIZER:MAILTO:{Config.EmailConfig.EMAIL_USER}
-ATTENDEE:MAILTO:{request.candidate_email}
-ATTENDEE:MAILTO:{self._get_interviewer_email(request.interviewer_id)}
-STATUS:CONFIRMED
-SEQUENCE:0
-END:VEVENT
-END:VCALENDAR"""
-        
-        return ics_content
 
 # 기존 EmailService를 OutlookEmailService로 교체
-
 EmailService = OutlookEmailService
