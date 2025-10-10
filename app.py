@@ -28,10 +28,10 @@ db, email_service = init_services()
 def main():
     st.title("📅 AI 면접 일정 조율 시스템")
     
-    # URL 파라미터 확인
-    query_params = st.experimental_get_query_params()
-    role = query_params.get('role', [None])[0]
-    request_id = query_params.get('id', [None])[0]
+    # URL 파라미터 확인 (새로운 API 사용)
+    query_params = st.query_params
+    role = query_params.get('role', None)
+    request_id = query_params.get('id', None)
     
     if role == 'interviewer' and request_id:
         show_interviewer_page(request_id)
