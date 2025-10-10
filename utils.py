@@ -27,20 +27,36 @@ def format_date_korean(date_str: str) -> str:
     except:
         return date_str
 
-# utils.py - validate_email 함수 수정
 def validate_email(email: str) -> bool:
     """이메일 유효성 검사"""
-    import re
+    if not email:
+        return False
     
-    # 기존 정규식에 오타가 있었음 (마지막에 \\$ 대신 \$)
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\$'
+    email = email.strip()
     
-    result = re.match(pattern, email) is not None
+    # 기본 검사
+    if '@' not in email or '.' not in email:
+        return False
     
-    # 디버깅을 위한 출력 (임시)
-    print(f"🔍 이메일 검증: {email} -> {'✅ 유효' if result else '❌ 무효'}")
+    parts = email.split('@')
+    if len(parts) != 2:
+        return False
     
-    return result
+    local, domain = parts
+    
+    # 로컬과 도메인이 비어있지 않은지 확인
+    if not local or not domain:
+        return False
+    
+    # 도메인에 점이 있는지 확인
+    if '.' not in domain:
+        return False
+    
+    # 도메인이 점으로 시작하거나 끝나지 않는지 확인
+    if domain.startswith('.') or domain.endswith('.'):
+        return False
+    
+    return True
 
 def load_employee_data():
     """조직도 엑셀 파일에서 직원 데이터 로드"""
@@ -107,4 +123,5 @@ def get_employee_info(employee_id: str) -> dict:
         'department': '미확인',
         'email': f"{employee_id.lower()}@{Config.COMPANY_DOMAIN}"
     }
+
 
