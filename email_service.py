@@ -280,7 +280,8 @@ class EmailService:
     def send_candidate_invitation(self, request: InterviewRequest):
         """면접자에게 일정 선택 요청 메일 발송 (HTML 테이블 형식)"""
         interviewer_info = get_employee_info(request.interviewer_id)
-        candidate_link = f"{Config.APP_URL.replace('app.py', 'candidate_app.py')}?id={request.id}"
+        # 🔧 수정: 동일한 앱 내에서 role=candidate 파라미터 사용
+        candidate_link = f"{Config.APP_URL}?role=candidate&id={request.id}"
         
         # 가능한 일정 목록 HTML 테이블 생성 (날짜 + 시간 정보)
         slots_html = ""
@@ -559,3 +560,4 @@ class EmailService:
             subject=subject,
             body=body
         )
+
