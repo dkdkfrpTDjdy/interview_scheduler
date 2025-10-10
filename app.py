@@ -60,7 +60,7 @@ def main():
         st.divider()
         st.subheader("🔗 다른 페이지")
         st.markdown("**면접관용:** `/면접관_일정입력?id=요청ID`")
-        st.markdown("**면접자용:** `/면접자_일정선택?id=요청ID`")
+        st.markdown("**면접자용 (독립앱):** `candidate_app.py`")
         st.caption("이메일에서 자동으로 링크가 생성됩니다")
     
     tab1, tab2, tab3 = st.tabs(["새 면접 요청", "진행 현황", "구글 시트 관리"])
@@ -114,37 +114,39 @@ def main():
                 
                 selected_datetime_slots = []
                 for i in range(5):
-                    col_date, col_time, col_any_time = st.columns([3, 2, 1])
+                    st.markdown(f"**옵션 {i+1}**")
+                    col_date, col_time = st.columns([2, 1])
                     
                     with col_date:
                         selected_date = st.selectbox(
-                            f"희망일 {i+1}",
+                            "날짜",
                             options=["선택안함"] + available_dates,
                             format_func=lambda x: format_date_korean(x) if x != "선택안함" else x,
                             key=f"date_{i}"
                         )
                     
                     with col_time:
-                        time_options = ["선택안함", "상관없음"] + Config.TIME_SLOTS
+                        # 시간 선택 옵션 개선
+                        time_options = ["선택안함", "상관없음(면접관선택)"] + Config.TIME_SLOTS
                         selected_time = st.selectbox(
-                            f"시간 {i+1}",
+                            "시간",
                             options=time_options,
-                            key=f"time_{i}"
+                            key=f"time_{i}",
+                            help="상관없음 선택 시 면접관이 시간을 직접 선택합니다"
                         )
-                    
-                    with col_any_time:
-                        st.write("")  # 공간 확보용
-                        if selected_time == "상관없음":
-                            st.info("면접관이 선택")
                     
                     if selected_date != "선택안함" and selected_time != "선택안함":
                         # "상관없음" 선택 시 면접관이 고르도록 처리
-                        time_value = selected_time if selected_time != "상관없음" else "면접관선택"
+                        if selected_time == "상관없음(면접관선택)":
+                            time_value = "면접관선택"
+                        else:
+                            time_value = selected_time
+                        
                         datetime_slot = f"{selected_date} {time_value}"
                         if datetime_slot not in selected_datetime_slots:
                             selected_datetime_slots.append(datetime_slot)
             
-            submitted = st.form_submit_button("📧 면접 일정 조율 시작", use_container_width=True)
+            submitted = st.form_submit_button("📧 면접 일정 조율 시작", use_container_width=True, type="primary")
             
             if submitted:
                 # 유효성 검사
@@ -184,15 +186,42 @@ def main():
                         interviewer_link = f"{Config.APP_URL}/면접관_일정입력?id={request.id}"
                         st.info(f"**면접관 링크:** {interviewer_link}")
                         
-                        # 선택된 희망일시 미리보기
+                        # 선택된 희망일시 미리보기 (HTML 테이블)
                         st.subheader("📋 전송된 희망일시")
+                        preview_html = """
+                        <table style="width: 100%; border-collapse: collapse; border: 2px solid #0078d4; border-radius: 8px; overflow: hidden;">
+                            <thead>
+                                <tr style="background-color: #0078d4; color: white;">
+                                    <th style="padding: 10px; text-align: center;">번호</th>
+                                    <th style="padding: 10px; text-align: center;">날짜</th>
+                                    <th style="padding: 10px; text-align: center;">시간</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                        """
+                        
                         for i, slot in enumerate(selected_datetime_slots, 1):
+                            bg_color = "#f8f9fa" if i % 2 == 0 else "white"
                             if "면접관선택" in slot:
                                 date_part = slot.split(' ')[0]
-                                st.write(f"{i}. {format_date_korean(date_part)} (시간: 면접관이 선택)")
+                                time_display = "면접관이 선택"
                             else:
                                 date_part, time_part = slot.split(' ')
-                                st.write(f"{i}. {format_date_korean(date_part)} {time_part}")
+                                time_display = time_part
+                            
+                            preview_html += f"""
+                                <tr style="background-color: {bg_color};">
+                                    <td style="padding: 10px; text-align: center;">{i}</td>
+                                    <td style="padding: 10px; text-align: center;">{format_date_korean(date_part)}</td>
+                                    <td style="padding: 10px; text-align: center;">{time_display}</td>
+                                </tr>
+                            """
+                        
+                        preview_html += """
+                            </tbody>
+                        </table>
+                        """
+                        st.markdown(preview_html, unsafe_allow_html=True)
                     else:
                         st.error("면접 요청은 생성되었지만 이메일 발송에 실패했습니다.")
     
@@ -226,7 +255,8 @@ def main():
             data = []
             for req in requests:
                 interviewer_link = f"{Config.APP_URL}/면접관_일정입력?id={req.id}"
-                candidate_link = f"{Config.APP_URL}/면접자_일정선택?id={req.id}"
+                # 🔧 수정: 독립 앱 URL 사용
+                candidate_link = f"{Config.CANDIDATE_APP_URL}?id={req.id}"
                 
                 data.append({
                     "요청ID": req.id[:8] + "...",
