@@ -136,8 +136,12 @@ class OutlookEmailService:
                     <h3 style="color: #0078d4; margin-top: 0;">📋 면접 정보</h3>
                     <table style="width: 100%; border-collapse: collapse;">
                         <tr>
-                            <td style="padding: 8px 0; font-weight: bold; width: 120px;">면접자</td>
-                            <td style="padding: 8px 0;">{request.candidate_email}</td>
+                            <td style="padding: 8px 0; font-weight: bold; width: 120px;">포지션</td>
+                            <td style="padding: 8px 0;">{request.position_name}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; font-weight: bold;">면접자</td>
+                            <td style="padding: 8px 0;">{request.candidate_name} ({request.candidate_email})</td>
                         </tr>
                         <tr>
                             <td style="padding: 8px 0; font-weight: bold;">요청 일시</td>
@@ -152,18 +156,26 @@ class OutlookEmailService:
                 
                 <div style="text-align: center; margin: 30px 0;">
                     <a href="{link}" 
-                       style="background-color: #0078d4; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                       style="background-color: #0078d4; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">
                         🗓️ 면접 가능 일정 입력하기
                     </a>
                 </div>
                 
-                <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107;">
+                <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107; margin: 20px 0;">
                     <p style="margin: 0;"><strong>💡 안내사항</strong></p>
                     <ul style="margin: 10px 0; padding-left: 20px;">
                         <li>가능한 면접 일정을 여러 개 제안해주세요</li>
                         <li>일정 입력 후 자동으로 면접자에게 알림이 전송됩니다</li>
                         <li>면접자가 일정을 선택하면 확정 알림을 받게 됩니다</li>
                     </ul>
+                </div>
+                
+                <div style="background-color: #e8f5e8; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745; margin: 20px 0;">
+                    <p style="margin: 0;"><strong>🔗 링크 접속이 안 되는 경우</strong></p>
+                    <p style="margin: 5px 0;">아래 URL을 브라우저에 직접 복사해서 붙여넣으세요:</p>
+                    <p style="background-color: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; word-break: break-all; margin: 10px 0;">
+                        {link}
+                    </p>
                 </div>
             </div>
         </div>
@@ -393,4 +405,5 @@ END:VCALENDAR"""
         return ics_content
 
 # 기존 EmailService를 OutlookEmailService로 교체
+
 EmailService = OutlookEmailService
