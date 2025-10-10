@@ -27,17 +27,6 @@ def format_date_korean(date_str: str) -> str:
     except:
         return date_str
 
-def format_datetime_korean(datetime_str: str) -> str:
-    """일시를 한국어 형식으로 변환"""
-    try:
-        if ' ' in datetime_str:
-            date_part, time_part = datetime_str.split(' ')
-            return f"{format_date_korean(date_part)} {time_part}"
-        else:
-            return format_date_korean(datetime_str)
-    except:
-        return datetime_str
-
 def validate_email(email: str) -> bool:
     """이메일 유효성 검사"""
     if not email:
@@ -80,7 +69,7 @@ def load_employee_data():
         df = pd.read_excel(Config.EMPLOYEE_DATA_PATH)
         
         # 필요한 컬럼: 사번, 이름, 부서, 이메일
-        # 컬럼명은 실제 엑셀 파일에 맞게 조정 필요
+        # 한글 컬럼명 우선 시도
         required_columns = ['사번', '이름', '부서', '이메일']
         
         # 영문 컬럼명으로도 시도
@@ -88,21 +77,22 @@ def load_employee_data():
             required_columns = ['employee_id', 'name', 'department', 'email']
         
         if not all(col in df.columns for col in required_columns):
-            print("필요한 컬럼을 찾을 수 없습니다. 컬럼명을 확인해주세요.")
-            print(f"현재 컬럼: {df.columns.tolist()}")
+            print(f"필요한 컬럼을 찾을 수 없습니다. 현재 컬럼: {list(df.columns)}")
+            print("필요한 컬럼: ['사번', '이름', '부서', '이메일'] 또는 ['employee_id', 'name', 'department', 'email']")
             return []
         
         employees = []
         for _, row in df.iterrows():
             if pd.notna(row[required_columns[0]]):  # 사번이 있는 경우만
                 employee = {
-                    'employee_id': str(row[required_columns[0]]),
-                    'name': str(row[required_columns[1]]),
-                    'department': str(row[required_columns[2]]),
-                    'email': str(row[required_columns[3]]) if pd.notna(row[required_columns[3]]) else f"{row[required_columns[0]]}@{Config.COMPANY_DOMAIN}"
+                    'employee_id': str(row[required_columns[0]]).strip(),
+                    'name': str(row[required_columns[1]]).strip(),
+                    'department': str(row[required_columns[2]]).strip(),
+                    'email': str(row[required_columns[3]]).strip() if pd.notna(row[required_columns[3]]) else f"{str(row[required_columns[0]]).strip().lower()}@{Config.COMPANY_DOMAIN}"
                 }
                 employees.append(employee)
         
+        print(f"조직도 데이터 로드 성공: {len(employees)}명")
         return employees
         
     except Exception as e:
@@ -110,7 +100,7 @@ def load_employee_data():
         return []
 
 def get_employee_email(employee_id: str) -> str:
-    """사번으로 직원 이메일 조회 (조직도 파일에서)"""
+    """사번으로 직원 이메일 조회 (실제 이메일 주소 반환)"""
     employees = load_employee_data()
     
     for emp in employees:
@@ -118,6 +108,7 @@ def get_employee_email(employee_id: str) -> str:
             return emp['email']
     
     # 조직도에서 찾지 못한 경우 기본 이메일 형식 사용
+    print(f"Warning: 사번 {employee_id}에 대한 이메일을 조직도에서 찾을 수 없습니다. 기본 형식을 사용합니다.")
     return f"{employee_id.lower()}@{Config.COMPANY_DOMAIN}"
 
 def get_employee_info(employee_id: str) -> dict:
@@ -129,9 +120,29 @@ def get_employee_info(employee_id: str) -> dict:
             return emp
     
     # 기본 정보 반환
+    print(f"Warning: 사번 {employee_id}에 대한 정보를 조직도에서 찾을 수 없습니다.")
     return {
         'employee_id': employee_id,
         'name': employee_id,
         'department': '미확인',
         'email': f"{employee_id.lower()}@{Config.COMPANY_DOMAIN}"
     }
+
+def get_employees_by_department(department: str) -> List[dict]:
+    """부서별 직원 목록 조회"""
+    employees = load_employee_data()
+    return [emp for emp in employees if department.lower() in emp['department'].lower()]
+
+def search_employee(keyword: str) -> List[dict]:
+    """키워드로 직원 검색 (이름, 사번, 부서)"""
+    employees = load_employee_data()
+    keyword = keyword.lower()
+    
+    results = []
+    for emp in employees:
+        if (keyword in emp['name'].lower() or 
+            keyword in emp['employee_id'].lower() or 
+            keyword in emp['department'].lower()):
+            results.append(emp)
+    
+    return results
