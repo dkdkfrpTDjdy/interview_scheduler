@@ -146,3 +146,53 @@ def search_employee(keyword: str) -> List[dict]:
             results.append(emp)
     
     return results
+
+def create_calendar_invite(request) -> str:
+    """캘린더 초대장 생성 (ICS 형식)"""
+    try:
+        from datetime import datetime
+        
+        if not request.selected_slot:
+            return None
+        
+        # 면접 날짜와 시간 파싱
+        interview_date = datetime.strptime(request.selected_slot.date, '%Y-%m-%d')
+        time_parts = request.selected_slot.time.split(':')
+        interview_datetime = interview_date.replace(
+            hour=int(time_parts[0]), 
+            minute=int(time_parts[1])
+        )
+        
+        # 종료 시간 계산
+        end_datetime = interview_datetime + timedelta(minutes=request.selected_slot.duration)
+        
+        # ICS 형식으로 생성
+        ics_content = f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//AI Interview System//Interview Schedule//KR
+CALSCALE:GREGORIAN
+METHOD:REQUEST
+BEGIN:VEVENT
+UID:{request.id}@{Config.COMPANY_DOMAIN}
+DTSTART:{interview_datetime.strftime('%Y%m%dT%H%M%S')}
+DTEND:{end_datetime.strftime('%Y%m%dT%H%M%S')}
+SUMMARY:면접 - {request.position_name}
+DESCRIPTION:면접자: {request.candidate_name}\\n포지션: {request.position_name}\\n면접관: {request.interviewer_id}\\n\\n※ 면접 10분 전까지 도착해주세요.
+LOCATION:회사 면접실
+ORGANIZER:mailto:{get_employee_email(request.interviewer_id)}
+ATTENDEE:mailto:{request.candidate_email}
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+TRIGGER:-PT30M
+ACTION:DISPLAY
+DESCRIPTION:면접 30분 전 알림
+END:VALARM
+END:VEVENT
+END:VCALENDAR"""
+        
+        return ics_content
+        
+    except Exception as e:
+        print(f"캘린더 초대장 생성 실패: {e}")
+        return None
