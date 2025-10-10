@@ -52,7 +52,7 @@ def show_admin_page():
     # 조직도 데이터 로드
     org_data = load_organization_data()
     
-    # Outlook 연결 상태 확인
+    # 시스템 상태 확인
     with st.sidebar:
         st.subheader("🔧 시스템 상태")
         
@@ -70,6 +70,7 @@ def show_admin_page():
             st.success(f"✅ 조직도 데이터: {len(org_data)}명")
         else:
             st.error("❌ 조직도 데이터 로드 실패")
+            st.info("employee_data.xlsx 파일을 확인해주세요")
     
     tab1, tab2, tab3 = st.tabs(["새 면접 요청", "진행 현황", "구글 시트 관리"])
     
@@ -86,10 +87,10 @@ def show_admin_page():
                                          for emp in org_data]
                     selected_interviewer = st.selectbox(
                         "면접관 선택",
-                        options=interviewer_options,
+                        options=["선택해주세요"] + interviewer_options,
                         help="조직도에서 면접관을 선택해주세요"
                     )
-                    interviewer_id = selected_interviewer.split(' - ')[0] if selected_interviewer else ""
+                    interviewer_id = selected_interviewer.split(' - ')[0] if selected_interviewer != "선택해주세요" else ""
                 else:
                     interviewer_id = st.text_input(
                         "면접관 사번",
@@ -116,23 +117,20 @@ def show_admin_page():
                     help="면접자의 이메일 주소를 입력해주세요"
                 )
                 
-                # 면접 희망일 선택 (여러 날짜 가능)
+                # 면접 희망일 선택
                 st.write("**면접 희망일 선택 (최대 5일)**")
                 available_dates = get_next_weekdays(20)
                 
                 selected_dates = []
                 for i in range(5):
-                    date_col, check_col = st.columns([4, 1])
-                    with date_col:
-                        selected_date = st.selectbox(
-                            f"희망일 {i+1}",
-                            options=["선택안함"] + available_dates,
-                            format_func=lambda x: format_date_korean(x) if x != "선택안함" else x,
-                            key=f"date_{i}"
-                        )
-                    with check_col:
-                        if selected_date != "선택안함":
-                            selected_dates.append(selected_date)
+                    selected_date = st.selectbox(
+                        f"희망일 {i+1}",
+                        options=["선택안함"] + available_dates,
+                        format_func=lambda x: format_date_korean(x) if x != "선택안함" else x,
+                        key=f"date_{i}"
+                    )
+                    if selected_date != "선택안함" and selected_date not in selected_dates:
+                        selected_dates.append(selected_date)
             
             submitted = st.form_submit_button("📧 면접 일정 조율 시작", use_container_width=True)
             
@@ -223,15 +221,20 @@ def show_admin_page():
             if st.button("🔄 구글 시트 동기화"):
                 try:
                     requests = db.get_all_requests()
+                    success_count = 0
                     for req in requests:
-                        db.update_google_sheet(req)
-                    st.success("✅ 구글 시트 동기화 완료")
+                        if db.update_google_sheet(req):
+                            success_count += 1
+                    st.success(f"✅ 구글 시트 동기화 완료 ({success_count}/{len(requests)})")
                 except Exception as e:
                     st.error(f"❌ 구글 시트 동기화 실패: {e}")
         
         with col2:
             if st.button("📋 구글 시트 열기"):
-                st.markdown(f"[구글 시트 바로가기]({Config.GOOGLE_SHEET_URL})")
+                if Config.GOOGLE_SHEET_ID:
+                    st.markdown(f"[구글 시트 바로가기]({Config.GOOGLE_SHEET_URL})")
+                else:
+                    st.error("구글 시트 ID가 설정되지 않았습니다.")
 
 def show_interviewer_page(request_id: str):
     """면접관 일정 입력 페이지"""
@@ -265,8 +268,6 @@ def show_interviewer_page(request_id: str):
     st.subheader("가능한 면접 일정을 선택해주세요")
     
     with st.form("interviewer_schedule"):
-        st.write("**📅 날짜 및 시간 선택**")
-        
         # 동적으로 일정 추가
         if 'slot_count' not in st.session_state:
             st.session_state.slot_count = 1
