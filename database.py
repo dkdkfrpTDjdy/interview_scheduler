@@ -28,7 +28,7 @@ class DatabaseManager:
                     created_at TIMESTAMP,
                     updated_at TIMESTAMP,
                     available_slots TEXT,
-                    preferred_dates TEXT,
+                    preferred_datetime_slots TEXT,
                     selected_slot TEXT,
                     candidate_note TEXT
                 )
@@ -49,7 +49,7 @@ class DatabaseManager:
             # 헤더 설정
             headers = [
                 "요청ID", "생성일시", "포지션명", "면접관ID", "면접자명", "면접자이메일",
-                "상태", "희망일자", "제안일시", "확정일시", "면접자요청사항", "업데이트일시"
+                "상태", "희망일시", "제안일시", "확정일시", "면접자요청사항", "업데이트일시"
             ]
             
             # 첫 번째 행이 비어있으면 헤더 추가
@@ -67,7 +67,7 @@ class DatabaseManager:
             conn.execute("""
                 INSERT OR REPLACE INTO interview_requests 
                 (id, interviewer_id, candidate_email, candidate_name, position_name, 
-                 status, created_at, updated_at, available_slots, preferred_dates, 
+                 status, created_at, updated_at, available_slots, preferred_datetime_slots, 
                  selected_slot, candidate_note)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
@@ -81,7 +81,7 @@ class DatabaseManager:
                 request.updated_at or datetime.now(),
                 json.dumps([{"date": slot.date, "time": slot.time, "duration": slot.duration} 
                            for slot in request.available_slots]),
-                json.dumps(request.preferred_dates) if request.preferred_dates else None,
+                json.dumps(request.preferred_datetime_slots) if request.preferred_datetime_slots else None,
                 json.dumps({"date": request.selected_slot.date, "time": request.selected_slot.time, 
                            "duration": request.selected_slot.duration}) if request.selected_slot else None,
                 request.candidate_note
@@ -104,9 +104,9 @@ class DatabaseManager:
                 slots_data = json.loads(row[8])
                 available_slots = [InterviewSlot(**slot) for slot in slots_data]
             
-            preferred_dates = []
-            if row[9]:  # preferred_dates
-                preferred_dates = json.loads(row[9])
+            preferred_datetime_slots = []
+            if row[9]:  # preferred_datetime_slots
+                preferred_datetime_slots = json.loads(row[9])
             
             selected_slot = None
             if row[10]:  # selected_slot
@@ -123,7 +123,7 @@ class DatabaseManager:
                 created_at=datetime.fromisoformat(row[6]),
                 updated_at=datetime.fromisoformat(row[7]) if row[7] else None,
                 available_slots=available_slots,
-                preferred_dates=preferred_dates,
+                preferred_datetime_slots=preferred_datetime_slots,
                 selected_slot=selected_slot,
                 candidate_note=row[11] or ""
             )
@@ -142,8 +142,10 @@ class DatabaseManager:
             return False
         
         try:
-            # 희망일자 문자열 생성
-            preferred_dates_str = ", ".join(request.preferred_dates) if request.preferred_dates else ""
+            # 희망일시 문자열 생성
+            preferred_datetime_str = ""
+            if request.preferred_datetime_slots:
+                preferred_datetime_str = " | ".join(request.preferred_datetime_slots)
             
             # 제안일시 문자열 생성
             proposed_slots_str = ""
@@ -163,7 +165,7 @@ class DatabaseManager:
                 request.candidate_name,
                 request.candidate_email,
                 request.status,
-                preferred_dates_str,
+                preferred_datetime_str,
                 proposed_slots_str,
                 confirmed_datetime,
                 request.candidate_note,
@@ -203,8 +205,13 @@ class DatabaseManager:
                 if request.available_slots:
                     proposed_slots_str = " | ".join([f"{slot.date} {slot.time}" for slot in request.available_slots])
                 
+                preferred_datetime_str = ""
+                if request.preferred_datetime_slots:
+                    preferred_datetime_str = " | ".join(request.preferred_datetime_slots)
+                
                 # 특정 컬럼만 업데이트
                 self.sheet.update(f'G{row_index}', request.status)  # 상태
+                self.sheet.update(f'H{row_index}', preferred_datetime_str)  # 희망일시
                 self.sheet.update(f'I{row_index}', proposed_slots_str)  # 제안일시
                 self.sheet.update(f'J{row_index}', confirmed_datetime)  # 확정일시
                 self.sheet.update(f'K{row_index}', request.candidate_note)  # 면접자요청사항
