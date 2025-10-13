@@ -147,9 +147,6 @@ def main():
                     )
                     db.save_interview_request(request)
                     
-                    # 구글 시트에 저장
-                    db.save_to_google_sheet(request)
-                    
                     # 면접관에게 이메일 발송
                     if email_service.send_interviewer_invitation(request):
                         st.success(f"✅ 면접 요청이 생성되었습니다! (ID: {request.id[:8]}...)")
@@ -354,5 +351,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
