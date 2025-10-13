@@ -90,15 +90,40 @@ class DatabaseManager:
                 if hasattr(st, 'secrets') and "google_credentials" in st.secrets:
                     logger.info("🔍 TOML 구조로 Secrets 읽기 시도...")
                     
-                    # private_key 줄바꿈 처리
+                    # private_key 줄바꿈 처리 및 정리
                     private_key = st.secrets["google_credentials"]["private_key"]
                     logger.info(f"🔧 원본 private_key 길이: {len(private_key)}")
                     
-                    # \\n을 실제 줄바꿈으로 변환
+                    # 🔧 키 정리 과정
                     if "\\n" in private_key:
                         private_key = private_key.replace("\\n", "\n")
                         logger.info("🔧 \\n을 실제 줄바꿈으로 변환 완료")
                     
+                    # 🔧 추가 정리: 공백 및 특수문자 제거
+                    private_key = private_key.strip()
+                    lines = private_key.split('\n')
+                    cleaned_lines = []
+                    
+                    for line in lines:
+                        line = line.strip()
+                        if line:  # 빈 줄 제거
+                            cleaned_lines.append(line)
+                    
+                    private_key = '\n'.join(cleaned_lines)
+                    logger.info(f"🔧 정리된 private_key 줄 수: {len(cleaned_lines)}")
+                    logger.info(f"🔧 정리된 private_key 시작: {private_key[:50]}")
+                    logger.info(f"🔧 정리된 private_key 끝: {private_key[-50:]}")
+                    
+                    # 🔧 키 유효성 검증
+                    if not private_key.startswith("-----BEGIN PRIVATE KEY-----"):
+                        logger.error("❌ private_key가 올바른 형식이 아닙니다")
+                        raise ValueError("Invalid private key format")
+                    
+                    if not private_key.endswith("-----END PRIVATE KEY-----"):
+                        logger.error("❌ private_key 끝이 올바르지 않습니다")
+                        raise ValueError("Invalid private key ending")
+                    
+                    # 🔧 service_account_info 생성
                     service_account_info = {
                         "type": st.secrets["google_credentials"]["type"],
                         "project_id": st.secrets["google_credentials"]["project_id"],
@@ -638,6 +663,7 @@ class DatabaseManager:
             logger.error(f"구글 시트 체크 실패: {e}")
         
         return status
+
 
 
 
