@@ -1,16 +1,37 @@
 import streamlit as st
+import os
+
+# 🔧 면접자 앱임을 명시
+os.environ["APP_TYPE"] = "candidate"
+
+# 면접자 앱에서는 pages 폴더 숨기기
+def hide_pages():
+    """면접자 앱에서 불필요한 페이지 숨기기"""
+    hide_streamlit_style = """
+    <style>
+    .css-1d391kg {display: none}  /* 사이드바 페이지 링크 숨기기 */
+    section[data-testid="stSidebar"] > div:first-child {display: none}  /* 사이드바 네비게이션 숨기기 */
+    </style>
+    """
+    st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
+def main():
+    # 페이지 설정
+    st.set_page_config(
+        page_title="면접 일정 선택 - AI 면접 시스템",
+        page_icon="👤",
+        layout="wide",
+        initial_sidebar_state="collapsed"  # 사이드바 기본 숨김
+    )
+    
+    # 불필요한 페이지 숨기기
+    hide_pages()
+
 from datetime import datetime
 from database import DatabaseManager
 from email_service import EmailService
 from config import Config
 from utils import format_date_korean, create_calendar_invite, get_employee_info
-
-# 페이지 설정
-st.set_page_config(
-    page_title="면접 일정 선택 - AI 면접 시스템",
-    page_icon="👤",
-    layout="wide"
-)
 
 # 전역 객체 초기화
 @st.cache_resource
@@ -465,4 +486,5 @@ def show_pending_confirmation_status(request):
 
 if __name__ == "__main__":
     main()
+
 
