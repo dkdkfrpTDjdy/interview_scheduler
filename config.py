@@ -32,7 +32,7 @@ class Config:
     
     # 앱 URL (메인 앱과 면접자 전용 앱 분리)
     APP_URL = os.getenv("APP_URL", "https://interview-scheduler-ajnet.streamlit.app")
-    # 🔧 새로 추가: 면접자 전용 독립 앱 URL
+    # 🔧 면접자 전용 독립 앱 URL
     CANDIDATE_APP_URL = os.getenv("CANDIDATE_APP_URL", "https://interview-candidate-ajnet.streamlit.app")
     
     # 면접 시간 슬롯 (오전 9시 ~ 오후 5시, 30분 단위)
@@ -63,15 +63,14 @@ class Config:
     # 조직도 엑셀 파일 경로
     EMPLOYEE_DATA_PATH = os.getenv("EMPLOYEE_DATA_PATH", "employee_data.xlsx")
     
-    # 🔧 새로 추가: 이메일 템플릿 설정
-    class EmailTemplates:
-        # 이메일 공통 스타일
-        COMMON_STYLE = """
-        <style>
-            @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
-            body { font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-            .btn-primary { background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); }
-            .btn-success { background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); }
-            .btn-warning { background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%); }
-        </style>
-        """
+    # 🔧 자동 알림 설정
+    class NotificationConfig:
+        # 알림 발송 지연 시간 (초)
+        EMAIL_DELAY = 2
+        
+        # 재시도 설정
+        MAX_RETRIES = 3
+        RETRY_DELAY = 5
+        
+        # 알림 템플릿 버전
+        TEMPLATE_VERSION = "2024.1"
