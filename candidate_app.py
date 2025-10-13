@@ -4,6 +4,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 from datetime import datetime
+import time
 
 # 🔧 면접자 앱임을 명시
 os.environ["APP_TYPE"] = "candidate"
@@ -87,7 +88,7 @@ def get_sheet_data_as_dict():
         return []
 
 def find_candidate_requests(name: str, email: str):
-    """🔧 구글 시트에서 직접 면접자 요청 찾기"""
+    """구글 시트에서 직접 면접자 요청 찾기"""
     try:
         sheet_data = get_sheet_data_as_dict()
         
@@ -167,19 +168,18 @@ def format_date_korean(date_str: str) -> str:
         return date_str
 
 def update_sheet_selection(request, selected_slot=None, candidate_note="", is_alternative_request=False):
-    """🔧 구글 시트에 면접자 선택 결과 업데이트 (강화된 버전)"""
+    """구글 시트에 면접자 선택 결과 업데이트"""
     try:
         if not google_sheet:
-            st.error("구글 시트 연결이 없습니다.")
+            return False
+        
+        if 'row_number' not in request:
             return False
         
         row_number = request['row_number']
         
-        st.write(f"🔧 디버깅: 행 {row_number} 업데이트 시도 중...")
-        
         # 현재 시트 구조 확인
         headers = google_sheet.row_values(1)
-        st.write(f"🔧 헤더: {headers}")
         
         # 컬럼 인덱스 찾기 (1-based)
         try:
@@ -187,9 +187,6 @@ def update_sheet_selection(request, selected_slot=None, candidate_note="", is_al
             status_col = headers.index('상태') + 1
             note_col = headers.index('면접자요청사항') + 1
             update_col = headers.index('마지막업데이트') + 1
-            
-            st.write(f"🔧 컬럼 위치 - 확정일시: {confirmed_col}, 상태: {status_col}, 요청사항: {note_col}, 업데이트: {update_col}")
-            
         except ValueError as e:
             st.error(f"필요한 컬럼을 찾을 수 없습니다: {e}")
             return False
@@ -199,53 +196,36 @@ def update_sheet_selection(request, selected_slot=None, candidate_note="", is_al
         
         if is_alternative_request:
             # 다른 일정 요청인 경우
-            st.write("🔧 다른 일정 요청으로 처리 중...")
-            
-            # 상태 업데이트: 재조율 요청
+            google_sheet.update_cell(row_number, confirmed_col, "")  # 확정일시 비움
             google_sheet.update_cell(row_number, status_col, "일정재조율요청")
-            
-            # 면접자 요청사항 업데이트
-            google_sheet.update_cell(row_number, note_col, candidate_note)
-            
-            # 마지막 업데이트 시간
+            google_sheet.update_cell(row_number, note_col, f"[다른 일정 요청] {candidate_note}")
             google_sheet.update_cell(row_number, update_col, current_time)
-            
-            st.success("✅ 일정 재조율 요청이 시트에 저장되었습니다.")
             
         else:
             # 정규 일정 선택인 경우
-            st.write("🔧 정규 일정 선택으로 처리 중...")
-            
             if selected_slot:
-                # 확정일시 업데이트
+                # 확정일시에 선택된 일정 저장
                 confirmed_datetime = f"{selected_slot['date']} {selected_slot['time']}({selected_slot['duration']}분)"
                 google_sheet.update_cell(row_number, confirmed_col, confirmed_datetime)
-                
-                # 상태 업데이트
                 google_sheet.update_cell(row_number, status_col, "확정완료")
                 
-                # 면접자 요청사항 (있다면)
-                if candidate_note:
-                    google_sheet.update_cell(row_number, note_col, candidate_note)
+                # 면접자요청사항에 추가 요청사항이 있다면 저장
+                if candidate_note.strip():
+                    google_sheet.update_cell(row_number, note_col, f"[확정시 요청사항] {candidate_note}")
+                else:
+                    google_sheet.update_cell(row_number, note_col, "")
                 
-                # 마지막 업데이트 시간
                 google_sheet.update_cell(row_number, update_col, current_time)
-                
-                st.success("✅ 면접 일정이 시트에 확정 저장되었습니다.")
             else:
-                st.error("선택된 일정 정보가 없습니다.")
                 return False
         
-        # 업데이트 결과 확인
-        updated_row = google_sheet.row_values(row_number)
-        st.write(f"🔧 업데이트 후 행 데이터: {updated_row}")
+        # 업데이트 후 잠시 대기
+        time.sleep(1)
         
         return True
         
     except Exception as e:
         st.error(f"시트 업데이트 실패: {e}")
-        import traceback
-        st.error(f"상세 오류: {traceback.format_exc()}")
         return False
 
 # 면접자 앱에서는 pages 폴더 숨기기
@@ -313,6 +293,24 @@ def show_candidate_login():
                     else:
                         st.error("❌ 입력하신 정보와 일치하는 면접 요청을 찾을 수 없습니다.")
 
+    # 도움말
+    st.markdown("---")
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("""
+        <div style="background-color: #f8f9fa; padding: 25px; border-radius: 12px; text-align: center; border: 1px solid #dee2e6;">
+            <h4 style="color: #495057; margin-top: 0;">💡 이용 안내</h4>
+            <div style="text-align: left; margin: 15px 0;">
+                <p style="margin: 8px 0; color: #6c757d;">• 면접 신청 시 입력한 <strong>정확한 이름과 이메일</strong>을 입력해주세요</p>
+                <p style="margin: 8px 0; color: #6c757d;">• 대소문자와 띄어쓰기까지 <strong>정확히 일치</strong>해야 합니다</p>
+                <p style="margin: 8px 0; color: #6c757d;">• 면접관이 일정을 입력해야 <strong>선택 가능</strong>합니다</p>
+            </div>
+            <div style="background-color: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                <p style="margin: 0; color: #1565c0;"><strong>📞 문의:</strong> <a href="mailto:hr@ajnet.co.kr">hr@ajnet.co.kr</a></p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
 def show_candidate_dashboard():
     """면접자 대시보드"""
     candidate_info = st.session_state.authenticated_candidate
@@ -352,13 +350,6 @@ def show_candidate_dashboard():
 def show_request_detail(request, index):
     """개별 면접 요청 상세 정보"""
     
-    # 🔧 디버깅 모드
-    debug_mode = st.checkbox(f"🔍 디버깅 모드 (요청 {index+1})", key=f"debug_{index}")
-    
-    if debug_mode:
-        st.write("**🔧 요청 정보:**")
-        st.json(request)
-    
     # 상태 확인
     if request['status'] == '확정완료':
         show_confirmed_schedule(request)
@@ -370,6 +361,13 @@ def show_request_detail(request, index):
             st.warning("⚠️ 면접관이 아직 가능한 일정을 입력하지 않았습니다.")
         elif request['status'] == '일정재조율요청':
             st.info("📋 일정 재조율 요청이 접수되었습니다. 인사팀에서 검토 중입니다.")
+            if request['candidate_note']:
+                st.markdown(f"""
+                <div style="background-color: #d1ecf1; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 5px solid #17a2b8;">
+                    <h4 style="color: #0c5460; margin-top: 0;">📝 전달된 요청사항</h4>
+                    <p style="color: #0c5460; margin: 0; white-space: pre-line;">{request['candidate_note']}</p>
+                </div>
+                """, unsafe_allow_html=True)
         return
     
     # 면접 정보 표시
@@ -394,10 +392,6 @@ def show_request_detail(request, index):
     
     # 제안된 일정 파싱
     proposed_slots = parse_proposed_slots(request['proposed_slots'])
-    
-    if debug_mode:
-        st.write(f"**🔧 원본 제안일시:** `{request['proposed_slots']}`")
-        st.write(f"**🔧 파싱된 일정:** {proposed_slots}")
     
     if not proposed_slots:
         st.warning("⚠️ 면접관이 아직 가능한 일정을 입력하지 않았습니다.")
@@ -471,17 +465,13 @@ def show_request_detail(request, index):
         submitted = st.form_submit_button("✅ 면접 일정 선택 완료", width='stretch', type="primary")
         
         if submitted:
-            if debug_mode:
-                st.write(f"🔧 선택된 옵션: {selected_option}")
-                st.write(f"🔧 후보 일정 수: {len(proposed_slots)}")
-                st.write(f"🔧 요청사항: '{candidate_note}'")
+            if 'row_number' not in request:
+                st.error("❌ 요청 데이터에 문제가 있습니다. 페이지를 새로고침해주세요.")
+                return
             
             if selected_option < len(proposed_slots):
                 # 정규 일정 선택
                 selected_slot = proposed_slots[selected_option]
-                
-                if debug_mode:
-                    st.write(f"🔧 선택된 일정: {selected_slot}")
                 
                 with st.spinner("📝 일정을 확정하고 있습니다..."):
                     if update_sheet_selection(request, selected_slot=selected_slot, candidate_note=candidate_note, is_alternative_request=False):
@@ -499,7 +489,7 @@ def show_request_detail(request, index):
                         st.balloons()
                         
                         # 세션 업데이트를 위한 새로고침
-                        time.sleep(2)  # 시트 업데이트 시간 대기
+                        time.sleep(2)
                         st.rerun()
                     else:
                         st.error("❌ 일정 확정 중 오류가 발생했습니다.")
@@ -508,9 +498,6 @@ def show_request_detail(request, index):
                 if not candidate_note.strip():
                     st.error("❌ 가능한 일정을 구체적으로 입력해주세요.")
                 else:
-                    if debug_mode:
-                        st.write("🔧 다른 일정 요청 처리 중...")
-                    
                     with st.spinner("📝 일정 재조율 요청을 전송하고 있습니다..."):
                         if update_sheet_selection(request, selected_slot=None, candidate_note=candidate_note, is_alternative_request=True):
                             st.success("📧 일정 재조율 요청이 인사팀에 전달되었습니다!")
@@ -525,7 +512,7 @@ def show_request_detail(request, index):
                             """, unsafe_allow_html=True)
                             
                             # 세션 업데이트를 위한 새로고침
-                            time.sleep(2)  # 시트 업데이트 시간 대기
+                            time.sleep(2)
                             st.rerun()
                         else:
                             st.error("❌ 일정 재조율 요청 전송 중 오류가 발생했습니다.")
