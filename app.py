@@ -31,30 +31,10 @@ db, email_service = init_services()
 
 def main():
     st.title("📅 AI 면접 일정 조율 시스템")
-    st.header("🏢 인사팀 관리 대시보드")
+    st.header("인사팀 관리 페이지")
     
     # 조직도 데이터 로드
     org_data = load_organization_data()
-    
-    # 시스템 상태 확인
-    with st.sidebar:
-        st.subheader("🔧 시스템 상태")
-        
-        # 이메일 서비스 연결 테스트
-        if st.button("📧 이메일 연결 테스트"):
-            test_result = email_service._create_smtp_connection()
-            if test_result:
-                test_result.quit()
-                st.success("✅ 이메일 서버 연결 성공")
-            else:
-                st.error("❌ 이메일 서버 연결 실패")
-        
-        # 조직도 데이터 상태
-        if org_data:
-            st.success(f"✅ 조직도 데이터: {len(org_data)}명")
-        else:
-            st.error("❌ 조직도 데이터 로드 실패")
-            st.info("employee_data.xlsx 파일을 확인해주세요")
         
     
     tab1, tab2, tab3 = st.tabs(["새 면접 요청", "진행 현황", "구글 시트 관리"])
@@ -354,4 +334,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
