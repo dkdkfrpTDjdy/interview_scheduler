@@ -101,23 +101,57 @@ def show_candidate_login():
         """, unsafe_allow_html=True)
 
 def find_candidate_requests(name: str, email: str):
-    """면접자의 요청 찾기 (이름 + 이메일 매칭)"""
+    """개선된 면접자 요청 찾기"""
     try:
+        # 1. 캐시 무효화
+        if hasattr(st, 'cache_data'):
+            st.cache_data.clear()
+        
+        # 2. 실시간 구글 시트 데이터 조회
+        db.sheet.reload()  # 시트 데이터 새로고침
+        
         all_requests = db.get_all_requests()
         matching_requests = []
         
+        # 3. 정규화된 검색
+        normalized_name = normalize_text(name)
+        normalized_email = normalize_text(email)
+        
         for request in all_requests:
-            # 이름과 이메일이 정확히 일치하는 경우
-            if (request.candidate_name.strip().lower() == name.lower() and 
-                request.candidate_email.strip().lower() == email.lower()):
-                # 취소되지 않은 요청만
-                if request.status != Config.Status.CANCELLED:
+            req_name = normalize_text(request.candidate_name)
+            req_email = normalize_text(request.candidate_email)
+            
+            # 4. 유연한 매칭 조건
+            name_match = (normalized_name == req_name or 
+                         normalized_name in req_name or 
+                         req_name in normalized_name)
+            
+            email_match = normalized_email == req_email
+            
+            if name_match and email_match:
+                # 5. 활성 상태만 포함
+                if request.status in [Config.Status.PENDING_CANDIDATE, 
+                                    Config.Status.PENDING_INTERVIEWER,
+                                    Config.Status.CONFIRMED,
+                                    Config.Status.PENDING_CONFIRMATION]:
                     matching_requests.append(request)
         
         return matching_requests
+        
     except Exception as e:
-        st.error(f"요청 조회 중 오류가 발생했습니다: {e}")
+        st.error(f"요청 조회 중 오류: {e}")
+        # 6. 디버깅 정보 표시 (개발 모드에서)
+        if st.secrets.get("DEBUG", False):
+            st.write("디버그 정보:")
+            st.write(f"검색어 - 이름: '{name}', 이메일: '{email}'")
+            st.write(f"전체 요청 수: {len(all_requests) if 'all_requests' in locals() else 0}")
         return []
+
+def normalize_text(text: str) -> str:
+    """텍스트 정규화"""
+    if not text:
+        return ""
+    return text.strip().lower().replace(" ", "")
 
 def show_candidate_dashboard():
     """면접자 대시보드"""
@@ -431,3 +465,4 @@ def show_pending_confirmation_status(request):
 
 if __name__ == "__main__":
     main()
+
