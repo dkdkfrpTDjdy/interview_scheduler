@@ -85,13 +85,31 @@ class DatabaseManager:
             # 🔧 여러 방법으로 인증 정보 가져오기
             service_account_info = None
             
-            # 방법 1: Streamlit Secrets (Streamlit Cloud)
+            # 방법 1: Streamlit Secrets (새로운 TOML 구조)
             try:
                 if hasattr(st, 'secrets'):
-                    if "GOOGLE_CREDENTIALS_JSON" in st.secrets:
+                    # 새로운 방식: 개별 필드로 읽기
+                    if "google_credentials" in st.secrets:
+                        service_account_info = {
+                            "type": st.secrets["google_credentials"]["type"],
+                            "project_id": st.secrets["google_credentials"]["project_id"],
+                            "private_key_id": st.secrets["google_credentials"]["private_key_id"],
+                            "private_key": st.secrets["google_credentials"]["private_key"],
+                            "client_email": st.secrets["google_credentials"]["client_email"],
+                            "client_id": st.secrets["google_credentials"]["client_id"],
+                            "auth_uri": st.secrets["google_credentials"]["auth_uri"],
+                            "token_uri": st.secrets["google_credentials"]["token_uri"],
+                            "auth_provider_x509_cert_url": st.secrets["google_credentials"]["auth_provider_x509_cert_url"],
+                            "client_x509_cert_url": st.secrets["google_credentials"]["client_x509_cert_url"],
+                            "universe_domain": st.secrets["google_credentials"]["universe_domain"]
+                        }
+                        logger.info("✅ Streamlit Secrets에서 인증 정보 로드 (TOML 구조)")
+                    
+                    # 기존 방식도 지원 (하위 호환성)
+                    elif "GOOGLE_CREDENTIALS_JSON" in st.secrets:
                         json_str = st.secrets["GOOGLE_CREDENTIALS_JSON"]
                         service_account_info = json.loads(json_str)
-                        logger.info("✅ Streamlit Secrets에서 인증 정보 로드")
+                        logger.info("✅ Streamlit Secrets에서 인증 정보 로드 (JSON 구조)")
             except Exception as e:
                 logger.warning(f"Streamlit Secrets 읽기 실패: {e}")
             
@@ -123,16 +141,6 @@ class DatabaseManager:
             
             # 인증 정보로 연결
             credentials = Credentials.from_service_account_info(service_account_info, scopes=scope)
-            self.gc = gspread.authorize(credentials)
-            
-            if not Config.GOOGLE_SHEET_ID:
-                logger.warning("GOOGLE_SHEET_ID가 설정되지 않았습니다.")
-                return
-                
-            self.sheet = self.gc.open_by_key(Config.GOOGLE_SHEET_ID).sheet1
-                
-            credentials = Credentials.from_service_account_info(service_account_info, scopes=scope)
-            
             self.gc = gspread.authorize(credentials)
             
             if not Config.GOOGLE_SHEET_ID:
@@ -595,4 +603,5 @@ class DatabaseManager:
             logger.error(f"구글 시트 체크 실패: {e}")
         
         return status
+
 
