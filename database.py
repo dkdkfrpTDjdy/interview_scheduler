@@ -90,11 +90,16 @@ class DatabaseManager:
                 if hasattr(st, 'secrets'):
                     # 새로운 방식: 개별 필드로 읽기
                     if "google_credentials" in st.secrets:
+                        # 🔧 private_key 줄바꿈 처리
+                        private_key = st.secrets["google_credentials"]["private_key"]
+                        if "\\n" in private_key:
+                            private_key = private_key.replace("\\n", "\n")
+                        
                         service_account_info = {
                             "type": st.secrets["google_credentials"]["type"],
                             "project_id": st.secrets["google_credentials"]["project_id"],
                             "private_key_id": st.secrets["google_credentials"]["private_key_id"],
-                            "private_key": st.secrets["google_credentials"]["private_key"],
+                            "private_key": private_key,  # 🔧 수정된 키 사용
                             "client_email": st.secrets["google_credentials"]["client_email"],
                             "client_id": st.secrets["google_credentials"]["client_id"],
                             "auth_uri": st.secrets["google_credentials"]["auth_uri"],
@@ -603,5 +608,6 @@ class DatabaseManager:
             logger.error(f"구글 시트 체크 실패: {e}")
         
         return status
+
 
 
