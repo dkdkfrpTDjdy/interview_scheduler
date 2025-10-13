@@ -87,38 +87,47 @@ class DatabaseManager:
             
             # 방법 1: Streamlit Secrets (새로운 TOML 구조)
             try:
-                if hasattr(st, 'secrets'):
-                    # 새로운 방식: 개별 필드로 읽기
-                    if "google_credentials" in st.secrets:
-                        # 🔧 private_key 줄바꿈 처리
-                        private_key = st.secrets["google_credentials"]["private_key"]
-                        if "\\n" in private_key:
-                            private_key = private_key.replace("\\n", "\n")
-                        
-                        service_account_info = {
-                            "type": st.secrets["google_credentials"]["type"],
-                            "project_id": st.secrets["google_credentials"]["project_id"],
-                            "private_key_id": st.secrets["google_credentials"]["private_key_id"],
-                            "private_key": private_key,  # 🔧 수정된 키 사용
-                            "client_email": st.secrets["google_credentials"]["client_email"],
-                            "client_id": st.secrets["google_credentials"]["client_id"],
-                            "auth_uri": st.secrets["google_credentials"]["auth_uri"],
-                            "token_uri": st.secrets["google_credentials"]["token_uri"],
-                            "auth_provider_x509_cert_url": st.secrets["google_credentials"]["auth_provider_x509_cert_url"],
-                            "client_x509_cert_url": st.secrets["google_credentials"]["client_x509_cert_url"],
-                            "universe_domain": st.secrets["google_credentials"]["universe_domain"]
-                        }
-                        logger.info("✅ Streamlit Secrets에서 인증 정보 로드 (TOML 구조)")
+                if hasattr(st, 'secrets') and "google_credentials" in st.secrets:
+                    logger.info("🔍 TOML 구조로 Secrets 읽기 시도...")
                     
-                    # 기존 방식도 지원 (하위 호환성)
-                    elif "GOOGLE_CREDENTIALS_JSON" in st.secrets:
+                    # private_key 줄바꿈 처리
+                    private_key = st.secrets["google_credentials"]["private_key"]
+                    logger.info(f"🔧 원본 private_key 길이: {len(private_key)}")
+                    
+                    # \\n을 실제 줄바꿈으로 변환
+                    if "\\n" in private_key:
+                        private_key = private_key.replace("\\n", "\n")
+                        logger.info("🔧 \\n을 실제 줄바꿈으로 변환 완료")
+                    
+                    service_account_info = {
+                        "type": st.secrets["google_credentials"]["type"],
+                        "project_id": st.secrets["google_credentials"]["project_id"],
+                        "private_key_id": st.secrets["google_credentials"]["private_key_id"],
+                        "private_key": private_key,
+                        "client_email": st.secrets["google_credentials"]["client_email"],
+                        "client_id": st.secrets["google_credentials"]["client_id"],
+                        "auth_uri": st.secrets["google_credentials"]["auth_uri"],
+                        "token_uri": st.secrets["google_credentials"]["token_uri"],
+                        "auth_provider_x509_cert_url": st.secrets["google_credentials"]["auth_provider_x509_cert_url"],
+                        "client_x509_cert_url": st.secrets["google_credentials"]["client_x509_cert_url"],
+                        "universe_domain": st.secrets["google_credentials"]["universe_domain"]
+                    }
+                    logger.info("✅ Streamlit Secrets에서 인증 정보 로드 (TOML 구조)")
+                    
+            except Exception as e:
+                logger.warning(f"TOML Secrets 읽기 실패: {e}")
+            
+            # 방법 2: 기존 JSON 방식 (하위 호환)
+            if not service_account_info:
+                try:
+                    if hasattr(st, 'secrets') and "GOOGLE_CREDENTIALS_JSON" in st.secrets:
                         json_str = st.secrets["GOOGLE_CREDENTIALS_JSON"]
                         service_account_info = json.loads(json_str)
                         logger.info("✅ Streamlit Secrets에서 인증 정보 로드 (JSON 구조)")
-            except Exception as e:
-                logger.warning(f"Streamlit Secrets 읽기 실패: {e}")
+                except Exception as e:
+                    logger.warning(f"JSON Secrets 읽기 실패: {e}")
             
-            # 방법 2: 환경변수 (로컬 개발)
+            # 방법 3: 환경변수
             if not service_account_info:
                 try:
                     json_str = os.getenv("GOOGLE_CREDENTIALS_JSON")
@@ -128,7 +137,7 @@ class DatabaseManager:
                 except Exception as e:
                     logger.warning(f"환경변수 읽기 실패: {e}")
             
-            # 방법 3: 파일 (로컬 백업)
+            # 방법 4: 로컬 파일
             if not service_account_info:
                 try:
                     if os.path.exists('service-account.json'):
@@ -139,20 +148,37 @@ class DatabaseManager:
                     logger.warning(f"파일 읽기 실패: {e}")
                     
             if not service_account_info:
-                logger.error("❌ 인증 정보를 가져올 수 없습니다")
+                logger.error("❌ 모든 방법으로 인증 정보를 가져올 수 없습니다")
                 self.gc = None
                 self.sheet = None
                 return
             
-            # 인증 정보로 연결
-            credentials = Credentials.from_service_account_info(service_account_info, scopes=scope)
-            self.gc = gspread.authorize(credentials)
+            # 🔧 private_key 검증
+            if "private_key" in service_account_info:
+                pk = service_account_info["private_key"]
+                logger.info(f"🔍 최종 private_key 시작: {pk[:50]}...")
+                logger.info(f"🔍 BEGIN 포함: {'BEGIN PRIVATE KEY' in pk}")
+                logger.info(f"🔍 실제 줄바꿈 포함: {chr(10) in pk}")
             
-            if not Config.GOOGLE_SHEET_ID:
-                logger.warning("GOOGLE_SHEET_ID가 설정되지 않았습니다.")
+            # Google 인증
+            try:
+                credentials = Credentials.from_service_account_info(service_account_info, scopes=scope)
+                logger.info("✅ Google 인증 객체 생성 성공")
+            except Exception as e:
+                logger.error(f"❌ Google 인증 실패: {e}")
+                raise
+            
+            self.gc = gspread.authorize(credentials)
+            logger.info("✅ gspread 인증 완료")
+            
+            # 시트 연결
+            if not hasattr(st.secrets, "GOOGLE_SHEET_ID"):
+                logger.error("❌ GOOGLE_SHEET_ID가 설정되지 않았습니다")
                 return
                 
-            self.sheet = self.gc.open_by_key(Config.GOOGLE_SHEET_ID).sheet1
+            sheet_id = st.secrets["GOOGLE_SHEET_ID"]
+            self.sheet = self.gc.open_by_key(sheet_id).sheet1
+            logger.info("✅ 구글 시트 연결 성공")
             
             # 헤더 설정
             headers = [
@@ -161,7 +187,6 @@ class DatabaseManager:
                 "확정일시", "면접자요청사항", "마지막업데이트", "처리소요시간", "비고"
             ]
             
-            # 첫 번째 행 확인 및 헤더 설정
             try:
                 existing_headers = self.sheet.row_values(1)
                 if not existing_headers or len(existing_headers) < len(headers):
@@ -170,10 +195,12 @@ class DatabaseManager:
                 logger.info(f"새 시트 설정: {e}")
                 self._setup_sheet_headers(headers)
                 
-            logger.info("구글 시트 초기화 완료")
+            logger.info("🎉 구글 시트 초기화 완료!")
                 
         except Exception as e:
-            logger.error(f"구글 시트 초기화 실패: {e}")
+            logger.error(f"❌ 구글 시트 초기화 실패: {e}")
+            import traceback
+            logger.error(f"상세 에러: {traceback.format_exc()}")
             self.gc = None
             self.sheet = None
     
@@ -608,6 +635,7 @@ class DatabaseManager:
             logger.error(f"구글 시트 체크 실패: {e}")
         
         return status
+
 
 
 
