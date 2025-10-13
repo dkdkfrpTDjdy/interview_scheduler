@@ -153,17 +153,24 @@ class DatabaseManager:
                 self.sheet = None
                 return
             
-            # 🔧 private_key 검증
-            if "private_key" in service_account_info:
-                pk = service_account_info["private_key"]
-                logger.info(f"🔍 최종 private_key 시작: {pk[:50]}...")
-                logger.info(f"🔍 BEGIN 포함: {'BEGIN PRIVATE KEY' in pk}")
-                logger.info(f"🔍 실제 줄바꿈 포함: {chr(10) in pk}")
-            
-            # Google 인증
+            # Google 인증 (🔧 임시 파일 방식 사용)
             try:
-                credentials = Credentials.from_service_account_info(service_account_info, scopes=scope)
-                logger.info("✅ Google 인증 객체 생성 성공")
+                logger.info("🔄 임시 파일 방식으로 Google 인증 시도...")
+                import tempfile
+                
+                # 임시 파일 생성
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as temp_file:
+                    json.dump(service_account_info, temp_file)
+                    temp_path = temp_file.name
+                
+                # 임시 파일로 인증
+                credentials = Credentials.from_service_account_file(temp_path, scopes=scope)
+                
+                # 임시 파일 삭제
+                os.unlink(temp_path)
+                
+                logger.info("✅ 임시 파일 방식으로 Google 인증 성공")
+                
             except Exception as e:
                 logger.error(f"❌ Google 인증 실패: {e}")
                 raise
@@ -172,10 +179,6 @@ class DatabaseManager:
             logger.info("✅ gspread 인증 완료")
             
             # 시트 연결
-            if not hasattr(st.secrets, "GOOGLE_SHEET_ID"):
-                logger.error("❌ GOOGLE_SHEET_ID가 설정되지 않았습니다")
-                return
-                
             sheet_id = st.secrets["GOOGLE_SHEET_ID"]
             self.sheet = self.gc.open_by_key(sheet_id).sheet1
             logger.info("✅ 구글 시트 연결 성공")
@@ -635,6 +638,7 @@ class DatabaseManager:
             logger.error(f"구글 시트 체크 실패: {e}")
         
         return status
+
 
 
 
