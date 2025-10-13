@@ -12,6 +12,7 @@ import pandas as pd
 import time
 import random
 from functools import wraps
+import os
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -81,8 +82,8 @@ class DatabaseManager:
                 'https://www.googleapis.com/auth/drive'
             ]
             
-            credentials = Credentials.from_service_account_file(
-                Config.GOOGLE_CREDENTIALS_PATH, scopes=scope)
+            service_account_info = json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON"))
+            credentials = Credentials.from_service_account_info(service_account_info, scopes=scope)
             
             self.gc = gspread.authorize(credentials)
             
