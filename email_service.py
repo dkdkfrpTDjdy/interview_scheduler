@@ -119,12 +119,12 @@ class EmailService:
         return text.strip()
 
     def send_interviewer_invitation(self, request: InterviewRequest):
-        """면접관에게 일정 입력 요청 메일 발송 (🔧 실제 이메일 주소 사용)"""
+        """면접관에게 일정 입력 요청 메일 발송"""
         # 🔧 개선: 실제 면접관 이메일 주소 조회
         interviewer_email = get_employee_email(request.interviewer_id)
         interviewer_info = get_employee_info(request.interviewer_id)
         
-        link = f"{Config.APP_URL}/면접관_일정입력"
+        link = f"https://interview-scheduler-ajnetworks.streamlit.app/면접관_일정입력"
         
         subject = "📅 [면접 일정 조율] 면접 가능 일정 입력 요청"
         
@@ -134,7 +134,7 @@ class EmailService:
             preferred_schedule_html = """
             <div style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); padding: 25px; border-radius: 15px; border-left: 8px solid #ffc107; margin: 30px 0; box-shadow: 0 6px 20px rgba(255,193,7,0.3);">
                 <h3 style="color: #856404; margin-top: 0; margin-bottom: 25px; display: flex; align-items: center; font-size: 1.3rem;">
-                    <span style="margin-right: 15px; font-size: 1.5rem;">⭐</span> 인사팀 제안 희망일시
+                    <span style="margin-right: 15px; font-size: 1.5rem;">⭐</span> 인사팀 제안 일시
                 </h3>
                 <table style="width: 100%; border-collapse: collapse; border: 3px solid #ffc107; border-radius: 12px; overflow: hidden; box-shadow: 0 6px 15px rgba(255,193,7,0.2);">
                     <thead>
@@ -216,7 +216,7 @@ class EmailService:
                                 <td style="padding: 20px; font-weight: bold; font-size: 16px;">내용</td>
                             </tr>
                             <tr style="background-color: #f8f9fa;">
-                                <td style="padding: 20px; font-weight: bold; color: #333; border-right: 1px solid #dee2e6;">💼 포지션</td>
+                                <td style="padding: 20px; font-weight: bold; color: #333; border-right: 1px solid #dee2e6;">💼 공고명</td>
                                 <td style="padding: 20px; color: #555; font-size: 1.1rem; font-weight: bold;">{request.position_name}</td>
                             </tr>
                             <tr>
@@ -226,14 +226,6 @@ class EmailService:
                             <tr style="background-color: #f8f9fa;">
                                 <td style="padding: 20px; font-weight: bold; color: #333; border-right: 1px solid #dee2e6;">📧 이메일</td>
                                 <td style="padding: 20px; color: #555; font-size: 15px;">{request.candidate_email}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 20px; font-weight: bold; color: #333; border-right: 1px solid #dee2e6;">📅 요청 일시</td>
-                                <td style="padding: 20px; color: #555;">{request.created_at.strftime('%Y년 %m월 %d일 %H:%M')}</td>
-                            </tr>
-                            <tr style="background-color: #f8f9fa;">
-                                <td style="padding: 20px; font-weight: bold; color: #333; border-right: 1px solid #dee2e6;">🆔 요청 ID</td>
-                                <td style="padding: 20px; color: #666; font-family: monospace; font-size: 15px;">{request.id[:8]}...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -256,8 +248,7 @@ class EmailService:
                     </h4>
                     <ul style="margin: 20px 0; padding-left: 25px; color: #155724; line-height: 2; font-size: 1rem;">
                         <li><strong>인사팀에서 제안한 일시 중에서만 선택</strong> 가능합니다</li>
-                        <li><strong>가능한 면접 일정을 여러 개 선택</strong>해주세요 (면접자 선택권 확대)</li>
-                        <li>일정 입력 후 <strong>자동으로 면접자에게 알림</strong>이 전송됩니다</li>
+                        <li><strong>가능한 면접 일정을 여러 개 선택</strong>해주세요</li>
                         <li>면접자가 일정을 선택하면 <strong>확정 알림</strong>을 받게 됩니다</li>
                     </ul>
                 </div>
@@ -586,4 +577,3 @@ class EmailService:
             subject=subject,
             body=body
         )
-
