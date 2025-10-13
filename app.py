@@ -56,24 +56,8 @@ def main():
             st.error("❌ 조직도 데이터 로드 실패")
             st.info("employee_data.xlsx 파일을 확인해주세요")
         
-        # 🔧 수정된 페이지 링크 안내
-        st.divider()
-        st.subheader("🔗 시스템 페이지")
-        st.markdown("**면접관용:** `/면접관_일정입력`")
-        st.markdown("**면접자용:** `/면접자_일정선택`")
-        st.caption("각 페이지에서 사번/이메일로 인증합니다")
-        
-        # 빠른 링크 버튼
-        st.markdown("### 🚀 빠른 이동")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("👨‍💼 면접관", use_container_width=True):
-                st.markdown(f'<meta http-equiv="refresh" content="0; url={Config.APP_URL}/면접관_일정입력">', unsafe_allow_html=True)
-        with col2:
-            if st.button("👤 면접자", use_container_width=True):
-                st.markdown(f'<meta http-equiv="refresh" content="0; url={Config.APP_URL}/면접자_일정선택">', unsafe_allow_html=True)
     
-    tab1, tab2, tab3, tab4 = st.tabs(["새 면접 요청", "진행 현황", "구글 시트 관리", "시스템 관리"])
+    tab1, tab2, tab3 = st.tabs(["새 면접 요청", "진행 현황", "구글 시트 관리"])
     
     with tab1:
         st.subheader("새로운 면접 일정 조율 요청")
@@ -268,9 +252,6 @@ def main():
             
             data = []
             for req in requests:
-                # 🔧 수정된 링크 (파라미터 없음)
-                interviewer_link = f"{Config.APP_URL}/면접관_일정입력"
-                candidate_link = f"{Config.APP_URL}/면접자_일정선택"
                 
                 data.append({
                     "요청ID": req.id[:8] + "...",
@@ -279,9 +260,7 @@ def main():
                     "면접자": f"{req.candidate_name} ({req.candidate_email})",
                     "상태": req.status,
                     "생성일시": req.created_at.strftime('%m/%d %H:%M'),
-                    "확정일시": f"{req.selected_slot.date} {req.selected_slot.time}" if req.selected_slot else "-",
-                    "면접관링크": interviewer_link,
-                    "면접자링크": candidate_link
+                    "확정일시": f"{req.selected_slot.date} {req.selected_slot.time}" if req.selected_slot else "-"
                 })
             
             df = pd.DataFrame(data)
@@ -371,76 +350,7 @@ def main():
         # 수동 시트 생성
         if st.button("📝 새 구글 시트 생성 (수동)"):
             st.info("구글 시트를 수동으로 생성하고 ID를 환경변수에 설정해주세요.")
-    
-    with tab4:
-        st.subheader("⚙️ 시스템 관리")
         
-        # 환경 설정 확인
-        st.subheader("🔍 환경 설정 확인")
-        
-        config_status = {
-            "이메일 서버": "✅" if Config.EmailConfig.EMAIL_USER else "❌",
-            "구글 시트": "✅" if Config.GOOGLE_SHEET_ID else "❌",
-            "조직도 파일": "✅" if org_data else "❌",
-            "앱 URL": "✅" if Config.APP_URL else "❌"
-        }
-        
-        for item, status in config_status.items():
-            st.write(f"{status} {item}")
-        
-        # 데이터베이스 관리
-        st.subheader("🗄️ 데이터베이스 관리")
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            if st.button("📊 통계 보기"):
-                requests = db.get_all_requests()
-                st.write(f"**총 요청 수:** {len(requests)}")
-                
-                # 상태별 통계
-                status_counts = {}
-                for req in requests:
-                    status_counts[req.status] = status_counts.get(req.status, 0) + 1
-                
-                st.write("**상태별 통계:**")
-                for status, count in status_counts.items():
-                    st.write(f"- {status}: {count}건")
-        
-        with col2:
-            if st.button("🧹 완료된 요청 정리"):
-                # 30일 이상 된 확정 요청들을 아카이브
-                st.info("완료된 요청 정리 기능은 추후 구현 예정입니다.")
-        
-        with col3:
-            if st.button("📤 데이터 백업"):
-                # 데이터베이스 백업
-                st.info("데이터 백업 기능은 추후 구현 예정입니다.")
-        
-        # 로그 확인
-        st.subheader("📝 시스템 로그")
-        
-        if st.button("📋 최근 로그 보기"):
-            st.info("로그 시스템은 추후 구현 예정입니다.")
-        
-        # 🔧 페이지 링크 테스트
-        st.subheader("🔗 페이지 링크 테스트")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.write("**면접관 페이지**")
-            interviewer_url = f"{Config.APP_URL}/면접관_일정입력"
-            st.code(interviewer_url)
-            if st.button("🧪 면접관 페이지 테스트"):
-                st.markdown(f'<a href="{interviewer_url}" target="_blank">면접관 페이지 열기</a>', unsafe_allow_html=True)
-        
-        with col2:
-            st.write("**면접자 페이지**")
-            candidate_url = f"{Config.APP_URL}/면접자_일정선택"
-            st.code(candidate_url)
-            if st.button("🧪 면접자 페이지 테스트"):
-                st.markdown(f'<a href="{candidate_url}" target="_blank">면접자 페이지 열기</a>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
