@@ -1,7 +1,26 @@
 import streamlit as st
+import os
+
+# 앱 구분 로직
+def is_interviewer_app():
+    """현재 앱이 면접관용인지 확인"""
+    try:
+        # URL이나 환경변수로 앱 구분
+        if "candidate-app" in st.get_option("server.headless"):
+            return False
+        return True
+    except:
+        # 환경변수로 구분
+        return os.getenv("APP_TYPE", "interviewer") == "interviewer"
+
+# 페이지 접근 제어
+if not is_interviewer_app():
+    st.error("❌ 접근 권한이 없습니다.")
+    st.info("면접관 전용 페이지입니다. 면접자용 앱을 이용해주세요.")
+    st.stop()
+
 from datetime import datetime
 import sys
-import os
 
 # 상위 디렉터리의 모듈들을 import하기 위해 경로 추가
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -383,3 +402,4 @@ def show_request_detail(request, index):
 
 if __name__ == "__main__":
     main()
+
