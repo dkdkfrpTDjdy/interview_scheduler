@@ -2,11 +2,34 @@ import os
 from datetime import datetime, timedelta
 import pytz
 from dotenv import load_dotenv
+import streamlit as st
 
 # .env 파일 로드
 load_dotenv()
 
 class Config:
+    # 🔧 앱 타입 구분
+    @classmethod
+    def get_app_type(cls):
+        """현재 앱 타입 확인"""
+        # 1. secrets.toml 확인
+        try:
+            return st.secrets.get("APP_TYPE", "interviewer")
+        except:
+            pass
+        
+        # 2. 환경변수 확인  
+        app_type = os.getenv("APP_TYPE", "interviewer")
+        return app_type
+    
+    @classmethod
+    def is_interviewer_app(cls):
+        return cls.get_app_type() == "interviewer"
+    
+    @classmethod  
+    def is_candidate_app(cls):
+        return cls.get_app_type() == "candidate"
+    
     # 데이터베이스 설정
     DATABASE_PATH = "interview_scheduler.db"
     
@@ -74,4 +97,5 @@ class Config:
         
         # 알림 템플릿 버전
         TEMPLATE_VERSION = "2024.1"
+
 
