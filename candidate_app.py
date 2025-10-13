@@ -13,7 +13,7 @@ st.set_page_config(
     page_title="면접 일정 선택 - AI 면접 시스템",
     page_icon="👤",
     layout="wide",
-    initial_sidebar_state="collapsed"  # 사이드바 기본 숨김
+    initial_sidebar_state="collapsed"
 )
 
 # 구글 시트 연결 함수
@@ -26,7 +26,6 @@ def init_google_sheet():
             'https://www.googleapis.com/auth/drive'
         ]
         
-        # Streamlit Secrets에서 인증 정보 가져오기
         service_account_info = {
             "type": st.secrets["google_credentials"]["type"],
             "project_id": st.secrets["google_credentials"]["project_id"],
@@ -44,7 +43,6 @@ def init_google_sheet():
         credentials = Credentials.from_service_account_info(service_account_info, scopes=scope)
         gc = gspread.authorize(credentials)
         
-        # 구글 시트 연결
         sheet_id = st.secrets["GOOGLE_SHEET_ID"]
         sheet = gc.open_by_key(sheet_id).sheet1
         
@@ -54,86 +52,8 @@ def init_google_sheet():
         st.error(f"구글 시트 연결 실패: {e}")
         return None
 
-# 전역 객체 초기화
-@st.cache_resource
-def init_services():
-    try:
-        from database import DatabaseManager
-        from email_service import EmailService
-        db = DatabaseManager()
-        email_service = EmailService()
-        return db, email_service
-    except Exception as e:
-        st.error(f"서비스 초기화 실패: {e}")
-        return None, None
-
 # 전역 변수
 google_sheet = init_google_sheet()
-db, email_service = init_services()
-
-def get_candidates_from_sheet():
-    """🔍 구글 시트에서 면접자 정보 조회 (디버깅 강화)"""
-    try:
-        if not google_sheet:
-            st.error("구글 시트 연결이 없습니다.")
-            return []
-        
-        # 🔍 원시 데이터 확인
-        st.write("🔍 **디버깅: 구글 시트 원시 데이터**")
-        all_values = google_sheet.get_all_values()
-        st.write(f"전체 행 수: {len(all_values)}")
-        
-        if all_values:
-            st.write("첫 번째 행 (헤더):", all_values[0])
-            if len(all_values) > 1:
-                st.write("두 번째 행 (첫 데이터):", all_values[1])
-        
-        # 헤더 확인
-        headers = all_values[0] if all_values else []
-        st.write("헤더 목록:", headers)
-        
-        # 면접자명과 면접자이메일 컬럼 인덱스 찾기
-        name_col_idx = None
-        email_col_idx = None
-        
-        for i, header in enumerate(headers):
-            if '면접자명' in str(header):
-                name_col_idx = i
-            if '면접자이메일' in str(header):
-                email_col_idx = i
-        
-        st.write(f"면접자명 컬럼 인덱스: {name_col_idx}")
-        st.write(f"면접자이메일 컬럼 인덱스: {email_col_idx}")
-        
-        if name_col_idx is None or email_col_idx is None:
-            st.error("면접자명 또는 면접자이메일 컬럼을 찾을 수 없습니다.")
-            return []
-        
-        # 데이터 처리
-        candidates = []
-        for i, row in enumerate(all_values[1:], 1):  # 헤더 제외
-            if len(row) > max(name_col_idx, email_col_idx):
-                name = str(row[name_col_idx]).strip() if name_col_idx < len(row) else ""
-                email = str(row[email_col_idx]).strip() if email_col_idx < len(row) else ""
-                
-                st.write(f"행 {i}: 이름='{name}', 이메일='{email}'")
-                
-                if name and email:
-                    candidates.append({
-                        'name': name,
-                        'email': email,
-                        'row_number': i + 1,
-                        'raw_data': row
-                    })
-        
-        st.write(f"추출된 면접자 수: {len(candidates)}")
-        return candidates
-        
-    except Exception as e:
-        st.error(f"면접자 정보 조회 실패: {e}")
-        import traceback
-        st.error(traceback.format_exc())
-        return []
 
 def normalize_text(text: str) -> str:
     """텍스트 정규화"""
@@ -141,125 +61,164 @@ def normalize_text(text: str) -> str:
         return ""
     return str(text).strip().lower().replace(" ", "")
 
-def find_candidate_in_sheet(name: str, email: str):
-    """🔍 구글 시트에서 특정 면접자 찾기 (디버깅 강화)"""
+def get_sheet_data_as_dict():
+    """구글 시트 데이터를 딕셔너리 형태로 변환"""
     try:
-        st.write("🔍 **디버깅: 면접자 검색 과정**")
+        if not google_sheet:
+            return []
         
-        candidates = get_candidates_from_sheet()
+        all_values = google_sheet.get_all_values()
+        if not all_values:
+            return []
+        
+        headers = all_values[0]
+        data = []
+        
+        for row in all_values[1:]:
+            row_dict = {}
+            for i, header in enumerate(headers):
+                row_dict[header] = row[i] if i < len(row) else ""
+            data.append(row_dict)
+        
+        return data
+        
+    except Exception as e:
+        st.error(f"시트 데이터 변환 실패: {e}")
+        return []
+
+def find_candidate_requests(name: str, email: str):
+    """🔧 구글 시트에서 직접 면접자 요청 찾기"""
+    try:
+        sheet_data = get_sheet_data_as_dict()
+        
+        if not sheet_data:
+            return []
         
         # 정규화된 검색
         normalized_name = normalize_text(name)
         normalized_email = normalize_text(email)
         
-        st.write(f"검색할 정규화된 이름: '{normalized_name}'")
-        st.write(f"검색할 정규화된 이메일: '{normalized_email}'")
-        
-        matching_candidates = []
-        
-        for candidate in candidates:
-            cand_name = normalize_text(candidate['name'])
-            cand_email = normalize_text(candidate['email'])
-            
-            st.write(f"비교 중 - DB이름: '{cand_name}', DB이메일: '{cand_email}'")
-            
-            # 이름과 이메일이 모두 일치하는 경우
-            name_match = normalized_name == cand_name
-            email_match = normalized_email == cand_email
-            
-            st.write(f"  이름 일치: {name_match}, 이메일 일치: {email_match}")
-            
-            if name_match and email_match:
-                st.success(f"✅ 매칭 성공! 행 {candidate['row_number']}")
-                matching_candidates.append(candidate)
-        
-        st.write(f"최종 매칭된 면접자 수: {len(matching_candidates)}")
-        return matching_candidates
-        
-    except Exception as e:
-        st.error(f"면접자 검색 실패: {e}")
-        import traceback
-        st.error(traceback.format_exc())
-        return []
-
-def find_full_request_id(short_id: str):
-    """축약된 요청ID로 전체 ID 찾기"""
-    try:
-        if not db:
-            return None
-            
-        # "..." 제거
-        clean_id = short_id.replace('...', '')
-        
-        all_requests = db.get_all_requests()
-        for request in all_requests:
-            if request.id.startswith(clean_id):
-                return request.id
-        
-        return None
-        
-    except Exception as e:
-        return None
-
-def find_candidate_requests(name: str, email: str):
-    """🔧 구글 시트 기반 면접자 요청 찾기"""
-    try:
-        st.write("🔍 **디버깅: 요청 찾기 과정**")
-        
-        if not db:
-            st.error("데이터베이스 연결이 없습니다.")
-            return []
-            
-        # 1. 구글 시트에서 먼저 확인
-        sheet_candidates = find_candidate_in_sheet(name, email)
-        
-        if not sheet_candidates:
-            st.warning("구글 시트에서 매칭되는 면접자를 찾지 못했습니다.")
-            return []
-        
-        st.success(f"구글 시트에서 {len(sheet_candidates)}명의 면접자를 찾았습니다.")
-        
-        # 2. 데이터베이스에서 모든 요청 가져와서 매칭
-        all_requests = db.get_all_requests()
-        st.write(f"데이터베이스 전체 요청 수: {len(all_requests)}")
-        
         matching_requests = []
         
-        # 이름과 이메일로 직접 검색
-        for request in all_requests:
-            req_name = normalize_text(request.candidate_name)
-            req_email = normalize_text(request.candidate_email)
-            search_name = normalize_text(name)
-            search_email = normalize_text(email)
+        for row in sheet_data:
+            row_name = normalize_text(row.get('면접자명', ''))
+            row_email = normalize_text(row.get('면접자이메일', ''))
             
-            st.write(f"DB 요청 비교: '{req_name}' vs '{search_name}', '{req_email}' vs '{search_email}'")
-            
-            if req_name == search_name and req_email == search_email:
-                st.success(f"✅ 요청 매칭 성공: {request.id[:8]}...")
-                matching_requests.append(request)
+            if row_name == normalized_name and row_email == normalized_email:
+                # 구글 시트 데이터를 면접 요청 객체처럼 변환
+                request_obj = {
+                    'id': row.get('요청ID', ''),
+                    'position_name': row.get('포지션명', ''),
+                    'candidate_name': row.get('면접자명', ''),
+                    'candidate_email': row.get('면접자이메일', ''),
+                    'interviewer_id': row.get('면접관ID', ''),
+                    'interviewer_name': row.get('면접관이름', ''),
+                    'status': row.get('상태', ''),
+                    'created_at': row.get('생성일시', ''),
+                    'proposed_slots': row.get('제안일시목록', ''),
+                    'confirmed_datetime': row.get('확정일시', ''),
+                    'candidate_note': row.get('면접자요청사항', ''),
+                    'row_data': row
+                }
+                matching_requests.append(request_obj)
         
-        st.write(f"최종 매칭된 요청 수: {len(matching_requests)}")
         return matching_requests
         
     except Exception as e:
         st.error(f"요청 조회 중 오류: {e}")
-        import traceback
-        st.error(traceback.format_exc())
         return []
+
+def parse_proposed_slots(slots_str: str):
+    """제안일시목록 문자열을 파싱"""
+    if not slots_str:
+        return []
+    
+    slots = []
+    parts = slots_str.split(' | ')
+    
+    for part in parts:
+        try:
+            # "2025-10-16 09:00(60분)" 형식 파싱
+            if '(' in part and ')' in part:
+                datetime_part, duration_part = part.split('(')
+                duration = duration_part.replace('분)', '')
+                
+                date_part, time_part = datetime_part.strip().split(' ')
+                
+                slots.append({
+                    'date': date_part,
+                    'time': time_part,
+                    'duration': int(duration)
+                })
+        except:
+            continue
+    
+    return slots
+
+def format_date_korean(date_str: str) -> str:
+    """날짜를 한국어 형식으로 변환"""
+    try:
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+        weekday_names = ['월', '화', '수', '목', '금', '토', '일']
+        weekday = weekday_names[date_obj.weekday()]
+        return f"{date_obj.month}월 {date_obj.day}일 ({weekday})"
+    except:
+        return date_str
+
+def update_sheet_selection(request_id: str, selected_slot: dict, candidate_note: str = ""):
+    """구글 시트에 면접자 선택 결과 업데이트"""
+    try:
+        if not google_sheet:
+            return False
+        
+        # 요청ID로 행 찾기
+        all_values = google_sheet.get_all_values()
+        headers = all_values[0]
+        
+        # 컬럼 인덱스 찾기
+        confirmed_col = headers.index('확정일시') + 1  # 1-based index
+        status_col = headers.index('상태') + 1
+        note_col = headers.index('면접자요청사항') + 1
+        update_col = headers.index('마지막업데이트') + 1
+        
+        # 요청ID로 행 찾기
+        for i, row in enumerate(all_values[1:], 2):  # 2부터 시작 (헤더 제외, 1-based)
+            if row[0].startswith(request_id.replace('...', '')):
+                # 확정일시 업데이트
+                confirmed_datetime = f"{selected_slot['date']} {selected_slot['time']}({selected_slot['duration']}분)"
+                google_sheet.update_cell(i, confirmed_col, confirmed_datetime)
+                
+                # 상태 업데이트
+                google_sheet.update_cell(i, status_col, "확정완료")
+                
+                # 면접자 요청사항 업데이트
+                if candidate_note:
+                    google_sheet.update_cell(i, note_col, candidate_note)
+                
+                # 마지막 업데이트 시간
+                google_sheet.update_cell(i, update_col, datetime.now().strftime('%Y-%m-%d %H:%M'))
+                
+                return True
+        
+        return False
+        
+    except Exception as e:
+        st.error(f"시트 업데이트 실패: {e}")
+        return False
 
 # 면접자 앱에서는 pages 폴더 숨기기
 def hide_pages():
     """면접자 앱에서 불필요한 페이지 숨기기"""
     hide_streamlit_style = """
     <style>
-    .css-1d391kg {display: none}  /* 사이드바 페이지 링크 숨기기 */
-    section[data-testid="stSidebar"] > div:first-child {display: none}  /* 사이드바 네비게이션 숨기기 */
+    .css-1d391kg {display: none}
+    section[data-testid="stSidebar"] > div:first-child {display: none}
     </style>
     """
     st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 def show_candidate_login():
-    """🔧 구글 시트 연동 면접자 인증 페이지"""
+    """면접자 인증 페이지"""
     st.markdown("""
     <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 40px; border-radius: 15px; text-align: center; margin: 30px 0; box-shadow: 0 10px 30px rgba(40,167,69,0.3);">
         <div style="font-size: 3rem; margin-bottom: 20px;">🔐</div>
@@ -268,38 +227,9 @@ def show_candidate_login():
     </div>
     """, unsafe_allow_html=True)
     
-    # 🔧 구글 시트 연결 상태 확인
     if not google_sheet:
         st.error("❌ 구글 시트에 연결할 수 없습니다. 관리자에게 문의해주세요.")
         return
-    
-    # 🔍 디버깅 모드 토글
-    debug_mode = st.checkbox("🔍 디버깅 모드 (개발자용)", value=False)
-    
-    if debug_mode:
-        st.write("### 🔍 디버깅 정보")
-        
-        # 구글 시트 연결 상태
-        st.write(f"**구글 시트 연결 상태:** {'✅ 연결됨' if google_sheet else '❌ 연결 안됨'}")
-        st.write(f"**데이터베이스 연결 상태:** {'✅ 연결됨' if db else '❌ 연결 안됨'}")
-        
-        # 구글 시트 데이터 미리보기
-        if st.button("🔄 구글 시트 데이터 새로고침"):
-            st.cache_resource.clear()
-            st.rerun()
-        
-        with st.expander("📋 구글 시트 원시 데이터 확인", expanded=False):
-            try:
-                if google_sheet:
-                    all_values = google_sheet.get_all_values()
-                    if all_values:
-                        df = pd.DataFrame(all_values[1:], columns=all_values[0])
-                        st.dataframe(df, width='stretch')
-                        st.write(f"총 {len(all_values)-1}행의 데이터")
-                    else:
-                        st.warning("구글 시트가 비어있습니다.")
-            except Exception as e:
-                st.error(f"데이터 로드 실패: {e}")
     
     col1, col2, col3 = st.columns([1, 2, 1])
     
@@ -315,7 +245,7 @@ def show_candidate_login():
             
             candidate_email = st.text_input(
                 "이메일 주소를 입력해주세요",
-                placeholder="hongkildong@example.com",
+                placeholder="jadilli@naver.com",
                 help="면접 신청 시 입력한 이메일 주소를 정확히 입력해주세요"
             )
             
@@ -327,12 +257,7 @@ def show_candidate_login():
                 elif not candidate_email.strip():
                     st.error("❌ 이메일 주소를 입력해주세요.")
                 else:
-                    # 🔧 구글 시트에서 면접자 정보 확인
                     with st.spinner("🔍 면접자 정보를 확인하고 있습니다..."):
-                        
-                        if debug_mode:
-                            st.write("### 🔍 실시간 검색 과정")
-                        
                         matching_requests = find_candidate_requests(candidate_name.strip(), candidate_email.strip())
                     
                     if matching_requests:
@@ -342,40 +267,9 @@ def show_candidate_login():
                         }
                         st.session_state.candidate_requests = matching_requests
                         st.success(f"✅ {len(matching_requests)}건의 면접 요청을 찾았습니다!")
-                        
-                        if not debug_mode:  # 디버깅 모드가 아닐 때만 자동 이동
-                            st.rerun()
+                        st.rerun()
                     else:
                         st.error("❌ 입력하신 정보와 일치하는 면접 요청을 찾을 수 없습니다.")
-                        
-                        # 🔧 상세 디버깅 정보 항상 표시
-                        with st.expander("🔍 상세 확인", expanded=True):
-                            st.write("**입력하신 정보:**")
-                            st.write(f"- 이름: `{candidate_name.strip()}`")
-                            st.write(f"- 이메일: `{candidate_email.strip()}`")
-                            st.write(f"- 정규화된 이름: `{normalize_text(candidate_name.strip())}`")
-                            st.write(f"- 정규화된 이메일: `{normalize_text(candidate_email.strip())}`")
-                        
-                        st.info("💡 이름과 이메일 주소를 정확히 입력했는지 확인해주세요.")
-                        st.warning("⚠️ 면접관이 아직 일정을 입력하지 않았을 수도 있습니다.")
-
-    # 도움말
-    st.markdown("---")
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.markdown("""
-        <div style="background-color: #f8f9fa; padding: 25px; border-radius: 12px; text-align: center; border: 1px solid #dee2e6;">
-            <h4 style="color: #495057; margin-top: 0;">💡 이용 안내</h4>
-            <div style="text-align: left; margin: 15px 0;">
-                <p style="margin: 8px 0; color: #6c757d;">• 면접 신청 시 입력한 <strong>정확한 이름과 이메일</strong>을 입력해주세요</p>
-                <p style="margin: 8px 0; color: #6c757d;">• 대소문자와 띄어쓰기까지 <strong>정확히 일치</strong>해야 합니다</p>
-                <p style="margin: 8px 0; color: #6c757d;">• 면접관이 일정을 입력해야 <strong>선택 가능</strong>합니다</p>
-            </div>
-            <div style="background-color: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 15px;">
-                <p style="margin: 0; color: #1565c0;"><strong>📞 문의:</strong> <a href="mailto:hr@ajnet.co.kr">hr@ajnet.co.kr</a></p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
 
 def show_candidate_dashboard():
     """면접자 대시보드"""
@@ -397,39 +291,173 @@ def show_candidate_dashboard():
     
     with col2:
         if st.button("🚪 로그아웃", width='stretch'):
-            # 세션 상태 초기화
             for key in ['authenticated_candidate', 'candidate_requests']:
                 if key in st.session_state:
                     del st.session_state[key]
             st.rerun()
     
-    # 요청 목록 표시
     if not candidate_requests:
-        st.markdown("""
-        <div style="text-align: center; padding: 60px; background-color: #f8f9fa; border-radius: 15px; margin: 30px 0;">
-            <div style="font-size: 4rem; margin-bottom: 20px; color: #6c757d;">📭</div>
-            <h3 style="color: #6c757d; margin: 0 0 15px 0;">면접 요청을 찾을 수 없습니다</h3>
-            <p style="color: #6c757d; font-size: 1.1rem;">입력하신 정보와 일치하는 면접 요청이 없거나, 아직 면접관이 일정을 입력하지 않았습니다.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.info("면접 요청을 찾을 수 없습니다.")
         return
     
     st.subheader(f"📋 나의 면접 일정 ({len(candidate_requests)}건)")
     
-    # 각 요청에 대해 처리
+    # 각 요청 처리
     for i, request in enumerate(candidate_requests):
-        with st.expander(f"📅 {request.position_name} - {request.created_at.strftime('%m/%d')} 신청", expanded=len(candidate_requests)==1):
-            st.write("요청 상세 정보가 여기에 표시됩니다.")
-            # show_request_detail(request, i) 함수는 나머지 코드와 함께 추가
+        with st.expander(f"📅 {request['position_name']} - {request['created_at']} 신청", expanded=len(candidate_requests)==1):
+            show_request_detail(request, i)
+
+def show_request_detail(request, index):
+    """개별 면접 요청 상세 정보"""
+    
+    # 상태 확인
+    if request['status'] == '확정완료':
+        show_confirmed_schedule(request)
+        return
+    
+    if request['status'] != '면접자_선택대기':
+        st.info(f"현재 상태: {request['status']}")
+        if request['status'] == '면접관_일정입력대기':
+            st.warning("⚠️ 면접관이 아직 가능한 일정을 입력하지 않았습니다.")
+        return
+    
+    # 면접 정보 표시
+    st.markdown(f"""
+    <div style="background-color: white; padding: 25px; border-radius: 10px; border-left: 5px solid #28a745; margin: 20px 0; box-shadow: 0 2px 10px rgba(40,167,69,0.1);">
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 10px 0; font-weight: bold; color: #28a745; width: 120px;">포지션</td>
+                <td style="padding: 10px 0; color: #333; font-size: 1.1rem; font-weight: bold;">{request['position_name']}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px 0; font-weight: bold; color: #28a745;">면접관</td>
+                <td style="padding: 10px 0; color: #333;">{request['interviewer_name']} (ID: {request['interviewer_id']})</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px 0; font-weight: bold; color: #28a745;">신청일</td>
+                <td style="padding: 10px 0; color: #333;">{request['created_at']}</td>
+            </tr>
+        </table>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 제안된 일정 파싱
+    proposed_slots = parse_proposed_slots(request['proposed_slots'])
+    
+    if not proposed_slots:
+        st.warning("⚠️ 면접관이 아직 가능한 일정을 입력하지 않았습니다.")
+        return
+    
+    st.write("**🗓️ 제안된 면접 일정 중 선택해주세요**")
+    
+    # 제안된 일정을 테이블로 표시
+    table_html = """
+    <table style="width: 100%; border-collapse: collapse; border: 2px solid #28a745; border-radius: 8px; overflow: hidden; margin: 15px 0;">
+        <thead>
+            <tr style="background-color: #28a745; color: white;">
+                <th style="padding: 15px; text-align: center; font-weight: bold;">옵션</th>
+                <th style="padding: 15px; text-align: center; font-weight: bold;">날짜</th>
+                <th style="padding: 15px; text-align: center; font-weight: bold;">시간</th>
+                <th style="padding: 15px; text-align: center; font-weight: bold;">소요시간</th>
+            </tr>
+        </thead>
+        <tbody>
+    """
+    
+    for i, slot in enumerate(proposed_slots, 1):
+        bg_color = "#f8f9fa" if i % 2 == 0 else "white"
+        table_html += f"""
+            <tr style="background-color: {bg_color};">
+                <td style="padding: 15px; text-align: center; font-weight: bold;">옵션 {i}</td>
+                <td style="padding: 15px; text-align: center; font-weight: bold;">{format_date_korean(slot['date'])}</td>
+                <td style="padding: 15px; text-align: center; color: #007bff; font-weight: bold;">{slot['time']}</td>
+                <td style="padding: 15px; text-align: center;">{slot['duration']}분</td>
+            </tr>
+        """
+    
+    table_html += """
+        </tbody>
+    </table>
+    """
+    
+    st.markdown(table_html, unsafe_allow_html=True)
+    
+    # 선택 폼
+    with st.form(f"candidate_selection_{index}"):
+        slot_options = []
+        for i, slot in enumerate(proposed_slots):
+            slot_text = f"옵션 {i+1}: {format_date_korean(slot['date'])} {slot['time']} ({slot['duration']}분)"
+            slot_options.append(slot_text)
+        
+        slot_options.append("❌ 제안된 일정으로는 불가능 (다른 일정 요청)")
+        
+        selected_option = st.radio(
+            "원하는 면접 일정을 선택해주세요:",
+            options=range(len(slot_options)),
+            format_func=lambda x: slot_options[x]
+        )
+        
+        candidate_note = ""
+        if selected_option == len(slot_options) - 1:
+            candidate_note = st.text_area(
+                "가능한 면접 일정이나 요청사항을 입력해주세요:",
+                placeholder="예시:\n• 다음 주 화요일 오후 2시 이후 가능합니다\n• 월요일과 수요일은 전체 불가능합니다",
+                height=150
+            )
+        
+        submitted = st.form_submit_button("✅ 면접 일정 선택 완료", width='stretch', type="primary")
+        
+        if submitted:
+            if selected_option < len(proposed_slots):
+                # 정규 일정 선택
+                selected_slot = proposed_slots[selected_option]
+                
+                if update_sheet_selection(request['id'], selected_slot, candidate_note):
+                    st.success("🎉 면접 일정이 확정되었습니다!")
+                    st.success("📧 관련자 모두에게 확정 알림이 전송됩니다.")
+                    
+                    # 확정 정보 표시
+                    st.markdown(f"""
+                    <div style="background-color: #d4edda; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 5px solid #28a745;">
+                        <h4 style="color: #155724; margin-top: 0;">📅 확정된 면접 일정</h4>
+                        <p style="color: #155724; margin: 0;"><strong>{format_date_korean(selected_slot['date'])} {selected_slot['time']} ({selected_slot['duration']}분)</strong></p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    st.balloons()
+                else:
+                    st.error("❌ 일정 확정 중 오류가 발생했습니다.")
+            else:
+                # 다른 일정 요청
+                if not candidate_note.strip():
+                    st.error("❌ 가능한 일정을 구체적으로 입력해주세요.")
+                else:
+                    st.success("📧 일정 재조율 요청이 인사팀에 전달되었습니다!")
+
+def show_confirmed_schedule(request):
+    """확정된 일정 표시"""
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); padding: 30px; border-radius: 15px; border-left: 8px solid #28a745; margin: 20px 0; text-align: center;">
+        <div style="font-size: 3rem; margin-bottom: 15px;">🎉</div>
+        <h3 style="color: #155724; margin: 0 0 10px 0;">면접 일정이 확정되었습니다!</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    if request['confirmed_datetime']:
+        st.markdown(f"""
+        <div style="background-color: #d4edda; padding: 25px; border-radius: 10px; margin: 20px 0; text-align: center;">
+            <h4 style="color: #155724; margin: 0;">📅 확정된 면접 일정</h4>
+            <p style="color: #155724; font-size: 1.3rem; font-weight: bold; margin: 10px 0;">{request['confirmed_datetime']}</p>
+            <p style="color: #155724; margin: 0;">면접관: {request['interviewer_name']}</p>
+        </div>
+        """, unsafe_allow_html=True)
 
 def main():
-    # 불필요한 페이지 숨기기
     hide_pages()
     
     st.title("👤 면접 일정 선택")
     st.caption("면접자 전용 독립 페이지")
     
-    # 🔧 새로운 인증 방식: 이름 + 이메일
     if 'authenticated_candidate' not in st.session_state:
         show_candidate_login()
     else:
