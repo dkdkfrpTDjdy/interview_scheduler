@@ -48,6 +48,12 @@ def main():
             with col1:
                 # 면접관 선택 (조직도에서)
                 if org_data:
+                    interviewer_id = st.text_input(
+                        "면접관 사번",
+                        placeholder="예: 223286",
+                        help="면접관의 사번을 입력해주세요"
+                    )
+                else:
                     interviewer_options = [f"{emp['employee_id']} - {emp['name']} ({emp['department']})" 
                                          for emp in org_data]
                     selected_interviewer = st.selectbox(
@@ -56,13 +62,7 @@ def main():
                         help="조직도에서 면접관을 선택해주세요"
                     )
                     interviewer_id = selected_interviewer.split(' - ')[0] if selected_interviewer != "선택해주세요" else ""
-                else:
-                    interviewer_id = st.text_input(
-                        "면접관 사번",
-                        placeholder="예: 223286",
-                        help="면접관의 사번을 입력해주세요"
-                    )
-                
+
                 candidate_name = st.text_input(
                     "면접자 이름",
                     placeholder="홍길동",
@@ -101,7 +101,7 @@ def main():
                     
                     with col_time:
                         # 시간 선택 옵션 개선
-                        time_options = ["선택안함", "상관없음(면접관선택)"] + Config.TIME_SLOTS
+                        time_options = ["선택안함", "면접관선택"] + Config.TIME_SLOTS
                         selected_time = st.selectbox(
                             "시간",
                             options=time_options,
@@ -111,7 +111,7 @@ def main():
                     
                     if selected_date != "선택안함" and selected_time != "선택안함":
                         # "상관없음" 선택 시 면접관이 고르도록 처리
-                        if selected_time == "상관없음(면접관선택)":
+                        if selected_time == "면접관선택":
                             time_value = "면접관선택"
                         else:
                             time_value = selected_time
@@ -131,11 +131,11 @@ def main():
                 elif not candidate_email.strip():
                     st.error("면접자 이메일을 입력해주세요.")
                 elif not position_name.strip():
-                    st.error("공고명(포지션명)을 입력해주세요.")
+                    st.error("공고명을 입력해주세요.")
                 elif not validate_email(candidate_email):
                     st.error("올바른 이메일 형식을 입력해주세요.")
                 elif not selected_datetime_slots:
-                    st.error("최소 1개 이상의 면접 희망일시를 선택해주세요.")
+                    st.error("1개 이상의 면접 희망일시를 선택해주세요.")
                 else:
                     # 새 면접 요청 생성
                     request = InterviewRequest.create_new(
@@ -156,14 +156,6 @@ def main():
                         st.success(f"📧 면접관({interviewer_id})에게 일정 입력 요청 메일을 발송했습니다.")
                         st.info("면접관이 일정을 입력하면 자동으로 면접자에게 알림이 전송됩니다.")
                         
-                        # 🔧 수정된 링크 표시
-                        st.markdown("### 📎 관련 링크")
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.info(f"**면접관 페이지:** {Config.APP_URL}/면접관_일정입력")
-                        with col2:
-                            st.info(f"**면접자 페이지:** {Config.APP_URL}/면접자_일정선택")
-                        
                         # 선택된 희망일시 미리보기 (HTML 테이블)
                         st.subheader("📋 전송된 희망일시")
                         preview_html = """
@@ -182,7 +174,7 @@ def main():
                             bg_color = "#f8f9fa" if i % 2 == 0 else "white"
                             if "면접관선택" in slot:
                                 date_part = slot.split(' ')[0]
-                                time_display = "면접관이 선택"
+                                time_display = "면접관이 선택함"
                             else:
                                 date_part, time_part = slot.split(' ')
                                 time_display = time_part
@@ -201,7 +193,7 @@ def main():
                         """
                         st.markdown(preview_html, unsafe_allow_html=True)
                     else:
-                        st.error("면접 요청은 생성되었지만 이메일 발송에 실패했습니다.")
+                        st.error("이메일 발송에 실패했습니다.")
     
     with tab2:
         st.subheader("면접 일정 조율 현황")
@@ -234,7 +226,7 @@ def main():
             for req in requests:
                 
                 data.append({
-                    "요청ID": req.id[:8] + "...",
+                    "요청ID": req.id[:8],
                     "포지션": req.position_name,
                     "면접관": req.interviewer_id,
                     "면접자": f"{req.candidate_name} ({req.candidate_email})",
@@ -334,3 +326,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
