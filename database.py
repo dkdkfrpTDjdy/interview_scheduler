@@ -82,7 +82,55 @@ class DatabaseManager:
                 'https://www.googleapis.com/auth/drive'
             ]
             
-            service_account_info = json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON"))
+            # 🔧 여러 방법으로 인증 정보 가져오기
+            service_account_info = None
+            
+            # 방법 1: Streamlit Secrets (Streamlit Cloud)
+            try:
+                if hasattr(st, 'secrets'):
+                    if "GOOGLE_CREDENTIALS_JSON" in st.secrets:
+                        json_str = st.secrets["GOOGLE_CREDENTIALS_JSON"]
+                        service_account_info = json.loads(json_str)
+                        logger.info("✅ Streamlit Secrets에서 인증 정보 로드")
+            except Exception as e:
+                logger.warning(f"Streamlit Secrets 읽기 실패: {e}")
+            
+            # 방법 2: 환경변수 (로컬 개발)
+            if not service_account_info:
+                try:
+                    json_str = os.getenv("GOOGLE_CREDENTIALS_JSON")
+                    if json_str:
+                        service_account_info = json.loads(json_str)
+                        logger.info("✅ 환경변수에서 인증 정보 로드")
+                except Exception as e:
+                    logger.warning(f"환경변수 읽기 실패: {e}")
+            
+            # 방법 3: 파일 (로컬 백업)
+            if not service_account_info:
+                try:
+                    if os.path.exists('service-account.json'):
+                        with open('service-account.json', 'r') as f:
+                            service_account_info = json.load(f)
+                        logger.info("✅ 로컬 파일에서 인증 정보 로드")
+                except Exception as e:
+                    logger.warning(f"파일 읽기 실패: {e}")
+                    
+            if not service_account_info:
+                logger.error("❌ 인증 정보를 가져올 수 없습니다")
+                self.gc = None
+                self.sheet = None
+                return
+            
+            # 인증 정보로 연결
+            credentials = Credentials.from_service_account_info(service_account_info, scopes=scope)
+            self.gc = gspread.authorize(credentials)
+            
+            if not Config.GOOGLE_SHEET_ID:
+                logger.warning("GOOGLE_SHEET_ID가 설정되지 않았습니다.")
+                return
+                
+            self.sheet = self.gc.open_by_key(Config.GOOGLE_SHEET_ID).sheet1
+                
             credentials = Credentials.from_service_account_info(service_account_info, scopes=scope)
             
             self.gc = gspread.authorize(credentials)
@@ -547,3 +595,4 @@ class DatabaseManager:
             logger.error(f"구글 시트 체크 실패: {e}")
         
         return status
+
