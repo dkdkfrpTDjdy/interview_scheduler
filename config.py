@@ -31,7 +31,7 @@ class Config:
     COMPANY_DOMAIN = os.getenv("COMPANY_DOMAIN", "ajnet.co.kr")
     
     # 앱 URL (메인 앱과 면접자 전용 앱 분리)
-    APP_URL = os.getenv("APP_URL", "https://interview-scheduler-ajnet.streamlit.app")
+    APP_URL = os.getenv("APP_URL", "https://interview-scheduler-ajnetworks.streamlit.app")
     # 🔧 면접자 전용 독립 앱 URL
     CANDIDATE_APP_URL = os.getenv("CANDIDATE_APP_URL", "https://interview-candidate-ajnet.streamlit.app")
     
@@ -74,3 +74,4 @@ class Config:
         
         # 알림 템플릿 버전
         TEMPLATE_VERSION = "2024.1"
+
