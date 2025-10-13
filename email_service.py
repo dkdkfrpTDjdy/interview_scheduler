@@ -262,7 +262,7 @@ class EmailService:
         """면접자에게 일정 선택 요청 메일 발송 (독립 앱 링크)"""
         interviewer_info = get_employee_info(request.interviewer_id)
         # 🔧 수정: 독립 앱 URL 사용
-        candidate_link = Config.CANDIDATE_APP_URL
+        candidate_link = f"https://candidate-app.streamlit.app/"
         
         # 가능한 일정 목록 HTML 테이블 생성
         slots_html = ""
@@ -500,4 +500,5 @@ class EmailService:
             attachment_name=attachment_name,
             attachment_mime_type="text/calendar"
         )
+
 
