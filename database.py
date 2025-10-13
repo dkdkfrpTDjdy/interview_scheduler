@@ -9,6 +9,17 @@ from google.oauth2.service_account import Credentials
 import pandas as pd
 
 class DatabaseManager:
+    def force_refresh(self):
+        """강제 새로고침"""
+        if self.sheet:
+            # 구글 시트 재연결
+            self.sheet = self.gc.open_by_key(Config.GOOGLE_SHEET_ID).sheet1
+            
+    def get_all_requests_realtime(self):
+        """실시간 요청 조회"""
+        self.force_refresh()
+        return self.get_all_requests()
+
     def __init__(self, db_path: str = Config.DATABASE_PATH):
         self.db_path = db_path
         self.init_database()
@@ -334,3 +345,4 @@ class DatabaseManager:
             stats['avg_processing_time'] = sum(processing_times) / len(processing_times)
         
         return stats
+
