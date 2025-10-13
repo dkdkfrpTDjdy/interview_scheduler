@@ -288,42 +288,71 @@ def main():
     with tab3:
         st.subheader("📊 구글 시트 관리")
         
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         
         with col1:
-            if st.button("🔄 구글 시트 동기화"):
+            if st.button("🔄 전체 동기화", use_container_width=True):
                 try:
                     requests = db.get_all_requests()
                     success_count = 0
-                    for req in requests:
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    
+                    for i, req in enumerate(requests):
+                        status_text.text(f"동기화 중... {i+1}/{len(requests)}")
                         if db.update_google_sheet(req):
                             success_count += 1
+                        progress_bar.progress((i + 1) / len(requests))
+                    
+                    progress_bar.empty()
+                    status_text.empty()
                     st.success(f"✅ 구글 시트 동기화 완료 ({success_count}/{len(requests)})")
                 except Exception as e:
                     st.error(f"❌ 구글 시트 동기화 실패: {e}")
         
         with col2:
-            if st.button("📋 구글 시트 열기"):
+            if st.button("📊 통계 업데이트", use_container_width=True):
+                try:
+                    stats = db.get_statistics()
+                    st.success("✅ 통계 정보가 업데이트되었습니다.")
+                    
+                    # 통계 표시
+                    col_a, col_b, col_c = st.columns(3)
+                    with col_a:
+                        st.metric("전체 요청", stats['total'])
+                    with col_b:
+                        st.metric("확정 완료", stats['confirmed'])
+                    with col_c:
+                        avg_time = f"{stats['avg_processing_time']:.1f}시간" if stats['avg_processing_time'] > 0 else "N/A"
+                        st.metric("평균 처리시간", avg_time)
+                        
+                except Exception as e:
+                    st.error(f"❌ 통계 업데이트 실패: {e}")
+        
+        with col3:
+            if st.button("📋 시트 열기", use_container_width=True):
                 if Config.GOOGLE_SHEET_ID:
                     st.markdown(f"[구글 시트 바로가기]({Config.GOOGLE_SHEET_URL})")
                 else:
                     st.error("구글 시트 ID가 설정되지 않았습니다.")
         
-        # 구글 시트 설정 확인
-        st.subheader("🔧 구글 시트 설정")
-        
-        if Config.GOOGLE_SHEET_ID:
-            st.success(f"✅ 구글 시트 ID: {Config.GOOGLE_SHEET_ID}")
-            st.info(f"🔗 시트 URL: {Config.GOOGLE_SHEET_URL}")
-        else:
-            st.error("❌ 구글 시트 ID가 설정되지 않았습니다.")
-            st.info("환경변수 GOOGLE_SHEET_ID를 설정해주세요.")
-        
-        # 수동 시트 생성
-        if st.button("📝 새 구글 시트 생성 (수동)"):
-            st.info("구글 시트를 수동으로 생성하고 ID를 환경변수에 설정해주세요.")
+        # 실시간 시트 미리보기
+        st.subheader("📋 실시간 시트 미리보기")
+        try:
+            if db.sheet:
+                sheet_data = db.sheet.get_all_records()
+                if sheet_data:
+                    df = pd.DataFrame(sheet_data)
+                    st.dataframe(df, use_container_width=True, height=400)
+                else:
+                    st.info("구글 시트가 비어있습니다.")
+            else:
+                st.warning("구글 시트에 연결되지 않았습니다.")
+        except Exception as e:
+            st.error(f"시트 데이터 로드 실패: {e}")
         
 
 if __name__ == "__main__":
     main()
+
 
