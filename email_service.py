@@ -141,7 +141,7 @@ class EmailService:
         interviewer_info = get_employee_info(request.interviewer_id)
         
         # 🔧 수정: 실제 운영 중인 페이지 URL
-        link = f"{Config.APP_URL}/면접관_일정입력"
+        link = f"https://interview-scheduler-ajnetworks.streamlit.app/면접관_일정입력"
         
         subject = "📅 [면접 일정 조율] 면접 가능 일정 입력 요청"
         
@@ -500,3 +500,4 @@ class EmailService:
             attachment_name=attachment_name,
             attachment_mime_type="text/calendar"
         )
+
