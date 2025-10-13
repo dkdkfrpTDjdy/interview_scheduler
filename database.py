@@ -74,29 +74,15 @@ class DatabaseManager:
     
     @retry_on_failure(max_retries=3, delay=2)
     def init_google_sheet(self):
+        """구글 시트 초기화"""
         try:
-            # 🔧 scope 변수 정의
             scope = [
                 'https://spreadsheets.google.com/feeds',
                 'https://www.googleapis.com/auth/drive'
             ]
             
-            # 새 키 정보를 직접 코드에 박기
-            creds_dict = {
-            "type": "service_account",
-            "project_id": "responsive-ray-474705-a3",
-            "private_key_id": "5127da7b6a7fd41270f690a512688877f1ca9997",
-            "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC3z2B80uA6dGgm\nzSM3Ehlvjyx+SVUsAoByzi2j5o3emab9OFW1BKmDiqO/znb19G1GJFkGcIDWGKPK\nGlotHHhfkejkYnZqpj5ZbzWADLjOIMdumCvmA6ntcSs3aDKP29zHbZUjyZLIFwQe\n+tVn0LHJ22JY6yaz/nHCHBtJUCig36UdtIXqQ7JdtEdRgj4iH/27IxapboWTR4pm\ndVIPTZxkQV3nrw6AzGhtMSmB5StlCjb/4/j81rdJn4/mdbtYGy/+wXRrK8fpn8GW\n0+9TGn2rKJQNBN3Udr56MBAHIBngpSISd5tKEYcZIIhjfQucOMMjN+kogotJWYae\n8BDQVEz3AgMBAAECggEAInMol1yCkBIfLx6Feh3XTJRd93FRGEWDw4CnBy//6PeN\nV6pGTf4Is1G5rQpKO4DLNjk7wjw1uWq2z/suaYQLf4X+S0e0//oWd3ajZVN9E40L\nM8wrdhm7sHfkbKcHyvSfJXWBXUq7SusdZ50FgEaZ+8Y1YYr5HwUSVxojdxMh+jx+\n5r35X9mTVFvwOpm775NfrmNq3C/u1q2t9AzA2a0HPHGucU3WzNBgVzONy1eWfud3\nEQHiJlyqJwSJr98hvVDTobhLrMDEGkMUXLzpG/3FmxdQ2KEzWDFRKCpMs4TsYd8n\n61Mc9CFguF9PN88JO83mu5H3Ui1miRfp1P0VCO0buQKBgQDmEICRwr5lt5NuKXO1\nWGmmpjFMssP5xw1UQY8OuVoQfidf7SX9ahJxHugRIPs4hILJRynie6u3Lq2oxRES\nrm6pU2MAmYisdqkx/qMjX+FbxnRtTAuG2MRr3nC0ETfkJf+9lOlCT1H0SFj5U+Ne\naxQgqgzfIEosvmeGwFHxbA2ixQKBgQDMiAFo70pgOIQAWUPbe1cxIkKmZRHRFYRq\ngSFvXZT9L2IQweb/psKyDqhc/fLvWDQaiDVNKuMAh1mDf39thnXWlhygMKqnrBY0\n5QyuVf64n81kYlnmgzeT9VDr1dw1AP8u9WqpHHamrtkzFWOXVQz9JW6W+3iGwdVS\nnRfBRRf8iwKBgGugfrUx2KZ3KeZYSAQnN02548hQvPOl1it7e/RUa7jZe4wZwjL6\nI2R+I+yXdE8tVo3Y19RXLK7GjIEup90Ic0aNdvw510FvRZnY2PLckO3BOohDEgVk\ndQdNiYYDpBT8XdaPyku2Fc3k5pLFVtG94C2jv9/GGE00SfQ1FmCNvxdNAoGBAMLB\nuz31pcfr6N4AIhpr30HdEsQpN4b1y0ozPegynz1bkjDMwq6rV3d/d5hdBKgeQDcH\nfmHFtbR6LaWGkYt0Xt7/v7BVxxq0Rc0GUkXrgwrAuC6fbGWQiyqrjOuUkAQ0t8k6\nTd9MSDs+AXqgIl4m0aB3tU+1kzYWepAZIFab+VQzAoGBAIO+Uzw9PpOUqt3nGfkW\ntR8gE7d35TPjaDaqQqsTaXP3339eEIEtz5stdPJQuz/K8YqtIObKsedZGCWcWOBG\nPLhyefyiwkgxBqgJth7yhempYtPc2eJNGEELVva2kaOri1KFbjR6ezpFsOyWsuqX\nBi6i2b5KfHVVmadm0ClMNoxD\n-----END PRIVATE KEY-----\n",
-            "client_email": "interview-scheduler-service@responsive-ray-474705-a3.iam.gserviceaccount.com",
-            "client_id": "108761804090862648165",
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/interview-scheduler-service%40responsive-ray-474705-a3.iam.gserviceaccount.com",
-            "universe_domain": "googleapis.com"
-            }
-            
-            credentials = Credentials.from_service_account_info(creds_dict, scopes=scope)
+            credentials = Credentials.from_service_account_file(
+                Config.GOOGLE_CREDENTIALS_PATH, scopes=scope)
             
             self.gc = gspread.authorize(credentials)
             
