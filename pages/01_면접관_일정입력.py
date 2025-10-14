@@ -233,7 +233,8 @@ def show_request_detail(request, index):
             </thead>
             <tbody>
         """
-        
+        st.markdown(table_html, unsafe_allow_html=True)
+
         for i, datetime_slot in enumerate(request.preferred_datetime_slots, 1):
             bg_color = "#fffbf0" if i % 2 == 1 else "#fff8e1"
             
@@ -402,4 +403,5 @@ def show_request_detail(request, index):
 
 if __name__ == "__main__":
     main()
+
 
