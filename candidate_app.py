@@ -56,75 +56,101 @@ def init_google_sheet():
 google_sheet = init_google_sheet()
 
 def normalize_text(text: str) -> str:
-    """텍스트 정규화"""
+    """텍스트 정규화 - 공백, 대소문자, 특수문자 제거"""
     if not text:
         return ""
-    return str(text).strip().lower().replace(" ", "")
+    # 모든 공백 제거, 소문자 변환
+    return str(text).strip().lower().replace(" ", "").replace("\n", "").replace("\t", "")
 
-def get_sheet_data_as_dict():
-    """구글 시트 데이터를 딕셔너리 형태로 변환"""
+def find_candidate_requests(name: str, email: str):
+    """구글 시트에서 직접 면접자 요청 찾기 - 개선된 버전"""
     try:
         if not google_sheet:
             return []
         
+        # 구글 시트에서 모든 데이터 가져오기
         all_values = google_sheet.get_all_values()
-        if not all_values:
+        if not all_values or len(all_values) < 2:  # 헤더 + 최소 1개 데이터
             return []
         
-        headers = all_values[0]
-        data = []
+        headers = all_values[0]  # 첫 번째 행이 헤더
         
-        for i, row in enumerate(all_values[1:], 2):  # 2부터 시작 (1-based, 헤더 제외)
-            row_dict = {'_row_number': i}  # 행 번호 저장
-            for j, header in enumerate(headers):
-                row_dict[header] = row[j] if j < len(row) else ""
-            data.append(row_dict)
-        
-        return data
-        
-    except Exception as e:
-        return []
-
-def find_candidate_requests(name: str, email: str):
-    """구글 시트에서 직접 면접자 요청 찾기"""
-    try:
-        sheet_data = get_sheet_data_as_dict()
-        
-        if not sheet_data:
+        # 🔧 컬럼 인덱스 찾기 - 정확한 컬럼명으로 매칭
+        try:
+            name_col_idx = None
+            email_col_idx = None
+            
+            # 가능한 컬럼명들 체크
+            for i, header in enumerate(headers):
+                header_normalized = normalize_text(header)
+                if header_normalized in ['면접자명', '면접자이름', '이름', 'name', 'candidate_name']:
+                    name_col_idx = i
+                elif header_normalized in ['면접자이메일', '면접자메일', '이메일', 'email', 'candidate_email']:
+                    email_col_idx = i
+            
+            if name_col_idx is None or email_col_idx is None:
+                # 컬럼을 찾지 못한 경우, 전체 헤더 출력하여 디버깅
+                st.error(f"❌ 필요한 컬럼을 찾을 수 없습니다. 현재 컬럼: {headers}")
+                return []
+                
+        except Exception as e:
+            st.error(f"❌ 헤더 분석 실패: {e}")
             return []
         
-        # 정규화된 검색
-        normalized_name = normalize_text(name)
-        normalized_email = normalize_text(email)
+        # 정규화된 검색어
+        normalized_search_name = normalize_text(name)
+        normalized_search_email = normalize_text(email)
         
         matching_requests = []
         
-        for row in sheet_data:
-            row_name = normalize_text(row.get('면접자명', ''))
-            row_email = normalize_text(row.get('면접자이메일', ''))
-            
-            if row_name == normalized_name and row_email == normalized_email:
-                # 구글 시트 데이터를 면접 요청 객체처럼 변환
-                request_obj = {
-                    'id': row.get('요청ID', ''),
-                    'position_name': row.get('포지션명', ''),
-                    'candidate_name': row.get('면접자명', ''),
-                    'candidate_email': row.get('면접자이메일', ''),
-                    'interviewer_id': row.get('면접관ID', ''),
-                    'interviewer_name': row.get('면접관이름', ''),
-                    'status': row.get('상태', ''),
-                    'created_at': row.get('생성일시', ''),
-                    'proposed_slots': row.get('제안일시목록', ''),
-                    'confirmed_datetime': row.get('확정일시', ''),
-                    'candidate_note': row.get('면접자요청사항', ''),
-                    'row_number': row['_row_number'],  # 행 번호 포함
-                    'row_data': row
-                }
-                matching_requests.append(request_obj)
+        # 데이터 행들 순회 (헤더 제외)
+        for row_idx, row in enumerate(all_values[1:], start=2):  # 2부터 시작 (1-based, 헤더 제외)
+            try:
+                # 안전하게 데이터 추출
+                row_name = row[name_col_idx] if name_col_idx < len(row) else ""
+                row_email = row[email_col_idx] if email_col_idx < len(row) else ""
+                
+                # 정규화하여 비교
+                normalized_row_name = normalize_text(row_name)
+                normalized_row_email = normalize_text(row_email)
+                
+                # 매칭 확인
+                if (normalized_row_name == normalized_search_name and 
+                    normalized_row_email == normalized_search_email):
+                    
+                    # 매칭된 경우 전체 행 데이터를 딕셔너리로 변환
+                    request_obj = {'_row_number': row_idx}  # 행 번호 저장
+                    
+                    for col_idx, header in enumerate(headers):
+                        value = row[col_idx] if col_idx < len(row) else ""
+                        request_obj[header] = value
+                    
+                    # 추가 필드 매핑 (하위 호환성)
+                    request_obj.update({
+                        'id': request_obj.get('요청ID', ''),
+                        'position_name': request_obj.get('포지션명', ''),
+                        'candidate_name': request_obj.get('면접자명', ''),
+                        'candidate_email': request_obj.get('면접자이메일', ''),
+                        'interviewer_id': request_obj.get('면접관ID', ''),
+                        'interviewer_name': request_obj.get('면접관이름', ''),
+                        'status': request_obj.get('상태', ''),
+                        'created_at': request_obj.get('생성일시', ''),
+                        'proposed_slots': request_obj.get('제안일시목록', ''),
+                        'confirmed_datetime': request_obj.get('확정일시', ''),
+                        'candidate_note': request_obj.get('면접자요청사항', ''),
+                        'row_number': row_idx
+                    })
+                    
+                    matching_requests.append(request_obj)
+                    
+            except Exception as e:
+                # 개별 행 처리 실패는 넘어감
+                continue
         
         return matching_requests
         
     except Exception as e:
+        st.error(f"❌ 데이터 조회 중 오류: {e}")
         return []
 
 def parse_proposed_slots(slots_str: str):
@@ -314,6 +340,21 @@ def show_candidate_login():
                         st.rerun()
                     else:
                         st.error("❌ 입력하신 정보와 일치하는 면접 요청을 찾을 수 없습니다.")
+                        
+                        # 🔧 디버깅을 위한 추가 정보 (임시)
+                        if google_sheet:
+                            try:
+                                headers = google_sheet.row_values(1)
+                                st.info(f"💡 구글 시트 연결됨. 컬럼: {headers}")
+                                
+                                # 첫 번째 데이터 행 확인
+                                if len(google_sheet.get_all_values()) > 1:
+                                    first_data_row = google_sheet.row_values(2)
+                                    st.info(f"💡 첫 번째 데이터: {first_data_row}")
+                                else:
+                                    st.warning("⚠️ 구글 시트에 데이터가 없습니다.")
+                            except Exception as e:
+                                st.error(f"시트 확인 중 오류: {e}")
 
     # 도움말
     st.markdown("---")
@@ -324,7 +365,7 @@ def show_candidate_login():
             <h4 style="color: #495057; margin-top: 0;">💡 이용 안내</h4>
             <div style="text-align: left; margin: 15px 0;">
                 <p style="margin: 8px 0; color: #6c757d;">• 면접 신청 시 입력한 <strong>정확한 이름과 이메일</strong>을 입력해주세요</p>
-                <p style="margin: 8px 0; color: #6c757d;">• 대소문자와 띄어쓰기까지 <strong>정확히 일치</strong>해야 합니다</p>
+                <p style="margin: 8px 0; color: #6c757d;">• 대소문자와 띄어쓰기는 <strong>자동으로 처리</strong>됩니다</p>
                 <p style="margin: 8px 0; color: #6c757d;">• 면접관이 일정을 입력해야 <strong>선택 가능</strong>합니다</p>
             </div>
             <div style="background-color: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 15px;">
