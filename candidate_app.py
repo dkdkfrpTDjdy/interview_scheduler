@@ -411,7 +411,8 @@ def show_candidate_dashboard():
             show_request_detail(request, i)
 
 def show_request_detail(request, index):
-    """요청 상세 정보 및 일정 선택 폼"""
+    """요청 상세 정보 및 일정 선택 폼 - HTML 문제 해결"""
+    import time
     
     # 면접 정보 표시
     st.markdown(f"""
@@ -454,39 +455,56 @@ def show_request_detail(request, index):
     
     st.write("**🗓️ 제안된 면접 일정 중 선택해주세요**")
     
-    # 제안된 일정을 테이블로 표시
-    table_html = """
-    <table style="width: 100%; border-collapse: collapse; border: 2px solid #28a745; border-radius: 8px; overflow: hidden; margin: 15px 0;">
-        <thead>
-            <tr style="background-color: #28a745; color: white;">
-                <th style="padding: 15px; text-align: center; font-weight: bold;">옵션</th>
-                <th style="padding: 15px; text-align: center; font-weight: bold;">날짜</th>
-                <th style="padding: 15px; text-align: center; font-weight: bold;">시간</th>
-                <th style="padding: 15px; text-align: center; font-weight: bold;">소요시간</th>
-            </tr>
-        </thead>
-        <tbody>
-    """
+    # 🔧 HTML 테이블 대신 Streamlit 네이티브 방식 사용 (방안 1)
+    if proposed_slots:
+        # 데이터프레임으로 변환하여 표시
+        slot_data = []
+        for i, slot in enumerate(proposed_slots, 1):
+            slot_data.append({
+                '옵션': f'옵션 {i}',
+                '날짜': format_date_korean(slot['date']),
+                '시간': slot['time'],
+                '소요시간': f"{slot['duration']}분"
+            })
+        
+        df = pd.DataFrame(slot_data)
+        
+        # 스타일이 적용된 데이터프레임 표시
+        st.markdown("""
+        <div style="border: 2px solid #28a745; border-radius: 8px; overflow: hidden; margin: 15px 0;">
+        """, unsafe_allow_html=True)
+        
+        st.dataframe(
+            df, 
+            use_container_width=True, 
+            hide_index=True,
+            column_config={
+                "옵션": st.column_config.TextColumn(
+                    "옵션",
+                    help="선택 가능한 면접 일정 옵션",
+                    width="small"
+                ),
+                "날짜": st.column_config.TextColumn(
+                    "날짜",
+                    help="면접 날짜",
+                    width="medium"
+                ),
+                "시간": st.column_config.TextColumn(
+                    "시간", 
+                    help="면접 시작 시간",
+                    width="small"
+                ),
+                "소요시간": st.column_config.TextColumn(
+                    "소요시간",
+                    help="예상 면접 소요 시간",
+                    width="small"
+                )
+            }
+        )
+        
+        st.markdown("</div>", unsafe_allow_html=True)
     
-    for i, slot in enumerate(proposed_slots, 1):
-        bg_color = "#f8f9fa" if i % 2 == 0 else "white"
-        table_html += f"""
-            <tr style="background-color: {bg_color};">
-                <td style="padding: 15px; text-align: center; font-weight: bold;">옵션 {i}</td>
-                <td style="padding: 15px; text-align: center; font-weight: bold;">{format_date_korean(slot['date'])}</td>
-                <td style="padding: 15px; text-align: center; color: #007bff; font-weight: bold;">{slot['time']}</td>
-                <td style="padding: 15px; text-align: center;">{slot['duration']}분</td>
-            </tr>
-        """
-    
-    table_html += """
-        </tbody>
-    </table>
-    """
-    
-    st.markdown(table_html, unsafe_allow_html=True)
-    
-    # ✅ slot_options를 먼저 정의
+    # ✅ slot_options를 정의
     slot_options = []
     for i, slot in enumerate(proposed_slots):
         slot_text = f"옵션 {i+1}: {format_date_korean(slot['date'])} {slot['time']} ({slot['duration']}분)"
@@ -494,8 +512,13 @@ def show_request_detail(request, index):
     
     slot_options.append("❌ 제안된 일정으로는 불가능 (다른 일정 요청)")
     
+    # 🔧 동적 폼 키 생성 및 상태 관리 (방안 1)
+    current_timestamp = int(time.time())
+    form_key = f"candidate_selection_{index}_{current_timestamp}"
+    submission_key = f"submitted_{index}"
+    
     # 선택 폼
-    with st.form(f"candidate_selection_{index}"):
+    with st.form(form_key):
         selected_option = st.radio(
             "원하는 면접 일정을 선택해주세요:",
             options=range(len(slot_options)),
@@ -511,16 +534,27 @@ def show_request_detail(request, index):
             </div>
             """, unsafe_allow_html=True)
             
+            # 입력창 키도 동적 생성
+            note_key = f"candidate_note_{index}_{current_timestamp}"
+            
+            # 이전 제출 후라면 초기값을 빈 문자열로 설정
+            initial_value = "" if st.session_state.get(submission_key, False) else ""
+            
             candidate_note = st.text_area(
                 "가능한 면접 일정이나 요청사항을 입력해주세요:",
+                value=initial_value,  # 명시적 초기값 설정
                 placeholder="예시:\n• 다음 주 화요일 오후 2시 이후 가능합니다\n• 월요일과 수요일은 전체 불가능합니다\n• 오전 시간대를 선호합니다\n• 온라인 면접을 희망합니다",
                 height=150,
+                key=note_key,
                 help="구체적으로 작성해주시면 더 빠른 조율이 가능합니다"
             )
         
         submitted = st.form_submit_button("✅ 면접 일정 선택 완료", use_container_width=True, type="primary")
         
         if submitted:
+            # 제출 상태 기록
+            st.session_state[submission_key] = True
+            
             if 'row_number' not in request:
                 st.error("❌ 요청 데이터에 문제가 있습니다. 페이지를 새로고침해주세요.")
                 return
@@ -550,6 +584,12 @@ def show_request_detail(request, index):
                         """, unsafe_allow_html=True)
                         
                         st.balloons()
+                        
+                        # 폼 관련 세션 상태 클리어
+                        keys_to_clear = [k for k in st.session_state.keys() if f"_{index}_" in k]
+                        for key in keys_to_clear:
+                            if key in st.session_state:
+                                del st.session_state[key]
                         
                         # 세션 데이터 강제 업데이트
                         time.sleep(2)
@@ -586,11 +626,18 @@ def show_request_detail(request, index):
                             </div>
                             """, unsafe_allow_html=True)
                             
+                            # 폼 관련 세션 상태 클리어
+                            keys_to_clear = [k for k in st.session_state.keys() if f"_{index}_" in k]
+                            for key in keys_to_clear:
+                                if key in st.session_state:
+                                    del st.session_state[key]
+                            
                             # 세션 업데이트를 위한 새로고침
                             time.sleep(2)
                             st.rerun()
                         else:
                             st.error("❌ 일정 재조율 요청 전송 중 오류가 발생했습니다.")
+                            
 
 def show_confirmed_schedule(request):
     """확정된 일정 표시"""
@@ -616,7 +663,6 @@ def show_confirmed_schedule(request):
         <h4 style="color: #1565c0; margin-top: 0;">📝 면접 준비 안내</h4>
         <ul style="color: #1565c0; line-height: 1.8;">
             <li>⏰ 면접 당일 <strong>10분 전까지 도착</strong>해주세요</li>
-            <li>🆔 신분증과 필요 서류를 지참해주세요</li>
             <li>📞 일정 변경이 필요한 경우 <strong>최소 24시간 전</strong>에 인사팀에 연락해주세요</li>
         </ul>
     </div>
