@@ -40,7 +40,7 @@ class EmailService:
         }
         
         # 기본 이메일 형식 검증
-        if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\$', email):
+        if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
             return email, False
         
         local_part, domain = email.split('@')
@@ -350,11 +350,24 @@ class EmailService:
             
             # 4. MIME 구조 생성
             if is_html:
-                text_body = self._html_to_text(html_body)
+                # 원래 body에서 텍스트 버전 추출
+                text_body = self._html_to_text(body)
+            
+                # Gmail에 최적화된 HTML 생성
+                html_body = self._create_gmail_safe_html({
+                    "candidate_name": candidate_name,
+                    "interviewer_name": interviewer_name,
+                    "position": position,
+                    "interview_options": interview_options,
+                    "additional_info": additional_info,
+                })
+            
+                # MIME 구조 생성 (text + html + optional attachment)
                 msg = self._create_optimized_mime_structure(
-                    text_body, html_body, 
-                    attachment_data, 
-                    attachment_name
+                    text_body=text_body,
+                    html_body=html_body,
+                    attachment_data=attachment_data,
+                    attachment_name=attachment_name
                 )
             else:
                 msg = MIMEMultipart()
@@ -363,7 +376,11 @@ class EmailService:
                 
                 # 첨부파일 추가
                 if attachment_data and attachment_name:
-                    attachment = MIMEBase('application', 'octet-stream')
+                    from email.mime.text import MIMEText
+                    attachment = MIMEText(attachment_data.decode('utf-8'), _subtype="calendar", _charset="utf-8")
+                    attachment.add_header('Content-Disposition', f'attachment; filename="{attachment_name}"')
+                    attachment.add_header('Content-Class', 'urn:content-classes:calendarmessage')
+                    attachment.add_header('Content-Type', 'text/calendar; method=REQUEST; name="{}"'.format(attachment_name))
                     attachment.set_payload(attachment_data)
                     encoders.encode_base64(attachment)
                     attachment.add_header(
@@ -1178,3 +1195,4 @@ class EmailService:
         except Exception as e:
             logger.error(f"❌ HTML 테스트 메일 발송 실패: {e}")
             return False
+
