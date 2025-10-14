@@ -6,6 +6,7 @@ from email_service import EmailService
 from models import InterviewRequest, InterviewSlot
 from config import Config
 from utils import get_next_weekdays, format_date_korean, validate_email, load_employee_data, get_employee_email
+from sync_manager import SyncManager
 
 # 페이지 설정
 st.set_page_config(
@@ -22,7 +23,6 @@ def init_services():
     email_service = EmailService()
     
     # ✅ 모니터링 시작
-    from sync_manager import SyncManager
     sync_manager = SyncManager(db, email_service)
     sync_manager.start_monitoring()
     
@@ -361,4 +361,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
