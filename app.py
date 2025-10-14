@@ -36,7 +36,6 @@ def main():
     # 조직도 데이터 로드
     org_data = load_organization_data()
         
-    
     tab1, tab2, tab3 = st.tabs(["새 면접 요청", "진행 현황", "구글 시트 관리"])
     
     with tab1:
@@ -46,14 +45,14 @@ def main():
             col1, col2 = st.columns(2)
             
             with col1:
-                # 면접관 선택 (조직도에서)
-                if org_data:
+                # ✅ 면접관 선택 로직 수정
+                if not org_data:  # 조직도 데이터가 없는 경우
                     interviewer_id = st.text_input(
                         "면접관 사번",
                         placeholder="예: 223286",
                         help="면접관의 사번을 입력해주세요"
                     )
-                else:
+                else:  # 조직도 데이터가 있는 경우
                     interviewer_options = [f"{emp['employee_id']} - {emp['name']} ({emp['department']})" 
                                          for emp in org_data]
                     selected_interviewer = st.selectbox(
@@ -106,11 +105,11 @@ def main():
                             "시간",
                             options=time_options,
                             key=f"time_{i}",
-                            help="상관없음 선택 시 면접관이 시간을 직접 선택합니다"
+                            help="면접관선택을 선택하면 면접관이 시간을 직접 선택합니다"
                         )
                     
                     if selected_date != "선택안함" and selected_time != "선택안함":
-                        # "상관없음" 선택 시 면접관이 고르도록 처리
+                        # "면접관선택" 선택 시 면접관이 고르도록 처리
                         if selected_time == "면접관선택":
                             time_value = "면접관선택"
                         else:
@@ -153,67 +152,32 @@ def main():
                         st.success(f"📧 면접관({interviewer_id})에게 일정 입력 요청 메일을 발송했습니다.")
                         st.info("면접관이 일정을 입력하면 자동으로 면접자에게 알림이 전송됩니다.")
                         
-                        # 선택된 희망일시 미리보기 (HTML 테이블)
-                        st.subheader("📋 전송된 희망일시")
-                        preview_html = """
-                        <table style="width: 100%; border-collapse: collapse; border: 2px solid #0078d4; border-radius: 8px; overflow: hidden;">
-                            <thead>
-                                <tr style="background-color: #0078d4; color: white;">
-                                    <th style="padding: 10px; text-align: center;">번호</th>
-                                    <th style="padding: 10px; text-align: center;">날짜</th>
-                                    <th style="padding: 10px; text-align: center;">시간</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                        """
-                        
-                        for i, slot in enumerate(selected_datetime_slots, 1):
-                            bg_color = "#f8f9fa" if i % 2 == 0 else "white"
-                            if "면접관선택" in slot:
-                                date_part = slot.split(' ')[0]
-                                time_display = "면접관이 선택함"
-                            else:
-                                date_part, time_part = slot.split(' ')
-                                time_display = time_part
+                        # ✅ 선택된 희망일시 미리보기 (Streamlit 테이블만 사용)
+                        if selected_datetime_slots:
+                            st.subheader("📋 전송된 희망일시")
                             
-                            preview_html += f"""
-                                <tr style="background-color: {bg_color};">
-                                    <td style="padding: 10px; text-align: center;">{i}</td>
-                                    <td style="padding: 10px; text-align: center;">{format_date_korean(date_part)}</td>
-                                    <td style="padding: 10px; text-align: center;">{time_display}</td>
-                                </tr>
-                            """
-                        
-                        preview_html += """
-                            </tbody>
-                        </table>
-                        """
-                        
-                        # 🔧 이 줄이 누락되어 있었습니다!
-                        st.markdown(preview_html, unsafe_allow_html=True)
-                        
-                        for i, slot in enumerate(selected_datetime_slots, 1):
-                            bg_color = "#f8f9fa" if i % 2 == 0 else "white"
-                            if "면접관선택" in slot:
-                                date_part = slot.split(' ')[0]
-                                time_display = "면접관이 선택함"
-                            else:
-                                date_part, time_part = slot.split(' ')
-                                time_display = time_part
+                            # DataFrame으로 변환하여 표시
+                            table_data = []
+                            for i, slot in enumerate(selected_datetime_slots, 1):
+                                if "면접관선택" in slot:
+                                    date_part = slot.split(' ')[0]
+                                    time_display = "면접관이 선택함"
+                                else:
+                                    date_part, time_part = slot.split(' ')
+                                    time_display = time_part
+                                
+                                table_data.append({
+                                    "번호": i,
+                                    "날짜": format_date_korean(date_part),
+                                    "시간": time_display
+                                })
                             
-                            preview_html += f"""
-                                <tr style="background-color: {bg_color};">
-                                    <td style="padding: 10px; text-align: center;">{i}</td>
-                                    <td style="padding: 10px; text-align: center;">{format_date_korean(date_part)}</td>
-                                    <td style="padding: 10px; text-align: center;">{time_display}</td>
-                                </tr>
-                            """
-                        
-                        preview_html += """
-                            </tbody>
-                        </table>
-                        """
-                        st.markdown(preview_html, unsafe_allow_html=True)
+                            # ✅ Streamlit 테이블로만 표시 (HTML 테이블 제거)
+                            st.dataframe(
+                                pd.DataFrame(table_data), 
+                                use_container_width=True, 
+                                hide_index=True
+                            )
                     else:
                         st.error("이메일 발송에 실패했습니다.")
     
@@ -246,7 +210,6 @@ def main():
             
             data = []
             for req in requests:
-                
                 data.append({
                     "요청ID": req.id[:8],
                     "포지션": req.position_name,
@@ -310,7 +273,7 @@ def main():
     with tab3:
         st.subheader("📊 구글 시트 관리")
         
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)  # ✅ 4개 컬럼으로 변경
         
         with col1:
             if st.button("🔄 전체 동기화", use_container_width=True):
@@ -358,6 +321,23 @@ def main():
                 else:
                     st.error("구글 시트 ID가 설정되지 않았습니다.")
         
+        # ✅ 새로 추가: 수동 이메일 발송 트리거
+        with col4:
+            if st.button("📧 확정 알림 재발송", use_container_width=True):
+                try:
+                    confirmed_requests = [req for req in db.get_all_requests() 
+                                        if req.status == Config.Status.CONFIRMED and req.selected_slot]
+                    
+                    sent_count = 0
+                    for req in confirmed_requests:
+                        if email_service.send_confirmation_notification(req, sender_type="system"):
+                            sent_count += 1
+                    
+                    st.success(f"✅ {sent_count}건의 확정 알림을 재발송했습니다.")
+                    
+                except Exception as e:
+                    st.error(f"❌ 재발송 실패: {e}")
+        
         # 실시간 시트 미리보기
         st.subheader("📋 실시간 시트 미리보기")
         try:
@@ -372,11 +352,6 @@ def main():
                 st.warning("구글 시트에 연결되지 않았습니다.")
         except Exception as e:
             st.error(f"시트 데이터 로드 실패: {e}")
-        
 
 if __name__ == "__main__":
     main()
-
-
-
-
