@@ -19,14 +19,27 @@ st.set_page_config(
 # 전역 객체 초기화
 @st.cache_resource
 def init_services():
-    db = DatabaseManager()
-    email_service = EmailService()
-    
-    # ✅ 모니터링 시작
-    sync_manager = SyncManager(db, email_service)
-    sync_manager.start_monitoring()
-    
-    return db, email_service, sync_manager
+    try:
+        db = DatabaseManager()
+        email_service = EmailService()
+        
+        # ✅ SyncManager 임시 제거 (선택적 로드)
+        sync_manager = None
+        try:
+            from sync_manager import SyncManager
+            sync_manager = SyncManager(db, email_service)
+            sync_manager.start_monitoring()
+            st.info("🔄 자동 모니터링이 시작되었습니다.")
+        except ImportError:
+            st.warning("⚠️ 자동 모니터링 모듈을 찾을 수 없습니다. 수동 모드로 실행됩니다.")
+        except Exception as e:
+            st.warning(f"⚠️ 자동 모니터링 시작 실패: {e}")
+        
+        return db, email_service, sync_manager
+        
+    except Exception as e:
+        st.error(f"❌ 서비스 초기화 실패: {e}")
+        st.stop()
 
 @st.cache_data
 def load_organization_data():
@@ -361,5 +374,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
