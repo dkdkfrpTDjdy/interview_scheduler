@@ -411,29 +411,41 @@ def show_candidate_dashboard():
             show_request_detail(request, i)
 
 def show_request_detail(request, index):
-    """개별 면접 요청 상세 정보"""
+    # ✅ 폼 제출 후 상태 초기화 로직 추가
+    form_key = f"candidate_selection_{index}"
     
-    # ✅ 1. 먼저 상태 확인
-    if request['status'] == '확정완료':
-        show_confirmed_schedule(request)
-        return
+    # 폼 제출 감지를 위한 상태 관리
+    if f"submitted_{form_key}" not in st.session_state:
+        st.session_state[f"submitted_{form_key}"] = False
     
-    if request['status'] != '면접자_선택대기':
-        st.info(f"현재 상태: {request['status']}")
-        if request['status'] == '면접관_일정입력대기':
-            st.warning("⚠️ 면접관이 아직 가능한 일정을 입력하지 않았습니다.")
-        elif request['status'] == '일정재조율요청':
-            st.info("📋 일정 재조율 요청이 접수되었습니다. 인사팀에서 검토 중입니다.")
-            if request['candidate_note']:
-                st.markdown(f"""
-                <div style="background-color: #d1ecf1; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 5px solid #17a2b8;">
-                    <h4 style="color: #0c5460; margin-top: 0;">📝 전달된 요청사항</h4>
-                    <p style="color: #0c5460; margin: 0; white-space: pre-line;">{request['candidate_note']}</p>
-                </div>
-                """, unsafe_allow_html=True)
-        return
+    with st.form(form_key):
+        # 라디오 버튼의 기본값을 동적으로 설정
+        default_index = 0 if not st.session_state[f"submitted_{form_key}"] else None
+        
+        selected_option = st.radio(
+            "원하는 면접 일정을 선택해주세요:",
+            options=range(len(slot_options)),
+            format_func=lambda x: slot_options[x],
+            index=default_index,  # ← 상태에 따른 기본값 설정
+            key=f"radio_{form_key}"
+        )
+        
+        submitted = st.form_submit_button("✅ 면접 일정 선택 완료", use_container_width=True, type="primary")
+        
+        if submitted:
+            # 제출 상태 업데이트
+            st.session_state[f"submitted_{form_key}"] = True
+            
+            # 처리 로직...
+            if success:
+                # ✅ 성공 시 관련 세션 상태 모두 초기화
+                keys_to_clear = [k for k in st.session_state.keys() if f"_{index}" in k]
+                for key in keys_to_clear:
+                    del st.session_state[key]
+                
+                st.rerun()
     
-    # ✅ 2. 면접 정보 표시
+    # 면접 정보 표시
     st.markdown(f"""
     <div style="background-color: white; padding: 25px; border-radius: 10px; border-left: 5px solid #28a745; margin: 20px 0; box-shadow: 0 2px 10px rgba(40,167,69,0.1);">
         <table style="width: 100%; border-collapse: collapse;">
@@ -453,7 +465,7 @@ def show_request_detail(request, index):
     </div>
     """, unsafe_allow_html=True)
     
-    # ✅ 3. 제안된 일정 파싱
+    # 제안된 일정 파싱
     proposed_slots = parse_proposed_slots(request['proposed_slots'])
     
     if not proposed_slots:
@@ -469,32 +481,37 @@ def show_request_detail(request, index):
     
     st.write("**🗓️ 제안된 면접 일정 중 선택해주세요**")
     
-    # ✅ 4. 제안된 일정을 Streamlit 테이블로 표시 (HTML 대신)
-    slots_data = []
+
+    
+    # 제안된 일정을 테이블로 표시
+    table_html = """
+    <table style="width: 100%; border-collapse: collapse; border: 2px solid #28a745; border-radius: 8px; overflow: hidden; margin: 15px 0;">
+        <thead>
+            <tr style="background-color: #28a745; color: white;">
+                <th style="padding: 15px; text-align: center; font-weight: bold;">옵션</th>
+                <th style="padding: 15px; text-align: center; font-weight: bold;">날짜</th>
+                <th style="padding: 15px; text-align: center; font-weight: bold;">시간</th>
+                <th style="padding: 15px; text-align: center; font-weight: bold;">소요시간</th>
+            </tr>
+        </thead>
+        <tbody>
+    """
+    
     for i, slot in enumerate(proposed_slots, 1):
-        slots_data.append({
-            "옵션": f"옵션 {i}",
-            "날짜": format_date_korean(slot['date']),
-            "시간": slot['time'],
-            "소요시간": f"{slot['duration']}분"
-        })
+        bg_color = "#f8f9fa" if i % 2 == 0 else "white"
+        table_html += f"""
+            <tr style="background-color: {bg_color};">
+                <td style="padding: 15px; text-align: center; font-weight: bold;">옵션 {i}</td>
+                <td style="padding: 15px; text-align: center; font-weight: bold;">{format_date_korean(slot['date'])}</td>
+                <td style="padding: 15px; text-align: center; color: #007bff; font-weight: bold;">{slot['time']}</td>
+                <td style="padding: 15px; text-align: center;">{slot['duration']}분</td>
+            </tr>
+        """
     
-    st.dataframe(pd.DataFrame(slots_data), use_container_width=True, hide_index=True)
+    st.markdown(table_html, unsafe_allow_html=True)
     
-    # ✅ 5. 폼 제출 후 상태 초기화를 위한 세션 상태 관리
-    form_key = f"candidate_selection_{index}"
-    
-    # 폼 제출 감지를 위한 상태 관리
-    if f"submitted_{form_key}" not in st.session_state:
-        st.session_state[f"submitted_{form_key}"] = False
-    
-    # 라디오버튼 선택 초기화를 위한 상태 관리
-    if f"reset_radio_{form_key}" not in st.session_state:
-        st.session_state[f"reset_radio_{form_key}"] = False
-    
-    # ✅ 6. 선택 폼
-    with st.form(form_key):
-        # 선택 옵션 생성
+    # 선택 폼
+    with st.form(f"candidate_selection_{index}"):
         slot_options = []
         for i, slot in enumerate(proposed_slots):
             slot_text = f"옵션 {i+1}: {format_date_korean(slot['date'])} {slot['time']} ({slot['duration']}분)"
@@ -502,26 +519,14 @@ def show_request_detail(request, index):
         
         slot_options.append("❌ 제안된 일정으로는 불가능 (다른 일정 요청)")
         
-        # ✅ 라디오 버튼 - 폼 제출 후 상태에 따른 초기화
-        # 제출되었고 리셋이 필요한 경우 None, 그렇지 않으면 0
-        if st.session_state[f"submitted_{form_key}"] and st.session_state[f"reset_radio_{form_key}"]:
-            default_index = None  # 아무것도 선택되지 않은 상태
-            # 리셋 플래그 해제
-            st.session_state[f"reset_radio_{form_key}"] = False
-        else:
-            default_index = 0  # 첫 번째 옵션 선택
-        
         selected_option = st.radio(
             "원하는 면접 일정을 선택해주세요:",
             options=range(len(slot_options)),
-            format_func=lambda x: slot_options[x],
-            index=default_index,
-            key=f"radio_{form_key}"
+            format_func=lambda x: slot_options[x]
         )
         
-        # ✅ 다른 일정 요청 시 텍스트 영역
         candidate_note = ""
-        if selected_option is not None and selected_option == len(slot_options) - 1:
+        if selected_option == len(slot_options) - 1:
             st.markdown("""
             <div style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); padding: 25px; border-radius: 12px; border-left: 6px solid #ffc107; margin: 25px 0;">
                 <h4 style="color: #856404; margin-top: 0; font-size: 1.3rem;">📝 다른 일정 요청</h4>
@@ -533,30 +538,18 @@ def show_request_detail(request, index):
                 "가능한 면접 일정이나 요청사항을 입력해주세요:",
                 placeholder="예시:\n• 다음 주 화요일 오후 2시 이후 가능합니다\n• 월요일과 수요일은 전체 불가능합니다\n• 오전 시간대를 선호합니다\n• 온라인 면접을 희망합니다",
                 height=150,
-                help="구체적으로 작성해주시면 더 빠른 조율이 가능합니다",
-                key=f"note_{form_key}"
+                help="구체적으로 작성해주시면 더 빠른 조율이 가능합니다"
             )
         
-        # ✅ 제출 버튼 - 선택이 있을 때만 활성화
-        submit_disabled = selected_option is None
-        submitted = st.form_submit_button(
-            "✅ 면접 일정 선택 완료", 
-            use_container_width=True, 
-            type="primary",
-            disabled=submit_disabled
-        )
+        submitted = st.form_submit_button("✅ 면접 일정 선택 완료", use_container_width=True, type="primary")
         
-        # ✅ 7. 폼 제출 처리
-        if submitted and selected_option is not None:
-            # 제출 상태 업데이트
-            st.session_state[f"submitted_{form_key}"] = True
-            
+        if submitted:
             if 'row_number' not in request:
                 st.error("❌ 요청 데이터에 문제가 있습니다. 페이지를 새로고침해주세요.")
                 return
             
             if selected_option < len(proposed_slots):
-                # ✅ 정규 일정 선택
+                # 정규 일정 선택
                 selected_slot = proposed_slots[selected_option]
                 
                 with st.spinner("📝 일정을 확정하고 있습니다..."):
@@ -581,13 +574,6 @@ def show_request_detail(request, index):
                         
                         st.balloons()
                         
-                        # ✅ 성공 시 관련 세션 상태 모두 초기화
-                        keys_to_clear = [k for k in st.session_state.keys() 
-                                       if (f"_{index}" in k or form_key in k) and k != 'authenticated_candidate' and k != 'candidate_requests']
-                        for key in keys_to_clear:
-                            if key in st.session_state:
-                                del st.session_state[key]
-                        
                         # 세션 데이터 강제 업데이트
                         time.sleep(2)
                         candidate_info = st.session_state.authenticated_candidate
@@ -598,15 +584,10 @@ def show_request_detail(request, index):
                         st.rerun()
                     else:
                         st.error("❌ 일정 확정 중 오류가 발생했습니다.")
-                        # 실패 시 리셋 플래그 설정
-                        st.session_state[f"reset_radio_{form_key}"] = True
-                        
             else:
-                # ✅ 다른 일정 요청
+                # 다른 일정 요청
                 if not candidate_note.strip():
                     st.error("❌ 가능한 일정을 구체적으로 입력해주세요.")
-                    # 에러 시 리셋 플래그 설정 (사용자가 다시 선택할 수 있도록)
-                    st.session_state[f"reset_radio_{form_key}"] = True
                 else:
                     with st.spinner("📝 일정 재조율 요청을 전송하고 있습니다..."):
                         success = update_sheet_selection(
@@ -628,24 +609,11 @@ def show_request_detail(request, index):
                             </div>
                             """, unsafe_allow_html=True)
                             
-                            # ✅ 성공 시 관련 세션 상태 초기화
-                            keys_to_clear = [k for k in st.session_state.keys() 
-                                           if (f"_{index}" in k or form_key in k) and k != 'authenticated_candidate' and k != 'candidate_requests']
-                            for key in keys_to_clear:
-                                if key in st.session_state:
-                                    del st.session_state[key]
-                            
                             # 세션 업데이트를 위한 새로고침
                             time.sleep(2)
                             st.rerun()
                         else:
                             st.error("❌ 일정 재조율 요청 전송 중 오류가 발생했습니다.")
-                            # 실패 시 리셋 플래그 설정
-                            st.session_state[f"reset_radio_{form_key}"] = True
-        
-        elif submitted and selected_option is None:
-            # ✅ 아무것도 선택하지 않고 제출한 경우
-            st.error("❌ 면접 일정을 선택해주세요.")
 
 def show_confirmed_schedule(request):
     """확정된 일정 표시"""
@@ -689,4 +657,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
