@@ -188,6 +188,31 @@ def main():
                             </tbody>
                         </table>
                         """
+                        
+                        # 🔧 이 줄이 누락되어 있었습니다!
+                        st.markdown(preview_html, unsafe_allow_html=True)
+                        
+                        for i, slot in enumerate(selected_datetime_slots, 1):
+                            bg_color = "#f8f9fa" if i % 2 == 0 else "white"
+                            if "면접관선택" in slot:
+                                date_part = slot.split(' ')[0]
+                                time_display = "면접관이 선택함"
+                            else:
+                                date_part, time_part = slot.split(' ')
+                                time_display = time_part
+                            
+                            preview_html += f"""
+                                <tr style="background-color: {bg_color};">
+                                    <td style="padding: 10px; text-align: center;">{i}</td>
+                                    <td style="padding: 10px; text-align: center;">{format_date_korean(date_part)}</td>
+                                    <td style="padding: 10px; text-align: center;">{time_display}</td>
+                                </tr>
+                            """
+                        
+                        preview_html += """
+                            </tbody>
+                        </table>
+                        """
                         st.markdown(preview_html, unsafe_allow_html=True)
                     else:
                         st.error("이메일 발송에 실패했습니다.")
@@ -351,6 +376,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
