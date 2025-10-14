@@ -17,18 +17,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-@st.cache_resource
-def init_services():
-    db = DatabaseManager()
-    email_service = EmailService()
-    
-    # ✅ 모니터링 시작
-    from sync_manager import SyncManager
-    sync_manager = SyncManager(db, email_service)
-    sync_manager.start_monitoring()
-    
-    return db, email_service, sync_manager
-
 # 구글 시트 연결 함수
 @st.cache_resource
 def init_google_sheet():
@@ -701,6 +689,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
 
