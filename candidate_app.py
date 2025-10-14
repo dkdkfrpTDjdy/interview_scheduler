@@ -411,39 +411,7 @@ def show_candidate_dashboard():
             show_request_detail(request, i)
 
 def show_request_detail(request, index):
-    # ✅ 폼 제출 후 상태 초기화 로직 추가
-    form_key = f"candidate_selection_{index}"
-    
-    # 폼 제출 감지를 위한 상태 관리
-    if f"submitted_{form_key}" not in st.session_state:
-        st.session_state[f"submitted_{form_key}"] = False
-    
-    with st.form(form_key):
-        # 라디오 버튼의 기본값을 동적으로 설정
-        default_index = 0 if not st.session_state[f"submitted_{form_key}"] else None
-        
-        selected_option = st.radio(
-            "원하는 면접 일정을 선택해주세요:",
-            options=range(len(slot_options)),
-            format_func=lambda x: slot_options[x],
-            index=default_index,  # ← 상태에 따른 기본값 설정
-            key=f"radio_{form_key}"
-        )
-        
-        submitted = st.form_submit_button("✅ 면접 일정 선택 완료", use_container_width=True, type="primary")
-        
-        if submitted:
-            # 제출 상태 업데이트
-            st.session_state[f"submitted_{form_key}"] = True
-            
-            # 처리 로직...
-            if success:
-                # ✅ 성공 시 관련 세션 상태 모두 초기화
-                keys_to_clear = [k for k in st.session_state.keys() if f"_{index}" in k]
-                for key in keys_to_clear:
-                    del st.session_state[key]
-                
-                st.rerun()
+    """요청 상세 정보 및 일정 선택 폼"""
     
     # 면접 정보 표시
     st.markdown(f"""
@@ -465,6 +433,11 @@ def show_request_detail(request, index):
     </div>
     """, unsafe_allow_html=True)
     
+    # ✅ 확정된 일정이 있는 경우 별도 처리
+    if request.get('status') == '확정완료' and request.get('confirmed_datetime'):
+        show_confirmed_schedule(request)
+        return
+    
     # 제안된 일정 파싱
     proposed_slots = parse_proposed_slots(request['proposed_slots'])
     
@@ -480,8 +453,6 @@ def show_request_detail(request, index):
         return
     
     st.write("**🗓️ 제안된 면접 일정 중 선택해주세요**")
-    
-
     
     # 제안된 일정을 테이블로 표시
     table_html = """
@@ -508,17 +479,23 @@ def show_request_detail(request, index):
             </tr>
         """
     
+    table_html += """
+        </tbody>
+    </table>
+    """
+    
     st.markdown(table_html, unsafe_allow_html=True)
+    
+    # ✅ slot_options를 먼저 정의
+    slot_options = []
+    for i, slot in enumerate(proposed_slots):
+        slot_text = f"옵션 {i+1}: {format_date_korean(slot['date'])} {slot['time']} ({slot['duration']}분)"
+        slot_options.append(slot_text)
+    
+    slot_options.append("❌ 제안된 일정으로는 불가능 (다른 일정 요청)")
     
     # 선택 폼
     with st.form(f"candidate_selection_{index}"):
-        slot_options = []
-        for i, slot in enumerate(proposed_slots):
-            slot_text = f"옵션 {i+1}: {format_date_korean(slot['date'])} {slot['time']} ({slot['duration']}분)"
-            slot_options.append(slot_text)
-        
-        slot_options.append("❌ 제안된 일정으로는 불가능 (다른 일정 요청)")
-        
         selected_option = st.radio(
             "원하는 면접 일정을 선택해주세요:",
             options=range(len(slot_options)),
@@ -639,6 +616,7 @@ def show_confirmed_schedule(request):
         <h4 style="color: #1565c0; margin-top: 0;">📝 면접 준비 안내</h4>
         <ul style="color: #1565c0; line-height: 1.8;">
             <li>⏰ 면접 당일 <strong>10분 전까지 도착</strong>해주세요</li>
+            <li>🆔 신분증과 필요 서류를 지참해주세요</li>
             <li>📞 일정 변경이 필요한 경우 <strong>최소 24시간 전</strong>에 인사팀에 연락해주세요</li>
         </ul>
     </div>
