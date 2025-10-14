@@ -1,4 +1,3 @@
-
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -8,6 +7,10 @@ from email.utils import formatdate
 import ssl
 import time
 import random
+import uuid
+import hashlib
+import re
+import socket
 from typing import List, Optional
 from config import Config
 from models import InterviewRequest, InterviewSlot
@@ -24,9 +27,46 @@ class EmailService:
         self.company_domain = Config.COMPANY_DOMAIN
         self.last_send_time = {}  # 발송 간격 제어용
 
+    def validate_and_correct_email(self, email: str) -> tuple[str, bool]:
+        """이메일 주소 검증 및 오타 교정"""
+        # 일반적인 오타 패턴
+        common_typos = {
+            'gamail.com': 'gmail.com',
+            'gmial.com': 'gmail.com',
+            'gmai.com': 'gmail.com',
+            'gmail.co': 'gmail.com',
+            'outlok.com': 'outlook.com',
+            'hotmial.com': 'hotmail.com'
+        }
+        
+        # 기본 이메일 형식 검증
+        if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\$', email):
+            return email, False
+        
+        local_part, domain = email.split('@')
+        
+        # 오타 교정
+        if domain.lower() in common_typos:
+            corrected_email = f"{local_part}@{common_typos[domain.lower()]}"
+            logger.warning(f"이메일 오타 교정: {email} -> {corrected_email}")
+            return corrected_email, True
+        
+        return email, False
+
+    def _check_email_deliverability(self, email: str) -> bool:
+        """이메일 전송 가능성 체크"""
+        try:
+            domain = email.split('@')[1]
+            # MX 레코드 확인
+            mx_records = socket.getaddrinfo(domain, None)
+            return len(mx_records) > 0
+        except:
+            return False
+
     def _is_gmail_recipient(self, email: str) -> bool:
-        """Gmail 수신자인지 확인"""
-        return "@gmail.com" in email.lower()
+        """Gmail 수신자인지 확인 (오타 도메인 포함)"""
+        gmail_domains = ['gmail.com', 'gamail.com', 'gmial.com', 'gmai.com', 'gmail.co']
+        return any(domain in email.lower() for domain in gmail_domains)
 
     def _has_gmail_recipients(self, to_emails: List[str], cc_emails: Optional[List[str]] = None, bcc_emails: Optional[List[str]] = None) -> bool:
         """수신자 중 Gmail 사용자가 있는지 확인"""
@@ -70,11 +110,18 @@ class EmailService:
             logger.error(f"  - User: {self.email_config.EMAIL_USER}")
             return None
 
+    def _generate_secure_message_id(self):
+        """보안 강화된 Message-ID 생성"""
+        # 실제 발송 도메인 사용
+        sender_domain = self.email_config.EMAIL_USER.split('@')[1]
+        unique_id = str(uuid.uuid4()).replace('-', '')
+        timestamp = int(time.time())
+        
+        return f"<{timestamp}.{unique_id}@{sender_domain}>"
+
     def _generate_message_id(self):
-        """고유한 Message-ID 생성"""
-        timestamp = str(int(time.time()))
-        random_str = str(random.randint(100000, 999999))
-        return f"<{timestamp}.{random_str}@{self.company_domain}>"
+        """고유한 Message-ID 생성 (호환성 유지)"""
+        return self._generate_secure_message_id()
 
     def _check_send_rate_limit(self, recipient_email: str, min_interval: int = 60):
         """발송 간격 제어 (초 단위)"""
@@ -89,6 +136,161 @@ class EmailService:
         self.last_send_time[recipient_email] = current_time
         return True
 
+    def _create_optimized_mime_structure(self, text_body: str, html_body: str, attachment_data=None, attachment_name=None):
+        """Gmail 최적화된 MIME 구조 생성"""
+        
+        if attachment_data:
+            # 첨부파일이 있는 경우: mixed > alternative > (text + html)
+            msg = MIMEMultipart('mixed')
+            
+            # 본문 파트 (alternative)
+            body_part = MIMEMultipart('alternative')
+            body_part.attach(MIMEText(text_body, 'plain', 'utf-8'))
+            body_part.attach(MIMEText(html_body, 'html', 'utf-8'))
+            
+            msg.attach(body_part)
+            
+            # 첨부파일 추가
+            attachment = MIMEBase('application', 'octet-stream')
+            attachment.set_payload(attachment_data)
+            encoders.encode_base64(attachment)
+            attachment.add_header('Content-Disposition', f'attachment; filename="{attachment_name}"')
+            msg.attach(attachment)
+        else:
+            # 첨부파일 없는 경우: alternative만 사용
+            msg = MIMEMultipart('alternative')
+            msg.attach(MIMEText(text_body, 'plain', 'utf-8'))
+            msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+        
+        return msg
+
+    def _add_anti_spam_headers(self, msg: MIMEMultipart, recipient_email: str) -> MIMEMultipart:
+        """강화된 스팸 방지 헤더"""
+        
+        # 기본 헤더
+        msg['Message-ID'] = self._generate_secure_message_id()
+        msg['Date'] = formatdate(localtime=True)
+        
+        # Gmail 특화 헤더
+        if self._is_gmail_recipient(recipient_email):
+            msg['X-Mailer'] = f"StreamIt-EmailSystem/1.0"
+            msg['X-Priority'] = '3'
+            msg['Importance'] = 'Normal'
+            msg['X-Auto-Response-Suppress'] = 'OOF, DR, RN, NRN'
+            msg['List-Unsubscribe'] = f"<mailto:{Config.HR_EMAILS[0] if Config.HR_EMAILS else self.email_config.EMAIL_USER}?subject=Unsubscribe>"
+            msg['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click'
+            
+            # 발송자 신뢰성 향상
+            msg['From'] = f"{getattr(self.email_config, 'FROM_NAME', 'StreamIt')} HR <{self.email_config.EMAIL_USER}>"
+            msg['Reply-To'] = Config.HR_EMAILS[0] if Config.HR_EMAILS else self.email_config.EMAIL_USER
+            msg['Return-Path'] = self.email_config.EMAIL_USER
+            
+            # 추가 신뢰성 헤더
+            msg['X-Sender'] = self.email_config.EMAIL_USER
+            msg['X-Original-Sender'] = self.email_config.EMAIL_USER
+            
+            logger.info("  - Gmail 스팸 방지 헤더 적용")
+        else:
+            msg['From'] = self.email_config.EMAIL_USER
+            logger.info("  - 일반 헤더 적용")
+                
+        return msg
+
+    def _strip_emojis(self, text: str) -> str:
+        """Gmail용 이모지 제거"""
+        emoji_pattern = re.compile("["
+                                 u"\U0001F600-\U0001F64F"  # 감정
+                                 u"\U0001F300-\U0001F5FF"  # 심볼
+                                 u"\U0001F680-\U0001F6FF"  # 교통
+                                 u"\U0001F1E0-\U0001F1FF"  # 국기
+                                 "]+", flags=re.UNICODE)
+        return emoji_pattern.sub('', text)
+
+    def _optimize_subject_for_gmail(self, subject: str) -> str:
+        """Gmail 최적화 제목"""
+        # 이모지 제거
+        clean_subject = self._strip_emojis(subject)
+        
+        # 스팸 단어 제거
+        spam_words = ['무료', '급한', '지금', '클릭', '!!!']
+        for word in spam_words:
+            clean_subject = clean_subject.replace(word, '')
+        
+        # 회사명 추가
+        company_name = getattr(Config, 'COMPANY_NAME', self.company_domain.upper())
+        if company_name not in clean_subject:
+            clean_subject = f"[{company_name}] {clean_subject}"
+        
+        return clean_subject.strip()
+
+    def _create_gmail_safe_html(self, content_data: dict) -> str:
+        """Gmail 안전 HTML 생성 (CSS 인라인, 단순 구조)"""
+        return f"""<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:#f8f9fa;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background-color:#ffffff;">
+        <!-- 헤더 -->
+        <tr>
+            <td style="padding:30px;text-align:center;background-color:#007bff;color:#ffffff;">
+                <h1 style="margin:0;font-size:24px;font-weight:normal;">{content_data.get('company_name', 'StreamIt')}</h1>
+                <p style="margin:10px 0 0 0;font-size:14px;">{content_data.get('title', '이메일 알림')}</p>
+            </td>
+        </tr>
+        
+        <!-- 본문 -->
+        <tr>
+            <td style="padding:40px 30px;">
+                <h2 style="color:#333333;margin:0 0 20px 0;font-size:20px;">
+                    안녕하세요, {content_data.get('recipient_name', '고객')}님
+                </h2>
+                
+                <p style="color:#555555;line-height:1.6;margin:0 0 25px 0;">
+                    {content_data.get('main_message', '메시지 내용')}
+                </p>
+                
+                <!-- 정보 테이블 -->
+                <table width="100%" cellpadding="10" cellspacing="0" style="border:1px solid #dee2e6;margin:20px 0;">
+                    <tr style="background-color:#f8f9fa;">
+                        <td style="font-weight:bold;color:#333333;width:30%;">포지션</td>
+                        <td style="color:#555555;">{content_data.get('position', '')}</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight:bold;color:#333333;">면접관</td>
+                        <td style="color:#555555;">{content_data.get('interviewer', '')}</td>
+                    </tr>
+                </table>
+                
+                <!-- CTA 버튼 -->
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin:30px 0;">
+                    <tr>
+                        <td style="text-align:center;">
+                            <a href="{content_data.get('action_link', '#')}" 
+                               style="display:inline-block;padding:15px 30px;background-color:#007bff;color:#ffffff;text-decoration:none;border-radius:5px;font-weight:bold;">
+                                {content_data.get('button_text', '확인하기')}
+                            </a>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+        
+        <!-- 푸터 -->
+        <tr>
+            <td style="padding:20px 30px;background-color:#f8f9fa;text-align:center;border-top:1px solid #dee2e6;">
+                <p style="margin:0;font-size:12px;color:#666666;">
+                    본 메일은 {content_data.get('company_name', 'StreamIt')} 인사팀에서 발송되었습니다.<br>
+                    <a href="mailto:{content_data.get('unsubscribe_email', '')}?subject=수신거부" style="color:#666666;">수신거부</a>
+                </p>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>"""
+
     def send_email(self, to_emails: List[str], subject: str, body: str, 
                    cc_emails: Optional[List[str]] = None, 
                    bcc_emails: Optional[List[str]] = None,
@@ -96,96 +298,106 @@ class EmailService:
                    attachment_data: Optional[bytes] = None,
                    attachment_name: Optional[str] = None,
                    attachment_mime_type: Optional[str] = None):
-        """이메일 발송 (Gmail 수신자 감지 및 스팸 방지 적용)"""
+        """이메일 발송 (Gmail 최적화 적용)"""
         try:
+            # 1. 이메일 주소 검증 및 교정
+            validated_emails = []
+            for email in (to_emails if isinstance(to_emails, list) else [to_emails]):
+                corrected_email, was_corrected = self.validate_and_correct_email(email)
+                if self._check_email_deliverability(corrected_email):
+                    validated_emails.append(corrected_email)
+                    if was_corrected:
+                        logger.info(f"이메일 오타 교정하여 발송: {email} -> {corrected_email}")
+                else:
+                    logger.error(f"전송 불가능한 이메일: {email}")
+            
+            if not validated_emails:
+                logger.error("전송 가능한 이메일이 없습니다.")
+                return False
+
             # 발송 간격 체크
-            primary_email = to_emails[0] if isinstance(to_emails, list) else to_emails
+            primary_email = validated_emails[0]
             if not self._check_send_rate_limit(primary_email):
                 return False
 
             logger.info(f"📧 이메일 발송 시작")
-            logger.info(f"  - TO: {to_emails}")
+            logger.info(f"  - TO: {validated_emails}")
             logger.info(f"  - CC: {cc_emails}")
             logger.info(f"  - Subject: {subject}")
             
-            # Gmail 수신자 감지
-            has_gmail = self._has_gmail_recipients(to_emails, cc_emails, bcc_emails)
+            # 2. Gmail 수신자 감지
+            has_gmail = self._has_gmail_recipients(validated_emails, cc_emails, bcc_emails)
             logger.info(f"  - Gmail 수신자 포함: {has_gmail}")
             
-            if attachment_data:
-                msg = MIMEMultipart('mixed')
+            # 3. 컨텐츠 최적화
+            if has_gmail and is_html:
+                # Gmail용 단순 HTML로 변환
+                html_body = self._create_gmail_safe_html({
+                    'company_name': getattr(Config, 'COMPANY_NAME', self.company_domain.upper()),
+                    'title': '면접 시스템 알림',
+                    'recipient_name': '고객',
+                    'main_message': self._strip_emojis(self._html_to_text(body)),
+                    'position': '',
+                    'interviewer': '',
+                    'action_link': '#',
+                    'button_text': '확인하기',
+                    'unsubscribe_email': Config.HR_EMAILS[0] if Config.HR_EMAILS else self.email_config.EMAIL_USER
+                })
+                optimized_subject = self._optimize_subject_for_gmail(subject)
             else:
-                msg = MIMEMultipart('alternative')
+                html_body = body
+                optimized_subject = subject
             
-            # Gmail 수신자가 있는 경우 스팸 방지 헤더 추가
-            if has_gmail:
-                msg['From'] = f"{getattr(self.email_config, 'FROM_NAME', 'AI 면접시스템')} <{self.email_config.EMAIL_USER}>"
-                msg['Reply-To'] = getattr(self.email_config, 'REPLY_TO', Config.HR_EMAILS[0] if Config.HR_EMAILS else self.email_config.EMAIL_USER)
-                msg['Message-ID'] = self._generate_message_id()
-                msg['Date'] = formatdate(localtime=True)
-                msg['X-Mailer'] = f"Interview Scheduler v1.0"
-                msg['X-Priority'] = '3'
-                msg['Importance'] = 'Normal'
-                msg['X-Auto-Response-Suppress'] = 'OOF, DR, RN, NRN'
-                msg['List-Unsubscribe'] = f"<mailto:{Config.HR_EMAILS[0] if Config.HR_EMAILS else self.email_config.EMAIL_USER}?subject=Unsubscribe>"
-                logger.info("  - Gmail 스팸 방지 헤더 적용")
+            # 4. MIME 구조 생성
+            if is_html:
+                text_body = self._html_to_text(html_body)
+                msg = self._create_optimized_mime_structure(
+                    text_body, html_body, 
+                    attachment_data, 
+                    attachment_name
+                )
             else:
-                msg['From'] = self.email_config.EMAIL_USER
-                logger.info("  - 일반 헤더 적용")
+                msg = MIMEMultipart()
+                text_part = MIMEText(body, 'plain', 'utf-8')
+                msg.attach(text_part)
                 
-            msg['To'] = ', '.join(to_emails) if isinstance(to_emails, list) else to_emails
-            msg['Subject'] = subject
+                # 첨부파일 추가
+                if attachment_data and attachment_name:
+                    attachment = MIMEBase('application', 'octet-stream')
+                    attachment.set_payload(attachment_data)
+                    encoders.encode_base64(attachment)
+                    attachment.add_header(
+                        'Content-Disposition',
+                        f'attachment; filename="{attachment_name}"'
+                    )
+                    msg.attach(attachment)
+                    logger.info(f"  - 첨부파일: {attachment_name}")
+            
+            # 5. 헤더 설정
+            msg = self._add_anti_spam_headers(msg, primary_email)
+            msg['To'] = ', '.join(validated_emails)
+            msg['Subject'] = optimized_subject
             
             if cc_emails:
                 msg['Cc'] = ', '.join(cc_emails)
             if bcc_emails:
                 msg['Bcc'] = ', '.join(bcc_emails)
             
-            # 회사 서명 추가
-            company_signature = self._get_company_signature(has_gmail)
-            full_body = body + company_signature
-            
-            # 본문 처리
-            if is_html:
-                # 텍스트 버전 먼저 (낮은 우선순위)
-                text_body = self._html_to_text(full_body)
-                text_part = MIMEText(text_body, 'plain', 'utf-8')
-                msg.attach(text_part)
-                
-                # HTML 버전 나중에 (높은 우선순위)
-                html_part = MIMEText(full_body, 'html', 'utf-8')
-                msg.attach(html_part)
-            else:
-                text_part = MIMEText(full_body, 'plain', 'utf-8')
-                msg.attach(text_part)
-            
-            # 첨부파일 추가
-            if attachment_data and attachment_name:
-                attachment = MIMEBase('application', 'octet-stream')
-                attachment.set_payload(attachment_data)
-                encoders.encode_base64(attachment)
-                attachment.add_header(
-                    'Content-Disposition',
-                    f'attachment; filename="{attachment_name}"'
-                )
-                msg.attach(attachment)
-                logger.info(f"  - 첨부파일: {attachment_name}")
-            
             # 모든 수신자 목록 생성
-            all_recipients = to_emails.copy() if isinstance(to_emails, list) else [to_emails]
+            all_recipients = validated_emails.copy()
             if cc_emails:
                 all_recipients.extend(cc_emails)
             if bcc_emails:
                 all_recipients.extend(bcc_emails)
             
-            # SMTP 연결 및 발송
+            # 6. SMTP 연결 및 발송
             server = self._create_smtp_connection()
             if server:
                 text = msg.as_string()
                 server.sendmail(self.email_config.EMAIL_USER, all_recipients, text)
                 server.quit()
                 
-                logger.info(f"✅ 이메일 발송 성공: {to_emails}")
+                logger.info(f"✅ 이메일 발송 성공: {validated_emails}")
                 return True
             else:
                 logger.error("❌ SMTP 서버 연결 실패")
@@ -246,7 +458,6 @@ class EmailService:
 
     def _html_to_text(self, html_content: str) -> str:
         """HTML을 텍스트로 변환"""
-        import re
         # HTML 태그 제거
         text = re.sub(r'<[^>]+>', '', html_content)
         # 연속된 공백 정리
@@ -255,18 +466,7 @@ class EmailService:
 
     def _create_gmail_optimized_subject(self, original_subject: str) -> str:
         """Gmail 최적화된 제목 생성 (스팸 단어 제거)"""
-        # 특수문자와 스팸 단어 제거
-        spam_words = ['무료', '급한', '지금', '클릭', '당첨', '할인', '!', '!!', '!!!']
-        optimized_subject = original_subject
-        
-        for word in spam_words:
-            optimized_subject = optimized_subject.replace(word, '')
-        
-        # 회사명 추가로 신뢰성 향상
-        if self.company_domain and self.company_domain.upper() not in optimized_subject:
-            optimized_subject = f"[{self.company_domain.upper()}] {optimized_subject}"
-        
-        return optimized_subject.strip()
+        return self._optimize_subject_for_gmail(original_subject)
 
     def _create_professional_email_body(self, request, interviewer_info, candidate_link, is_gmail_optimized=False):
         """전문적이고 스팸 방지된 이메일 본문 생성"""
