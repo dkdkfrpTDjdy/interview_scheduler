@@ -167,66 +167,137 @@ def format_date_korean(date_str: str) -> str:
     except:
         return date_str
 
+# candidate_app.py의 update_sheet_selection 함수 수정
 def update_sheet_selection(request, selected_slot=None, candidate_note="", is_alternative_request=False):
-    """구글 시트에 면접자 선택 결과 업데이트"""
+    """구글 시트에 면접자 선택 결과 업데이트 (개선된 버전)"""
     try:
         if not google_sheet:
+            st.error("❌ 구글 시트 연결이 없습니다.")
             return False
         
         if 'row_number' not in request:
+            st.error("❌ 행 번호 정보가 없습니다.")
             return False
         
         row_number = request['row_number']
         
+        # 🔧 현재 시트 상태 다시 확인 (실시간 동기화)
+        try:
+            google_sheet.get_all_values()  # 시트 새로고침
+        except Exception as e:
+            st.warning(f"시트 새로고침 실패: {e}")
+        
         # 현재 시트 구조 확인
         headers = google_sheet.row_values(1)
+        st.write(f"🔧 디버그: 헤더 확인 - {headers}")  # 디버그용
         
         # 컬럼 인덱스 찾기 (1-based)
         try:
             confirmed_col = headers.index('확정일시') + 1
-            status_col = headers.index('상태') + 1
+            status_col = headers.index('상태') + 1  
             note_col = headers.index('면접자요청사항') + 1
             update_col = headers.index('마지막업데이트') + 1
+            st.write(f"🔧 디버그: 컬럼 인덱스 - 확정일시:{confirmed_col}, 상태:{status_col}, 요청사항:{note_col}")  # 디버그용
         except ValueError as e:
-            st.error(f"필요한 컬럼을 찾을 수 없습니다: {e}")
+            st.error(f"❌ 필요한 컬럼을 찾을 수 없습니다: {e}")
+            st.write(f"현재 헤더: {headers}")
             return False
         
         # 업데이트 실행
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M')
         
+        # 🔧 배치 업데이트로 변경 (더 안정적)
+        updates = []
+        
         if is_alternative_request:
             # 다른 일정 요청인 경우
-            google_sheet.update_cell(row_number, confirmed_col, "")  # 확정일시 비움
-            google_sheet.update_cell(row_number, status_col, "일정재조율요청")
-            google_sheet.update_cell(row_number, note_col, f"[다른 일정 요청] {candidate_note}")
-            google_sheet.update_cell(row_number, update_col, current_time)
-            
+            updates = [
+                {
+                    'range': f'{chr(64 + confirmed_col)}{row_number}',  # A=65, 확정일시 컬럼
+                    'values': [[""]]
+                },
+                {
+                    'range': f'{chr(64 + status_col)}{row_number}',   # 상태 컬럼
+                    'values': [["일정재조율요청"]]
+                },
+                {
+                    'range': f'{chr(64 + note_col)}{row_number}',     # 면접자요청사항 컬럼
+                    'values': [[f"[다른 일정 요청] {candidate_note}"]]
+                },
+                {
+                    'range': f'{chr(64 + update_col)}{row_number}',   # 마지막업데이트 컬럼
+                    'values': [[current_time]]
+                }
+            ]
         else:
             # 정규 일정 선택인 경우
             if selected_slot:
-                # 확정일시에 선택된 일정 저장
                 confirmed_datetime = f"{selected_slot['date']} {selected_slot['time']}({selected_slot['duration']}분)"
-                google_sheet.update_cell(row_number, confirmed_col, confirmed_datetime)
-                google_sheet.update_cell(row_number, status_col, "확정완료")
+                note_text = f"[확정시 요청사항] {candidate_note}" if candidate_note.strip() else ""
                 
-                # 면접자요청사항에 추가 요청사항이 있다면 저장
-                if candidate_note.strip():
-                    google_sheet.update_cell(row_number, note_col, f"[확정시 요청사항] {candidate_note}")
-                else:
-                    google_sheet.update_cell(row_number, note_col, "")
-                
-                google_sheet.update_cell(row_number, update_col, current_time)
+                updates = [
+                    {
+                        'range': f'{chr(64 + confirmed_col)}{row_number}',
+                        'values': [[confirmed_datetime]]
+                    },
+                    {
+                        'range': f'{chr(64 + status_col)}{row_number}',
+                        'values': [["확정완료"]]
+                    },
+                    {
+                        'range': f'{chr(64 + note_col)}{row_number}',
+                        'values': [[note_text]]
+                    },
+                    {
+                        'range': f'{chr(64 + update_col)}{row_number}',
+                        'values': [[current_time]]
+                    }
+                ]
             else:
+                st.error("❌ 선택된 슬롯 정보가 없습니다.")
                 return False
         
-        # 업데이트 후 잠시 대기
-        time.sleep(1)
+        # 🔧 배치 업데이트 실행
+        if updates:
+            google_sheet.batch_update(updates)
+            st.success("✅ 구글 시트 업데이트 완료!")
+        
+        # 🔧 업데이트 확인을 위한 잠시 대기
+        time.sleep(2)
+        
+        # 🔧 업데이트 결과 확인
+        try:
+            updated_row = google_sheet.row_values(row_number)
+            st.write(f"🔧 디버그: 업데이트된 행 - {updated_row}")  # 디버그용
+        except Exception as e:
+            st.warning(f"업데이트 확인 실패: {e}")
         
         return True
         
     except Exception as e:
-        st.error(f"시트 업데이트 실패: {e}")
+        st.error(f"❌ 시트 업데이트 실패: {e}")
+        import traceback
+        st.error(f"상세 오류: {traceback.format_exc()}")
         return False
+
+# 🔧 실시간 동기화를 위한 새로운 함수 추가
+def force_refresh_candidate_data(name, email):
+    """면접자 데이터 강제 새로고침"""
+    try:
+        # 캐시 클리어
+        if hasattr(st, 'cache_resource'):
+            st.cache_resource.clear()
+        
+        # 구글 시트 재연결
+        global google_sheet
+        google_sheet = init_google_sheet()
+        
+        # 데이터 다시 조회
+        return find_candidate_requests(name, email)
+        
+    except Exception as e:
+        st.error(f"데이터 새로고침 실패: {e}")
+        return []
 
 # 면접자 앱에서는 pages 폴더 숨기기
 def hide_pages():
@@ -559,3 +630,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
