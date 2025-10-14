@@ -46,7 +46,7 @@ def load_organization_data():
     """조직도 데이터 로드"""
     return load_employee_data()
 
-db, email_service = init_services()
+db, email_service, sync_manager = init_services()
 
 def main():
     st.title("📅 AI 면접 일정 조율 시스템")
@@ -374,6 +374,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
