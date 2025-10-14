@@ -44,10 +44,9 @@ class EmailService:
                    attachment_data: Optional[bytes] = None,
                    attachment_name: Optional[str] = None,
                    attachment_mime_type: Optional[str] = None):
-        """이메일 발송 (개선된 버전)"""
+        """이메일 발송 (첨부파일 지원 추가)"""
         try:
-            # 🔧 수정: MIMEMultipart 구조 개선
-            msg = MIMEMultipart('related')  # related로 변경하여 HTML 우선순위 확보
+            msg = MIMEMultipart('mixed')
             msg['From'] = self.email_config.EMAIL_USER
             msg['To'] = ', '.join(to_emails) if isinstance(to_emails, list) else to_emails
             msg['Subject'] = subject
@@ -61,18 +60,16 @@ class EmailService:
             company_signature = self._get_company_signature()
             full_body = body + company_signature
             
-            # 🔧 수정: HTML 우선순위 확보
+            # 본문 첨부
             msg_body = MIMEMultipart('alternative')
-            
             if is_html:
-                # 텍스트 버전 먼저 추가 (낮은 우선순위)
+                html_part = MIMEText(full_body, 'html', 'utf-8')
+                msg_body.attach(html_part)
+                
+                # 텍스트 버전도 추가 (호환성을 위해)
                 text_body = self._html_to_text(full_body)
                 text_part = MIMEText(text_body, 'plain', 'utf-8')
                 msg_body.attach(text_part)
-                
-                # HTML 버전 나중에 추가 (높은 우선순위)
-                html_part = MIMEText(full_body, 'html', 'utf-8')
-                msg_body.attach(html_part)
             else:
                 text_part = MIMEText(full_body, 'plain', 'utf-8')
                 msg_body.attach(text_part)
@@ -86,14 +83,9 @@ class EmailService:
                 encoders.encode_base64(attachment)
                 attachment.add_header(
                     'Content-Disposition',
-                    f'attachment; filename="{attachment_name}"'  # 공백 제거
+                    f'attachment; filename= "{attachment_name}"'
                 )
                 msg.attach(attachment)
-            
-            # 🔧 추가: HTML 메일임을 명시하는 헤더
-            if is_html:
-                msg.add_header('Content-Type', 'multipart/related')
-                msg.add_header('X-Priority', '1')  # 높은 우선순위
             
             # 모든 수신자 목록 생성
             all_recipients = to_emails.copy() if isinstance(to_emails, list) else [to_emails]
@@ -102,32 +94,29 @@ class EmailService:
             if bcc_emails:
                 all_recipients.extend(bcc_emails)
             
-            # 🔧 추가: 상세 로깅
-            logger.info(f"이메일 발송 시도 - TO: {to_emails}, CC: {cc_emails}, BCC: {bcc_emails}")
-            logger.info(f"HTML 모드: {is_html}")
+            # 🔧 추가: 발송 로그
+            logger.info(f"📧 이메일 발송 - TO: {to_emails}, CC: {cc_emails}, BCC: {bcc_emails}")
             
             # SMTP 연결 및 발송
             server = self._create_smtp_connection()
             if server:
                 server.send_message(msg, to_addrs=all_recipients)
                 server.quit()
-                logger.info(f"이메일 발송 성공 - 수신자 {len(all_recipients)}명")
+                logger.info(f"이메일 발송 성공: {to_emails}")
                 return True
             else:
                 logger.error("SMTP 서버 연결 실패")
                 return False
                 
         except Exception as e:
-            logger.error(f"이메일 발송 실패 - TO: {to_emails}, 오류: {e}")
-            import traceback
-            logger.error(f"상세 오류: {traceback.format_exc()}")
+            logger.error(f"이메일 발송 실패: {e}")
             return False
 
     def _get_company_signature(self) -> str:
-        """회사 이메일 서명 (HTML 호환성 개선)"""
+        """회사 이메일 서명"""
         return f"""
         <br><br>
-        <div style="border-top: 3px solid #e9ecef; padding-top: 25px; margin-top: 40px; font-size: 14px; color: #6c757d; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-family: Arial, sans-serif;">
+        <div style="border-top: 3px solid #e9ecef; padding-top: 25px; margin-top: 40px; font-size: 14px; color: #6c757d; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
             <div style="text-align: center;">
                 <div style="font-size: 2rem; margin-bottom: 15px;">🏢</div>
                 <h3 style="margin: 0 0 10px 0; font-weight: bold; color: #495057; font-size: 18px;">AI 면접 일정 조율 시스템</h3>
@@ -273,10 +262,8 @@ class EmailService:
         )
 
     def send_candidate_invitation(self, request: InterviewRequest):
-        """면접자에게 일정 선택 요청 메일 발송 (수정된 버전)"""
+        """면접자에게 일정 선택 요청 메일 발송 - 면접관 완전 제외"""
         interviewer_info = get_employee_info(request.interviewer_id)
-        interviewer_email = get_employee_email(request.interviewer_id)
-        # 🔧 수정: 독립 앱 URL 사용
         candidate_link = f"https://candidate-app.streamlit.app/"
         
         # 가능한 일정 목록 HTML 테이블 생성
@@ -368,11 +355,13 @@ class EmailService:
         </div>
         """
         
-        # 🔧 수정: 면접관은 BCC로 이동 (또는 완전 제외)
+        # 🔧 수정: 면접관을 완전히 제외
+        logger.info(f"📧 면접자 초대 메일 발송 - 면접자: {request.candidate_email}, 인사팀: {Config.HR_EMAILS}")
+        
         return self.send_email(
-            to_emails=[request.candidate_email],        # 면접자만 TO
-            cc_emails=Config.HR_EMAILS,               # 인사팀만 CC
-            bcc_emails=[interviewer_email],            # 면접관은 BCC (선택사항)
+            to_emails=[request.candidate_email],    # 면접자에게만 TO
+            cc_emails=Config.HR_EMAILS,           # 인사팀만 CC
+            # 🔧 면접관 관련 파라미터 완전 제거 (bcc_emails 없음)
             subject=subject,
             body=body
         )
@@ -494,17 +483,20 @@ class EmailService:
         if sender_type == "interviewer":
             # 면접관이 일정 확정 → 면접자에게만 발송
             primary_recipients = [request.candidate_email]
-            cc_recipients = [interviewer_email] + Config.HR_EMAILS
+            cc_recipients = Config.HR_EMAILS  # 면접관 제외
+            logger.info(f"📧 면접관이 확정 - 면접자에게 발송: {request.candidate_email}")
         elif sender_type == "candidate":
             # 면접자가 일정 선택 → 면접관에게 발송 (다른 템플릿)
             primary_recipients = [interviewer_email]
             cc_recipients = Config.HR_EMAILS
             # 면접자에게는 확인 메일만
             self._send_candidate_confirmation_email(request)
+            logger.info(f"📧 면접자가 선택 - 면접관에게 발송: {interviewer_email}")
         else:
             # 기본값 (모든 관련자)
             primary_recipients = [interviewer_email, request.candidate_email]
             cc_recipients = Config.HR_EMAILS
+            logger.info(f"📧 기본 발송 - 모든 관련자")
         
         # 🔧 캘린더 초대장 첨부 (확정된 경우만)
         attachment_data = None
@@ -558,6 +550,77 @@ class EmailService:
         
         return self.send_email(
             to_emails=[request.candidate_email],
+            subject=subject,
+            body=body
+        )
+
+    def send_interviewer_notification_on_candidate_selection(self, request: InterviewRequest):
+        """🔧 새로 추가: 면접자가 일정을 선택했을 때 면접관에게만 발송하는 별도 함수"""
+        interviewer_email = get_employee_email(request.interviewer_id)
+        interviewer_info = get_employee_info(request.interviewer_id)
+        
+        subject = "📅 [면접 일정 확정] 면접자가 일정을 선택했습니다"
+        
+        body = f"""
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 800px; margin: 0 auto;">
+            <!-- 헤더 -->
+            <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 40px; text-align: center; border-radius: 15px 15px 0 0;">
+                <div style="font-size: 3rem; margin-bottom: 15px;">🎉</div>
+                <h1 style="margin: 0; font-size: 2.2rem; font-weight: 300;">면접 일정이 확정되었습니다</h1>
+            </div>
+            
+            <!-- 본문 -->
+            <div style="padding: 50px; background-color: #f8f9fa; border-radius: 0 0 15px 15px;">
+                <div style="background-color: white; padding: 40px; border-radius: 15px;">
+                    <h2 style="color: #333; margin: 0 0 15px 0;">안녕하세요, <strong style="color: #28a745;">{interviewer_info['name']}</strong>님</h2>
+                    <p style="color: #666; margin: 8px 0 25px 0;">({interviewer_info['department']})</p>
+                    <p style="font-size: 1.1rem; line-height: 1.8; color: #555;">면접자가 제안하신 일정 중 하나를 선택했습니다.</p>
+                </div>
+                
+                <!-- 확정된 면접 정보 -->
+                <div style="background-color: white; padding: 30px; border-radius: 15px; border-left: 8px solid #28a745; margin: 30px 0;">
+                    <h3 style="color: #28a745; margin-top: 0;">📋 확정된 면접 정보</h3>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 15px; font-weight: bold; color: #333; width: 160px;">💼 포지션</td>
+                            <td style="padding: 15px; color: #555; font-size: 1.1rem; font-weight: bold;">{request.position_name}</td>
+                        </tr>
+                        <tr style="background-color: #f8f9fa;">
+                            <td style="padding: 15px; font-weight: bold; color: #333;">👤 면접자</td>
+                            <td style="padding: 15px; color: #555;">{request.candidate_name}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 15px; font-weight: bold; color: #333;">📧 이메일</td>
+                            <td style="padding: 15px; color: #555;">{request.candidate_email}</td>
+                        </tr>
+                        <tr style="background-color: #f8f9fa;">
+                            <td style="padding: 15px; font-weight: bold; color: #333;">📅 확정일시</td>
+                            <td style="padding: 15px; color: #28a745; font-size: 1.2rem; font-weight: bold;">
+                                {format_date_korean(request.selected_slot.date)} {request.selected_slot.time} ({request.selected_slot.duration}분)
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <!-- 안내사항 -->
+                <div style="background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%); padding: 30px; border-radius: 15px; border-left: 8px solid #28a745;">
+                    <h4 style="margin-top: 0; color: #155724;">💡 안내사항</h4>
+                    <ul style="color: #155724; line-height: 2;">
+                        <li>면접 일정이 최종 확정되었습니다</li>
+                        <li>면접자와 인사팀에게도 확정 알림이 전송되었습니다</li>
+                        <li>일정 변경이 필요한 경우 인사팀에 연락해주세요</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        """
+        
+        # 🔧 면접관에게만 발송
+        logger.info(f"📧 면접자 선택 완료 알림 - 면접관에게만 발송: {interviewer_email}")
+        
+        return self.send_email(
+            to_emails=[interviewer_email],           # 면접관에게만 TO
+            cc_emails=Config.HR_EMAILS,            # 인사팀만 CC
             subject=subject,
             body=body
         )
