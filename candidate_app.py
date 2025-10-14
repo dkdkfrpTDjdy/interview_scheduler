@@ -488,6 +488,10 @@ def show_request_detail(request, index):
     if f"submitted_{form_key}" not in st.session_state:
         st.session_state[f"submitted_{form_key}"] = False
     
+    # 라디오버튼 선택 초기화를 위한 상태 관리
+    if f"reset_radio_{form_key}" not in st.session_state:
+        st.session_state[f"reset_radio_{form_key}"] = False
+    
     # ✅ 6. 선택 폼
     with st.form(form_key):
         # 선택 옵션 생성
@@ -498,8 +502,14 @@ def show_request_detail(request, index):
         
         slot_options.append("❌ 제안된 일정으로는 불가능 (다른 일정 요청)")
         
-        # 라디오 버튼 - 폼 제출 후 초기화
-        default_index = 0 if not st.session_state[f"submitted_{form_key}"] else 0
+        # ✅ 라디오 버튼 - 폼 제출 후 상태에 따른 초기화
+        # 제출되었고 리셋이 필요한 경우 None, 그렇지 않으면 0
+        if st.session_state[f"submitted_{form_key}"] and st.session_state[f"reset_radio_{form_key}"]:
+            default_index = None  # 아무것도 선택되지 않은 상태
+            # 리셋 플래그 해제
+            st.session_state[f"reset_radio_{form_key}"] = False
+        else:
+            default_index = 0  # 첫 번째 옵션 선택
         
         selected_option = st.radio(
             "원하는 면접 일정을 선택해주세요:",
@@ -509,8 +519,9 @@ def show_request_detail(request, index):
             key=f"radio_{form_key}"
         )
         
+        # ✅ 다른 일정 요청 시 텍스트 영역
         candidate_note = ""
-        if selected_option == len(slot_options) - 1:
+        if selected_option is not None and selected_option == len(slot_options) - 1:
             st.markdown("""
             <div style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); padding: 25px; border-radius: 12px; border-left: 6px solid #ffc107; margin: 25px 0;">
                 <h4 style="color: #856404; margin-top: 0; font-size: 1.3rem;">📝 다른 일정 요청</h4>
@@ -526,10 +537,17 @@ def show_request_detail(request, index):
                 key=f"note_{form_key}"
             )
         
-        submitted = st.form_submit_button("✅ 면접 일정 선택 완료", use_container_width=True, type="primary")
+        # ✅ 제출 버튼 - 선택이 있을 때만 활성화
+        submit_disabled = selected_option is None
+        submitted = st.form_submit_button(
+            "✅ 면접 일정 선택 완료", 
+            use_container_width=True, 
+            type="primary",
+            disabled=submit_disabled
+        )
         
         # ✅ 7. 폼 제출 처리
-        if submitted:
+        if submitted and selected_option is not None:
             # 제출 상태 업데이트
             st.session_state[f"submitted_{form_key}"] = True
             
@@ -538,7 +556,7 @@ def show_request_detail(request, index):
                 return
             
             if selected_option < len(proposed_slots):
-                # 정규 일정 선택
+                # ✅ 정규 일정 선택
                 selected_slot = proposed_slots[selected_option]
                 
                 with st.spinner("📝 일정을 확정하고 있습니다..."):
@@ -564,7 +582,8 @@ def show_request_detail(request, index):
                         st.balloons()
                         
                         # ✅ 성공 시 관련 세션 상태 모두 초기화
-                        keys_to_clear = [k for k in st.session_state.keys() if f"_{index}" in k or form_key in k]
+                        keys_to_clear = [k for k in st.session_state.keys() 
+                                       if (f"_{index}" in k or form_key in k) and k != 'authenticated_candidate' and k != 'candidate_requests']
                         for key in keys_to_clear:
                             if key in st.session_state:
                                 del st.session_state[key]
@@ -579,10 +598,15 @@ def show_request_detail(request, index):
                         st.rerun()
                     else:
                         st.error("❌ 일정 확정 중 오류가 발생했습니다.")
+                        # 실패 시 리셋 플래그 설정
+                        st.session_state[f"reset_radio_{form_key}"] = True
+                        
             else:
-                # 다른 일정 요청
+                # ✅ 다른 일정 요청
                 if not candidate_note.strip():
                     st.error("❌ 가능한 일정을 구체적으로 입력해주세요.")
+                    # 에러 시 리셋 플래그 설정 (사용자가 다시 선택할 수 있도록)
+                    st.session_state[f"reset_radio_{form_key}"] = True
                 else:
                     with st.spinner("📝 일정 재조율 요청을 전송하고 있습니다..."):
                         success = update_sheet_selection(
@@ -605,7 +629,8 @@ def show_request_detail(request, index):
                             """, unsafe_allow_html=True)
                             
                             # ✅ 성공 시 관련 세션 상태 초기화
-                            keys_to_clear = [k for k in st.session_state.keys() if f"_{index}" in k or form_key in k]
+                            keys_to_clear = [k for k in st.session_state.keys() 
+                                           if (f"_{index}" in k or form_key in k) and k != 'authenticated_candidate' and k != 'candidate_requests']
                             for key in keys_to_clear:
                                 if key in st.session_state:
                                     del st.session_state[key]
@@ -615,6 +640,12 @@ def show_request_detail(request, index):
                             st.rerun()
                         else:
                             st.error("❌ 일정 재조율 요청 전송 중 오류가 발생했습니다.")
+                            # 실패 시 리셋 플래그 설정
+                            st.session_state[f"reset_radio_{form_key}"] = True
+        
+        elif submitted and selected_option is None:
+            # ✅ 아무것도 선택하지 않고 제출한 경우
+            st.error("❌ 면접 일정을 선택해주세요.")
 
 def show_confirmed_schedule(request):
     """확정된 일정 표시"""
@@ -658,4 +689,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
