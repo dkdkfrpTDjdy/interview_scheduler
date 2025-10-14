@@ -20,7 +20,13 @@ st.set_page_config(
 def init_services():
     db = DatabaseManager()
     email_service = EmailService()
-    return db, email_service
+    
+    # ✅ 모니터링 시작
+    from sync_manager import SyncManager
+    sync_manager = SyncManager(db, email_service)
+    sync_manager.start_monitoring()
+    
+    return db, email_service, sync_manager
 
 @st.cache_data
 def load_organization_data():
@@ -355,3 +361,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
