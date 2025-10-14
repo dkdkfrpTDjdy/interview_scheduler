@@ -44,9 +44,10 @@ class EmailService:
                    attachment_data: Optional[bytes] = None,
                    attachment_name: Optional[str] = None,
                    attachment_mime_type: Optional[str] = None):
-        """이메일 발송 (첨부파일 지원 추가)"""
+        """이메일 발송 (개선된 버전)"""
         try:
-            msg = MIMEMultipart('mixed')  # 첨부파일을 위해 mixed로 변경
+            # 🔧 수정: MIMEMultipart 구조 개선
+            msg = MIMEMultipart('related')  # related로 변경하여 HTML 우선순위 확보
             msg['From'] = self.email_config.EMAIL_USER
             msg['To'] = ', '.join(to_emails) if isinstance(to_emails, list) else to_emails
             msg['Subject'] = subject
@@ -60,16 +61,18 @@ class EmailService:
             company_signature = self._get_company_signature()
             full_body = body + company_signature
             
-            # 본문 첨부
+            # 🔧 수정: HTML 우선순위 확보
             msg_body = MIMEMultipart('alternative')
+            
             if is_html:
-                html_part = MIMEText(full_body, 'html', 'utf-8')
-                msg_body.attach(html_part)
-                
-                # 텍스트 버전도 추가 (호환성을 위해)
+                # 텍스트 버전 먼저 추가 (낮은 우선순위)
                 text_body = self._html_to_text(full_body)
                 text_part = MIMEText(text_body, 'plain', 'utf-8')
                 msg_body.attach(text_part)
+                
+                # HTML 버전 나중에 추가 (높은 우선순위)
+                html_part = MIMEText(full_body, 'html', 'utf-8')
+                msg_body.attach(html_part)
             else:
                 text_part = MIMEText(full_body, 'plain', 'utf-8')
                 msg_body.attach(text_part)
@@ -83,9 +86,14 @@ class EmailService:
                 encoders.encode_base64(attachment)
                 attachment.add_header(
                     'Content-Disposition',
-                    f'attachment; filename= "{attachment_name}"'
+                    f'attachment; filename="{attachment_name}"'  # 공백 제거
                 )
                 msg.attach(attachment)
+            
+            # 🔧 추가: HTML 메일임을 명시하는 헤더
+            if is_html:
+                msg.add_header('Content-Type', 'multipart/related')
+                msg.add_header('X-Priority', '1')  # 높은 우선순위
             
             # 모든 수신자 목록 생성
             all_recipients = to_emails.copy() if isinstance(to_emails, list) else [to_emails]
@@ -94,26 +102,32 @@ class EmailService:
             if bcc_emails:
                 all_recipients.extend(bcc_emails)
             
+            # 🔧 추가: 상세 로깅
+            logger.info(f"이메일 발송 시도 - TO: {to_emails}, CC: {cc_emails}, BCC: {bcc_emails}")
+            logger.info(f"HTML 모드: {is_html}")
+            
             # SMTP 연결 및 발송
             server = self._create_smtp_connection()
             if server:
                 server.send_message(msg, to_addrs=all_recipients)
                 server.quit()
-                logger.info(f"이메일 발송 성공: {to_emails}")
+                logger.info(f"이메일 발송 성공 - 수신자 {len(all_recipients)}명")
                 return True
             else:
                 logger.error("SMTP 서버 연결 실패")
                 return False
                 
         except Exception as e:
-            logger.error(f"이메일 발송 실패: {e}")
+            logger.error(f"이메일 발송 실패 - TO: {to_emails}, 오류: {e}")
+            import traceback
+            logger.error(f"상세 오류: {traceback.format_exc()}")
             return False
 
     def _get_company_signature(self) -> str:
-        """회사 이메일 서명"""
+        """회사 이메일 서명 (HTML 호환성 개선)"""
         return f"""
         <br><br>
-        <div style="border-top: 3px solid #e9ecef; padding-top: 25px; margin-top: 40px; font-size: 14px; color: #6c757d; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+        <div style="border-top: 3px solid #e9ecef; padding-top: 25px; margin-top: 40px; font-size: 14px; color: #6c757d; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-family: Arial, sans-serif;">
             <div style="text-align: center;">
                 <div style="font-size: 2rem; margin-bottom: 15px;">🏢</div>
                 <h3 style="margin: 0 0 10px 0; font-weight: bold; color: #495057; font-size: 18px;">AI 면접 일정 조율 시스템</h3>
@@ -259,8 +273,9 @@ class EmailService:
         )
 
     def send_candidate_invitation(self, request: InterviewRequest):
-        """면접자에게 일정 선택 요청 메일 발송 (독립 앱 링크)"""
+        """면접자에게 일정 선택 요청 메일 발송 (수정된 버전)"""
         interviewer_info = get_employee_info(request.interviewer_id)
+        interviewer_email = get_employee_email(request.interviewer_id)
         # 🔧 수정: 독립 앱 URL 사용
         candidate_link = f"https://candidate-app.streamlit.app/"
         
@@ -353,17 +368,17 @@ class EmailService:
         </div>
         """
         
-        interviewer_email = get_employee_email(request.interviewer_id)
-        
+        # 🔧 수정: 면접관은 BCC로 이동 (또는 완전 제외)
         return self.send_email(
-            to_emails=[request.candidate_email],
-            cc_emails=[interviewer_email] + Config.HR_EMAILS,
+            to_emails=[request.candidate_email],        # 면접자만 TO
+            cc_emails=Config.HR_EMAILS,               # 인사팀만 CC
+            bcc_emails=[interviewer_email],            # 면접관은 BCC (선택사항)
             subject=subject,
             body=body
         )
 
-    def send_confirmation_notification(self, request: InterviewRequest):
-        """🔧 개선된 면접 확정 알림 메일 발송 (캘린더 초대 포함)"""
+    def send_confirmation_notification(self, request: InterviewRequest, sender_type="interviewer"):
+        """면접 확정 알림 메일 발송 (발송자 구분)"""
         interviewer_email = get_employee_email(request.interviewer_id)
         interviewer_info = get_employee_info(request.interviewer_id)
         
@@ -373,7 +388,6 @@ class EmailService:
             status_text = "확정 완료"
             status_icon = "🎉"
             header_gradient = "linear-gradient(135deg, #28a745 0%, #20c997 100%)"
-            
         else:
             subject = "⏳ [면접 일정 조율] 추가 조율이 필요합니다"
             status_color = "#ffc107"
@@ -476,6 +490,22 @@ class EmailService:
         </div>
         """
         
+        # 🔧 발송자에 따른 수신자 구분
+        if sender_type == "interviewer":
+            # 면접관이 일정 확정 → 면접자에게만 발송
+            primary_recipients = [request.candidate_email]
+            cc_recipients = [interviewer_email] + Config.HR_EMAILS
+        elif sender_type == "candidate":
+            # 면접자가 일정 선택 → 면접관에게 발송 (다른 템플릿)
+            primary_recipients = [interviewer_email]
+            cc_recipients = Config.HR_EMAILS
+            # 면접자에게는 확인 메일만
+            self._send_candidate_confirmation_email(request)
+        else:
+            # 기본값 (모든 관련자)
+            primary_recipients = [interviewer_email, request.candidate_email]
+            cc_recipients = Config.HR_EMAILS
+        
         # 🔧 캘린더 초대장 첨부 (확정된 경우만)
         attachment_data = None
         attachment_name = None
@@ -488,12 +518,9 @@ class EmailService:
             except Exception as e:
                 logger.warning(f"캘린더 초대장 생성 실패: {e}")
         
-        # 모든 관련자에게 발송
-        all_recipients = [interviewer_email, request.candidate_email]
-        
         return self.send_email(
-            to_emails=all_recipients,
-            cc_emails=Config.HR_EMAILS,
+            to_emails=primary_recipients,
+            cc_emails=cc_recipients,
             subject=subject,
             body=body,
             attachment_data=attachment_data,
@@ -501,4 +528,36 @@ class EmailService:
             attachment_mime_type="text/calendar"
         )
 
-
+    def _send_candidate_confirmation_email(self, request: InterviewRequest):
+        """면접자용 확정 확인 메일"""
+        subject = "✅ [면접 일정 선택 완료] 선택이 완료되었습니다"
+        
+        body = f"""
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 30px; text-align: center; border-radius: 15px 15px 0 0;">
+                <div style="font-size: 2.5rem; margin-bottom: 15px;">✅</div>
+                <h1 style="margin: 0; font-size: 1.8rem; font-weight: 300;">일정 선택이 완료되었습니다</h1>
+            </div>
+            
+            <div style="padding: 40px; background-color: #f8f9fa; border-radius: 0 0 15px 15px;">
+                <p style="font-size: 1.1rem; line-height: 1.8; color: #555;">
+                    안녕하세요, <strong>{request.candidate_name}</strong>님<br>
+                    면접 일정 선택이 완료되었습니다. 면접관에게 확정 알림이 전송되었으며, 
+                    최종 확정 후 다시 한 번 알림을 드리겠습니다.
+                </p>
+                
+                <div style="background-color: white; padding: 25px; border-radius: 12px; border-left: 5px solid #28a745; margin: 20px 0;">
+                    <h4 style="color: #28a745; margin-top: 0;">📅 선택하신 일정</h4>
+                    <p style="font-size: 1.2rem; font-weight: bold; color: #333; margin: 0;">
+                        {format_date_korean(request.selected_slot.date)} {request.selected_slot.time} ({request.selected_slot.duration}분)
+                    </p>
+                </div>
+            </div>
+        </div>
+        """
+        
+        return self.send_email(
+            to_emails=[request.candidate_email],
+            subject=subject,
+            body=body
+        )
