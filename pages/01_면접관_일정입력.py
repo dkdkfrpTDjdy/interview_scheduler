@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd  # ✅ 누락된 import 추가
 import os
 
 # 앱 구분 로직
@@ -85,10 +86,17 @@ def show_login_form():
                 if not employee_id.strip():
                     st.error("❌ 사번을 입력해주세요.")
                 else:
-                    # 면접관 정보 확인
+                    # ✅ 면접관 정보 확인 로직 개선
                     interviewer_info = get_employee_info(employee_id)
                     
-                    if interviewer_info['employee_id'] == employee_id or interviewer_info['name'] != employee_id:
+                    # 정확한 매칭 또는 부분 매칭 확인
+                    is_valid = (
+                        interviewer_info['employee_id'] == employee_id or  # 정확한 사번 매칭
+                        employee_id.lower() in interviewer_info['name'].lower() or  # 이름 매칭
+                        employee_id.lower() in interviewer_info['department'].lower()  # 부서 매칭
+                    )
+                    
+                    if is_valid:
                         # 해당 면접관의 대기 중인 요청 찾기
                         pending_requests = find_pending_requests(employee_id)
                         
@@ -193,7 +201,7 @@ def show_interviewer_dashboard():
 def show_request_detail(request, index):
     """개별 면접 요청 상세 정보 및 처리"""
     
-    # 면접 정보 표시
+    # ✅ 면접 정보 표시 (누락된 부분 추가)
     st.markdown(f"""
     <div style="background-color: white; padding: 25px; border-radius: 10px; border-left: 5px solid #0078d4; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,120,212,0.1);">
         <table style="width: 100%; border-collapse: collapse;">
@@ -217,53 +225,31 @@ def show_request_detail(request, index):
     </div>
     """, unsafe_allow_html=True)
     
-    # 인사팀 제안 일시 표시
+    # ✅ 인사팀 제안 일시 표시 (Streamlit 테이블 사용)
     if hasattr(request, 'preferred_datetime_slots') and request.preferred_datetime_slots:
         st.write("**⭐ 인사팀 제안 희망일시**")
         
-        table_html = """
-        <table style="width: 100%; border-collapse: collapse; border: 2px solid #ffc107; border-radius: 8px; overflow: hidden; margin: 15px 0;">
-            <thead>
-                <tr style="background-color: #ffc107; color: #212529;">
-                    <th style="padding: 12px; text-align: center; font-weight: bold;">번호</th>
-                    <th style="padding: 12px; text-align: center; font-weight: bold;">날짜</th>
-                    <th style="padding: 12px; text-align: center; font-weight: bold;">시간</th>
-                    <th style="padding: 12px; text-align: center; font-weight: bold;">상태</th>
-                </tr>
-            </thead>
-            <tbody>
-        """
-        st.markdown(table_html, unsafe_allow_html=True)
-
+        # DataFrame으로 변환
+        slots_data = []
         for i, datetime_slot in enumerate(request.preferred_datetime_slots, 1):
-            bg_color = "#fffbf0" if i % 2 == 1 else "#fff8e1"
-            
             if "면접관선택" in datetime_slot:
                 date_part = datetime_slot.split(' ')[0]
                 time_display = "시간 선택 필요"
                 status = "⚠️ 선택"
-                time_color = "#dc3545"
             else:
                 date_part, time_part = datetime_slot.split(' ')
                 time_display = time_part
                 status = "✅ 고정"
-                time_color = "#28a745"
             
-            table_html += f"""
-                <tr style="background-color: {bg_color};">
-                    <td style="padding: 12px; text-align: center; font-weight: bold;">{i}</td>
-                    <td style="padding: 12px; text-align: center; font-weight: bold;">{format_date_korean(date_part)}</td>
-                    <td style="padding: 12px; text-align: center; color: {time_color}; font-weight: bold;">{time_display}</td>
-                    <td style="padding: 12px; text-align: center; font-size: 12px;">{status}</td>
-                </tr>
-            """
+            slots_data.append({
+                "번호": i,
+                "날짜": format_date_korean(date_part),
+                "시간": time_display,
+                "상태": status
+            })
         
-        table_html += """
-            </tbody>
-        </table>
-        """
-        
-        st.markdown(table_html, unsafe_allow_html=True)
+        # Streamlit 테이블로 표시
+        st.dataframe(pd.DataFrame(slots_data), use_container_width=True, hide_index=True)
     
     # 🔧 수정: 일정 입력 폼 (폼 밖에서 상태 관리)
     st.write("**⏰ 가능한 면접 일정을 선택해주세요**")
@@ -360,8 +346,18 @@ def show_request_detail(request, index):
         # 선택된 일정 미리보기
         if selected_slots:
             st.write("**✅ 선택된 일정:**")
+            
+            # ✅ 선택된 일정을 표로 표시
+            preview_data = []
             for i, slot in enumerate(selected_slots, 1):
-                st.write(f"{i}. {format_date_korean(slot.date)} {slot.time} ({slot.duration}분)")
+                preview_data.append({
+                    "번호": i,
+                    "날짜": format_date_korean(slot.date),
+                    "시간": slot.time,
+                    "소요시간": f"{slot.duration}분"
+                })
+            
+            st.dataframe(pd.DataFrame(preview_data), use_container_width=True, hide_index=True)
         else:
             st.info("💡 위에서 가능한 일정을 선택해주세요.")
         
@@ -403,5 +399,3 @@ def show_request_detail(request, index):
 
 if __name__ == "__main__":
     main()
-
-
