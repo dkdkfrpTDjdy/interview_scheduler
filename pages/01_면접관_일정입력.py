@@ -168,7 +168,6 @@ def show_interviewer_dashboard():
             <h2 style="color: #1A1A1A; margin: 0; display: flex; align-items: center;">
                 <span style="margin-right: 10px;">👋</span> 안녕하세요, {interviewer_info['name']}님!
             </h2>
-            <p style="color: #1A1A1A; margin: 8px 0 0 0; font-size: 1rem;">({interviewer_info['department']})</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -196,7 +195,7 @@ def show_request_detail(request, index):
     # ✅ 면접 정보 표시 (누락된 부분 추가)
     st.markdown(f"""
     <div style="background-color: white; padding: 25px; border-radius: 10px; border-left: 5px solid #0078d4; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,120,212,0.1);">
-        <table style="width: 100%; border-collapse: collapse;">
+        <table style="width: 100%; border-collapse: collapse; text-align: center;">
             <tr>
                 <td style="padding: 10px 0; font-weight: bold; color: #0078d4; width: 120px;">포지션</td>
                 <td style="padding: 10px 0; color: #333; font-size: 1.1rem; font-weight: bold;">{request.position_name}</td>
@@ -216,32 +215,32 @@ def show_request_detail(request, index):
         </table>
     </div>
     """, unsafe_allow_html=True)
-    
-    # ✅ 인사팀 제안 일시 표시 (Streamlit 테이블 사용)
-    if hasattr(request, 'preferred_datetime_slots') and request.preferred_datetime_slots:
-        st.write("**⭐ 인사팀 제안 희망일시**")
+
+    # # ✅ 인사팀 제안 일시 표시 (Streamlit 테이블 사용)
+    # if hasattr(request, 'preferred_datetime_slots') and request.preferred_datetime_slots:
+    #     st.write("**⭐ 인사팀 제안 희망일시**")
         
-        # DataFrame으로 변환
-        slots_data = []
-        for i, datetime_slot in enumerate(request.preferred_datetime_slots, 1):
-            if "면접관선택" in datetime_slot:
-                date_part = datetime_slot.split(' ')[0]
-                time_display = "시간 선택 필요"
-                status = "⚠️ 선택"
-            else:
-                date_part, time_part = datetime_slot.split(' ')
-                time_display = time_part
-                status = "✅ 고정"
+    #     # DataFrame으로 변환
+    #     slots_data = []
+    #     for i, datetime_slot in enumerate(request.preferred_datetime_slots, 1):
+    #         if "면접관선택" in datetime_slot:
+    #             date_part = datetime_slot.split(' ')[0]
+    #             time_display = "시간 선택 필요"
+    #             status = "⚠️ 선택"
+    #         else:
+    #             date_part, time_part = datetime_slot.split(' ')
+    #             time_display = time_part
+    #             status = "✅ 고정"
             
-            slots_data.append({
-                "번호": i,
-                "날짜": format_date_korean(date_part),
-                "시간": time_display,
-                "상태": status
-            })
+    #         slots_data.append({
+    #             "번호": i,
+    #             "날짜": format_date_korean(date_part),
+    #             "시간": time_display,
+    #             "상태": status
+    #         })
         
-        # Streamlit 테이블로 표시
-        st.dataframe(pd.DataFrame(slots_data), use_container_width=True, hide_index=True)
+    #     # Streamlit 테이블로 표시
+    #     st.dataframe(pd.DataFrame(slots_data), use_container_width=True, hide_index=True)
     
     # 🔧 수정: 일정 입력 폼 (폼 밖에서 상태 관리)
     st.write("**⏰ 가능한 면접 일정을 선택해주세요**")
@@ -254,7 +253,7 @@ def show_request_detail(request, index):
     
     if hasattr(request, 'preferred_datetime_slots') and request.preferred_datetime_slots:
         for i, datetime_slot in enumerate(request.preferred_datetime_slots):
-            st.markdown(f"📅 면접 일시 {i+1}")
+            st.markdown(f"**📅 면접 일시 {i+1}")
             
             if "면접관선택" in datetime_slot:
                 # 면접관이 시간을 직접 선택해야 하는 경우
@@ -308,7 +307,7 @@ def show_request_detail(request, index):
                 with col1:
                     checkbox_key = f"slot_{index}_{i}"
                     is_selected = st.checkbox(
-                        f"📅 {format_date_korean(date_part)} {time_part}",
+                        f"{format_date_korean(date_part)} {time_part}",
                         key=checkbox_key,
                         help="해당 일정이 가능하면 선택해주세요"
                     )
@@ -356,7 +355,6 @@ def show_request_detail(request, index):
         # 제출 버튼
         submitted = st.form_submit_button(
             "📧 면접자에게 일정 전송", 
-            use_container_width=True, 
             type="primary",
             disabled=len(selected_slots) == 0  # 선택된 슬롯이 없으면 비활성화
         )
