@@ -237,8 +237,8 @@ def main():
                 st.info("면접관이 일정을 입력하면 자동으로 면접자에게 알림이 전송됩니다.")
 
                 if st.button("🔁 초기화"):
-                    # 입력 필드 위젯 상태 초기화
-                    for key in [
+                    # 위젯 상태 초기화
+                    keys_to_clear = [
                         "interviewer_id_input",
                         "interviewer_select",
                         "candidate_name_input",
@@ -246,16 +246,18 @@ def main():
                         "candidate_email_input",
                         "date_selector",
                         "time_selector",
-                    ]:
+                    ]
+                    for key in keys_to_clear:
                         st.session_state.pop(key, None)
                 
                     # 내부 상태 초기화
-                    st.session_state.selected_slots = []
-                    st.session_state.submission_done = False
-                    st.session_state.last_request_id = ""
                     st.session_state.pop("basic_info", None)
+                    st.session_state.pop("last_request_id", None)
+                    st.session_state.submission_done = False
+                    st.session_state.selected_slots = []
                 
                     st.rerun()
+                    
             else:
                 if st.button("📧 면접 일정 조율 시작", type="primary"):
                     basic_info = st.session_state.basic_info
@@ -461,6 +463,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
