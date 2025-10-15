@@ -188,15 +188,17 @@ def main():
                 )
             
             with col2:
-                time_options = ["선택안함", "면접관선택"] + Config.TIME_SLOTS
+                time_options = ["선택안함", "면접관 선택"] + Config.TIME_SLOTS
                 selected_time = st.selectbox(
                     "시간 선택",
                     options=time_options,
                     key=f"time_selector_{key_suffix}",  # ✅ 동적 key
-                    help="면접관선택을 선택하면 면접관이 시간을 직접 선택합니다"
+                    help="면접관 선택을 선택하면 면접관이 시간을 직접 선택합니다"
                 )
 
             with col3:
+                # ✅ 빈 레이블을 추가해서 높이 맞추기
+                st.markdown("**　**")  # 빈 레이블 (전각 공백 사용)
                 add_clicked = st.button(
                     "➕ 일정 추가",
                     disabled=(selected_date == "선택안함" or selected_time == "선택안함"),
@@ -206,20 +208,14 @@ def main():
             # 선택 추가 버튼
             if add_clicked:
                 if selected_date != "선택안함" and selected_time != "선택안함":
-                    time_value = "면접관선택" if selected_time == "면접관선택" else selected_time
+                    time_value = "면접관 선택" if selected_time == "면접관 선택" else selected_time
                     datetime_slot = f"{selected_date} {time_value}"
                     
                     if datetime_slot not in st.session_state.selected_slots:
                         if len(st.session_state.selected_slots) < 5:
                             st.session_state.selected_slots.append(datetime_slot)
-                            st.markdown(f"""
-                                <div style="background-color:#e6f4ea; border-left: 5px solid #2e7d32;
-                                            padding: 12px 16px; border-radius: 6px; margin-top:10px; color:#2e7d32;">
-                                    ✅ 일정이 추가되었습니다: <b>{format_date_korean(selected_date)} {time_value}</b>
-                                </div>
-                            """, unsafe_allow_html=True)
                         else:
-                            st.warning("⚠️ 최대 5개까지만 선택 가능합니다.")
+                            st.warning("⚠️ 최대 5개까지 선택 가능합니다.")
                     else:
                         st.warning("⚠️ 이미 선택된 일정입니다.")
             
@@ -230,7 +226,7 @@ def main():
                 # DataFrame으로 변환하여 표시
                 table_data = []
                 for i, slot in enumerate(st.session_state.selected_slots, 1):
-                    if "면접관선택" in slot:
+                    if "면접관 선택" in slot:
                         date_part = slot.split(' ')[0]
                         time_display = "면접관이 선택함"
                     else:
@@ -253,7 +249,7 @@ def main():
                 
                 if len(st.session_state.selected_slots) > 0:
                     # 전체 삭제 버튼만 오른쪽에 위치
-                    col1, col2, col3 = st.columns([2, 2, 1])
+                    col1, col2, col3 = st.columns([2, 1, 1])
                     with col3:
                         if st.button("일정 초기화", key="delete_all"):
                             st.session_state.selected_slots = []
@@ -269,12 +265,12 @@ def main():
                 st.info("면접관이 일정을 입력하면 자동으로 면접자에게 알림이 전송됩니다.")
 
                 # ✅ 면접 요청 탭만 초기화하는 버튼
-                if st.button("🔁 새로운 면접 요청 시작", type="primary", use_container_width=True):
+                if st.button("새로운 면접 요청", type="primary", use_container_width=True):
                     reset_interview_request_tab()  # 면접 요청 탭만 초기화
                     st.rerun()
                     
             else:
-                if st.button("📧 면접 일정 조율 시작", type="primary", use_container_width=True):
+                if st.button("면접 일정 조율 시작", type="primary", use_container_width=True):
                     basic_info = st.session_state.basic_info
                     
                     # 유효성 검사
