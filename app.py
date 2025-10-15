@@ -49,8 +49,7 @@ def load_organization_data():
 # ✅ 면접 요청 탭만 초기화하는 함수
 def reset_interview_request_tab():
     """면접 요청 탭만 완전 초기화 (다른 탭 상태는 유지)"""
-    # 면접 요청 관련 위젯만 초기화
-    interview_widget_keys = [
+    keys = [
         "interviewer_id_input",
         "interviewer_select", 
         "candidate_name_input",
@@ -58,10 +57,14 @@ def reset_interview_request_tab():
         "candidate_email_input",
         "date_selector",
         "time_selector",
+        "basic_info",
+        "selected_slots", 
+        "last_request_id",
+        "submission_done"
     ]
-    for key in interview_widget_keys:
+    for key in keys:
         if key in st.session_state:
-            del st.session_state[key]
+            st.session_state.pop(key)
     
     # 면접 요청 관련 세션 상태만 초기화
     interview_session_keys = [
@@ -73,10 +76,6 @@ def reset_interview_request_tab():
     for key in interview_session_keys:
         if key in st.session_state:
             del st.session_state[key]
-    
-    # 면접 요청 관련 기본값 재설정
-    st.session_state.selected_slots = []
-    st.session_state.submission_done = False
 
 db, email_service, sync_manager = init_services()
 
@@ -272,7 +271,6 @@ def main():
                 # ✅ 면접 요청 탭만 초기화하는 버튼
                 if st.button("🔁 새로운 면접 요청 시작", type="primary", use_container_width=True):
                     reset_interview_request_tab()  # 면접 요청 탭만 초기화
-                    st.success("✅ 면접 요청 폼이 초기화되었습니다. 새로운 면접 요청을 시작할 수 있습니다.")
                     st.rerun()
                     
             else:
@@ -488,3 +486,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
