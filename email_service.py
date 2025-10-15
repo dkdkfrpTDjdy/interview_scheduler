@@ -138,7 +138,7 @@ class EmailService:
         if self._is_gmail_recipient(recipient_email):
             msg['X-Mailer'] = "StreamIt-EmailSystem/1.0"
             msg['X-Priority'] = '3'
-            msg['From'] = f"AJ Networks HR <{self.email_config.EMAIL_USER}>"
+            msg['From'] = f"AJ네트웍스 HR <{self.email_config.EMAIL_USER}>"
             msg['Reply-To'] = Config.HR_EMAILS[0] if Config.HR_EMAILS else self.email_config.EMAIL_USER
             logger.info("  - Gmail 헤더 적용")
         else:
@@ -176,7 +176,7 @@ class EmailService:
 <body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:#f8f9fa;">
     <div style="max-width:600px;margin:0 auto;background-color:#ffffff;">
         <div style="background-color:#007bff;color:#ffffff;padding:30px;text-align:center;">
-            <h1 style="margin:0;font-size:24px;">{content_data.get('company_name', 'AJ Networks')}</h1>
+            <h1 style="margin:0;font-size:24px;">{content_data.get('company_name', 'AJ네트웍스')}</h1>
             <p style="margin:10px 0 0 0;font-size:14px;">{content_data.get('title', '면접 시스템 알림')}</p>
         </div>
         
@@ -214,7 +214,7 @@ class EmailService:
         
         <div style="background-color:#f8f9fa;padding:20px;text-align:center;border-top:1px solid #dee2e6;">
             <p style="margin:0;font-size:12px;color:#666;">
-                본 메일은 {content_data.get('company_name', 'AJ Networks')} 인사팀에서 발송되었습니다.<br>
+                본 메일은 {content_data.get('company_name', 'AJ네트웍스')} 인사팀에서 발송되었습니다.<br>
                 문의: <a href="mailto:{content_data.get('contact_email', 'hr@ajnet.co.kr')}" style="color:#007bff;">{content_data.get('contact_email', 'hr@ajnet.co.kr')}</a>
             </p>
         </div>
@@ -335,35 +335,34 @@ class EmailService:
         """전문적인 이메일 본문 생성"""
         slots_html = ""
         for i, slot in enumerate(request.available_slots, 1):
-            bg_color = "#f8f9fa" if i % 2 == 0 else "white"
+            bg_color = "#E6E6E6" if i % 2 == 0 else "white"  # 보조색 (K10)
             slots_html += f"""
             <tr style="background-color: {bg_color};">
-                <td style="padding: 15px; text-align: center; border: 1px solid #dee2e6;">옵션 {i}</td>
-                <td style="padding: 15px; text-align: center; border: 1px solid #dee2e6;">{format_date_korean(slot.date)}</td>
-                <td style="padding: 15px; text-align: center; border: 1px solid #dee2e6;">{slot.time}</td>
-                <td style="padding: 15px; text-align: center; border: 1px solid #dee2e6;">{slot.duration}분</td>
+                <td style="padding: 15px; text-align: center; border: 1px solid #D9D9D9;">옵션 {i}</td>
+                <td style="padding: 15px; text-align: center; border: 1px solid #D9D9D9;">{format_date_korean(slot.date)}</td>
+                <td style="padding: 15px; text-align: center; border: 1px solid #D9D9D9;">{slot.time}</td>
+                <td style="padding: 15px; text-align: center; border: 1px solid #D9D9D9;">{slot.duration}분</td>
             </tr>
             """
-        
+
         if is_gmail_optimized:
             return self._create_gmail_safe_html({
-                'company_name': 'AJ Networks',
+                'company_name': 'AJ네트웍스',
                 'title': '면접 일정 안내',
                 'recipient_name': request.candidate_name,
                 'main_message': f'{request.position_name} 포지션 지원에 감사드립니다. 면접관이 제안한 일정 중에서 원하시는 시간을 선택해주세요.',
                 'position': request.position_name,
-                'interviewer': f"{interviewer_info['name']} ({interviewer_info['department']})",
                 'action_link': candidate_link,
                 'button_text': '일정 선택하기',
                 'additional_content': f"""
-                <h4 style="color: #007bff;">제안 면접 일정</h4>
-                <table style="width: 100%; border-collapse: collapse; border: 1px solid #dee2e6;">
+                <h4 style="color: #FF0033;">제안 면접 일정</h4>
+                <table style="width: 100%; border-collapse: collapse; border: 1px solid #D9D9D9;">
                     <thead>
-                        <tr style="background-color: #007bff; color: white;">
-                            <th style="padding: 12px; border: 1px solid #dee2e6;">구분</th>
-                            <th style="padding: 12px; border: 1px solid #dee2e6;">날짜</th>
-                            <th style="padding: 12px; border: 1px solid #dee2e6;">시간</th>
-                            <th style="padding: 12px; border: 1px solid #dee2e6;">소요시간</th>
+                        <tr style="background-color: #FF0033; color: white;">
+                            <th style="padding: 12px; border: 1px solid #D9D9D9;">구분</th>
+                            <th style="padding: 12px; border: 1px solid #D9D9D9;">날짜</th>
+                            <th style="padding: 12px; border: 1px solid #D9D9D9;">시간</th>
+                            <th style="padding: 12px; border: 1px solid #D9D9D9;">소요시간</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -375,111 +374,140 @@ class EmailService:
             })
         else:
             return f"""
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <div style="background: #28a745; color: white; padding: 30px; text-align: center;">
-                    <h1 style="margin: 0;">면접 일정 선택</h1>
+            <div style="font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', Arial, sans-serif; max-width: 640px; margin: 0 auto; background-color: #F9F9F9; color: #1A1A1A;">
+                <div style="background-color: #FF0033; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                    <h1 style="margin: 0; font-size: 24px;">면접 일정 선택 요청</h1>
                 </div>
-                
-                <div style="padding: 30px;">
-                    <h2>안녕하세요, {request.candidate_name}님</h2>
-                    <p>면접관께서 제안하신 면접 일정 중에서 원하시는 시간을 선택해주세요.</p>
-                    
-                    <h3>면접 정보</h3>
-                    <p><strong>포지션:</strong> {request.position_name}</p>
-                    <p><strong>면접관:</strong> {interviewer_info['name']} ({interviewer_info['department']})</p>
-                    
-                    <h3>제안된 면접 일정</h3>
-                    <table style="width: 100%; border-collapse: collapse; border: 1px solid #dee2e6;">
+
+                <div style="padding: 30px; background-color: white;">
+                    <p style="font-size: 16px;">안녕하세요, <strong>{request.candidate_name}</strong>님</p>
+                    <p style="font-size: 15px; line-height: 1.6;">
+                        {request.position_name} 포지션 지원에 감사드립니다.<br>
+                        아래 면접관이 제안한 일정 중에서 원하시는 시간을 선택해 주세요.
+                    </p>
+
+                    <div style="margin-top: 25px;">
+                        <h3 style="color: #FF0033;">📝 면접 정보</h3>
+                        <p><strong>포지션:</strong> {request.position_name}<br>
+                        <strong>면접관:</strong> {interviewer_info['name']} ({interviewer_info['department']})</p>
+                    </div>
+
+                    <h3 style="margin-top: 30px; color: #FF0033;">📅 제안된 면접 일정</h3>
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
                         <thead>
-                            <tr style="background-color: #28a745; color: white;">
-                                <th style="padding: 12px; border: 1px solid #dee2e6;">옵션</th>
-                                <th style="padding: 12px; border: 1px solid #dee2e6;">날짜</th>
-                                <th style="padding: 12px; border: 1px solid #dee2e6;">시간</th>
-                                <th style="padding: 12px; border: 1px solid #dee2e6;">소요시간</th>
+                            <tr style="background-color: #FF0033; color: white;">
+                                <th style="padding: 12px; border: 1px solid #D9D9D9;">옵션</th>
+                                <th style="padding: 12px; border: 1px solid #D9D9D9;">날짜</th>
+                                <th style="padding: 12px; border: 1px solid #D9D9D9;">시간</th>
+                                <th style="padding: 12px; border: 1px solid #D9D9D9;">소요시간</th>
                             </tr>
                         </thead>
                         <tbody>
                             {slots_html}
                         </tbody>
                     </table>
-                    
-                    <div style="text-align: center; margin: 30px 0;">
+
+                    <div style="text-align: center; margin: 40px 0 20px;">
                         <a href="{candidate_link}" 
-                           style="background: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px;">
-                            면접 일정 선택하기
+                        style="background: #FF0033; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+                        👉 면접 일정 선택하기
                         </a>
                     </div>
+
+                    <p style="font-size: 13px; color: #4D4D4D; text-align: center; margin-top: 30px;">
+                        본 메일은 AJ네트웍스 인사팀에서 발송되었습니다. 문의: 
+                        <a href="mailto:{Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'}" style="color: #FF6600;">
+                            {Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'}
+                        </a>
+                    </p>
+                </div>
+
+                <div style="background-color: #E6E6E6; padding: 10px; text-align: center; border-radius: 0 0 8px 8px; font-size: 12px; color: #4D4D4D;">
+                    © 2025 AJ네트웍스. All rights reserved.
                 </div>
             </div>
             """
+
 
     def send_interviewer_invitation(self, request: InterviewRequest):
         """면접관에게 일정 입력 요청 메일 발송"""
         try:
             interviewer_email = get_employee_email(request.interviewer_id)
             interviewer_info = get_employee_info(request.interviewer_id)
-            
-            is_gmail = self._is_gmail_recipient(interviewer_email)
-            logger.info(f"📧 면접관 초대 메일 준비 - 면접관: {interviewer_email} (Gmail: {is_gmail})")
-            
-            link = f"https://interview-scheduler-ajnetworks.streamlit.app/면접관_일정입력"
-            
-            if is_gmail:
-                subject = f"[{self.company_domain.upper()}] 면접 일정 입력 요청 - {request.position_name}"
-                body = self._create_gmail_safe_html({
-                    'company_name': 'AJ Networks',
-                    'title': '면접 일정 입력 요청',
-                    'recipient_name': interviewer_info['name'],
-                    'main_message': f'새로운 면접 일정 조율 요청이 도착했습니다. 아래 정보를 확인하시고 가능한 면접 일정을 입력해주세요.',
-                    'position': request.position_name,
-                    'interviewer': f"{interviewer_info['name']} ({interviewer_info['department']})",
-                    'action_link': link,
-                    'button_text': '면접 가능 일정 입력하기',
-                    'additional_content': f"""
-                    <h4 style="color: #007bff;">면접 정보</h4>
-                    <p><strong>포지션:</strong> {request.position_name}</p>
-                    <p><strong>면접자:</strong> {request.candidate_name}</p>
-                    <p><strong>이메일:</strong> {request.candidate_email}</p>
-                    """,
-                    'contact_email': Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'
-                })
-            else:
-                subject = "면접 일정 조율 - 면접 가능 일정 입력 요청"
-                body = f"""
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <div style="background: #0078d4; color: white; padding: 30px; text-align: center;">
-                        <h1 style="margin: 0;">면접 일정 입력 요청</h1>
-                    </div>
-                    
-                    <div style="padding: 30px;">
-                        <h2>안녕하세요, {interviewer_info['name']}님</h2>
-                        <p>새로운 면접 일정 조율 요청이 도착했습니다. 가능한 면접 일정을 입력해주세요.</p>
-                        
-                        <h3>면접 정보</h3>
-                        <p><strong>공고명:</strong> {request.position_name}</p>
-                        <p><strong>면접자:</strong> {request.candidate_name}</p>
-                        <p><strong>이메일:</strong> {request.candidate_email}</p>
-                        
-                        <div style="text-align: center; margin: 30px 0;">
-                            <a href="{link}" 
-                               style="background: #0078d4; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px;">
-                                면접 가능 일정 입력하기
-                            </a>
-                        </div>
-                    </div>
+
+            logger.info(f"📧 면접관 초대 메일 준비 - 면접관: {interviewer_email}")
+
+            link = "https://interview-scheduler-ajnetworks.streamlit.app/면접관_일정입력"
+
+            subject = f"[{self.company_domain.upper()}] 면접 일정 입력 요청 - {request.position_name}"
+            body = f"""
+            <div style="font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', Arial, sans-serif; max-width: 640px; margin: 0 auto; background-color: #F9F9F9; color: #1A1A1A;">
+                <!-- Header -->
+                <div style="background-color: #FF0033; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                    <h1 style="margin: 0; font-size: 22px;">면접 일정 입력 요청</h1>
                 </div>
-                """
-            
+
+                <!-- Body -->
+                <div style="padding: 30px; background-color: white;">
+                    <p style="font-size: 16px;">안녕하세요, <strong>{interviewer_info['name']}</strong>님</p>
+                    <p style="font-size: 15px; line-height: 1.6;">
+                        새로운 면접 일정 조율 요청이 도착했습니다.<br>
+                        아래 정보를 확인하시고 <strong style="color: #FF0033;">면접 가능 일정을 입력</strong>해 주세요.
+                    </p>
+
+                    <!-- Interview Info -->
+                    <div style="margin-top: 25px;">
+                        <h3 style="color: #FF0033;">📝 면접 정보</h3>
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
+                            <tr style="background-color: #F5F5F5;">
+                                <td style="padding: 10px; width: 30%; font-weight: bold;">포지션</td>
+                                <td style="padding: 10px;">{request.position_name}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px; font-weight: bold;">면접자</td>
+                                <td style="padding: 10px;">{request.candidate_name}</td>
+                            </tr>
+                            <tr style="background-color: #F5F5F5;">
+                                <td style="padding: 10px; font-weight: bold;">이메일</td>
+                                <td style="padding: 10px;">{request.candidate_email}</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <!-- Action Button -->
+                    <div style="text-align: center; margin: 40px 0;">
+                        <a href="{link}" 
+                        style="background: #FF0033; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+                            👉 면접 가능 일정 입력하기
+                        </a>
+                    </div>
+
+                    <!-- Contact -->
+                    <p style="font-size: 13px; color: #4D4D4D; text-align: center; margin-top: 30px;">
+                        본 메일은 AJ네트웍스 인사팀에서 발송되었습니다. 문의: 
+                        <a href="mailto:{Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'}" style="color: #FF6600;">
+                            {Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'}
+                        </a>
+                    </p>
+                </div>
+
+                <!-- Footer -->
+                <div style="background-color: #E6E6E6; padding: 10px; text-align: center; border-radius: 0 0 8px 8px; font-size: 12px; color: #4D4D4D;">
+                    © 2025 AJ네트웍스. All rights reserved.
+                </div>
+            </div>
+            """
+
             result = self.send_email(
                 to_emails=[interviewer_email],
                 cc_emails=Config.HR_EMAILS,
                 subject=subject,
                 body=body
             )
-            
+
             logger.info(f"📧 면접관 초대 메일 발송 결과: {result}")
             return result
-            
+
         except Exception as e:
             logger.error(f"❌ 면접관 초대 메일 발송 실패: {e}")
             return False
@@ -514,6 +542,78 @@ class EmailService:
         except Exception as e:
             logger.error(f"❌ 면접자 초대 메일 발송 실패: {e}")
             return False
+        
+    def send_automatic_confirmation_on_sheet_update(self, request: InterviewRequest):
+        """구글 시트 L열 업데이트 시 자동 확정 이메일 발송"""
+        try:
+            interviewer_email = get_employee_email(request.interviewer_id)
+
+            subject = f"[{self.company_domain.upper()}] {request.position_name} 면접 확정 안내"
+
+            confirmed_datetime = f"{format_date_korean(request.selected_slot.date)} {request.selected_slot.time} ({request.selected_slot.duration}분)"
+
+            body = f"""
+            <div style="font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', Arial, sans-serif; max-width: 640px; margin: 0 auto; background-color: #F9F9F9; color: #1A1A1A;">
+                <!-- Header -->
+                <div style="background-color: #FF0033; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                    <h1 style="margin: 0; font-size: 24px;">면접 확정 안내</h1>
+                </div>
+
+                <!-- Body -->
+                <div style="padding: 30px; background-color: white;">
+                    <p style="font-size: 16px;">안녕하세요, <strong>{request.candidate_name}</strong>님</p>
+                    <p style="font-size: 15px; line-height: 1.6;">
+                        지원하신 <strong>{request.position_name}</strong> 포지션의 면접 일정이 아래와 같이 <strong style="color: #FF0033;">확정</strong>되었습니다.
+                    </p>
+
+                    <div style="margin-top: 25px;">
+                        <h3 style="color: #FF0033;">📅 확정된 면접 일정</h3>
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
+                            <tr style="background-color: #F5F5F5;">
+                                <td style="padding: 12px; border: 1px solid #D9D9D9; font-weight: bold; width: 30%;">포지션</td>
+                                <td style="padding: 12px; border: 1px solid #D9D9D9;">{request.position_name}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 12px; border: 1px solid #D9D9D9; font-weight: bold;">면접일시</td>
+                                <td style="padding: 12px; border: 1px solid #D9D9D9;">{confirmed_datetime}</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div style="text-align: center; margin: 40px 0 20px;">
+                        <span style="display: inline-block; background: #FF0033; color: white; padding: 12px 24px; border-radius: 5px; font-weight: bold;">
+                            ✅ 면접 일정이 확정되었습니다
+                        </span>
+                    </div>
+
+                    <p style="font-size: 13px; color: #4D4D4D; text-align: center; margin-top: 30px;">
+                        본 메일은 AJ네트웍스 인사팀에서 발송되었습니다. 문의: 
+                        <a href="mailto:{Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'}" style="color: #FF6600;">
+                            {Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'}
+                        </a>
+                    </p>
+                </div>
+
+                <!-- Footer -->
+                <div style="background-color: #E6E6E6; padding: 10px; text-align: center; font-size: 12px; color: #4D4D4D; border-radius: 0 0 8px 8px;">
+                    © 2025 AJ네트웍스. All rights reserved.
+                </div>
+            </div>
+            """
+
+            # 수신자: 면접자, HR 팀
+            recipients = [request.candidate_email] + Config.HR_EMAILS
+
+            return self.send_email(
+                to_emails=recipients,
+                subject=subject,
+                body=body,
+                is_html=True
+            )
+        except Exception as e:
+            logger.error(f"자동 확정 이메일 발송 실패: {e}")
+            return False
+
 
     def send_confirmation_notification(self, request: InterviewRequest, sender_type="interviewer"):
         """면접 확정 알림 메일 발송"""
@@ -534,7 +634,7 @@ class EmailService:
             
             if has_gmail:
                 html_body = self._create_gmail_safe_html({
-                    'company_name': 'AJ Networks',
+                    'company_name': 'AJ네트웍스',
                     'title': f'면접 일정 {status_text}',
                     'recipient_name': '고객',
                     'main_message': f'{request.position_name} 포지션 면접 일정이 {status_text} 상태입니다.',
@@ -612,45 +712,57 @@ class EmailService:
         try:
             interviewer_email = get_employee_email(request.interviewer_id)
             interviewer_info = get_employee_info(request.interviewer_id)
-            
-            is_gmail = self._is_gmail_recipient(interviewer_email)
-            
-            if is_gmail:
-                subject = f"[{self.company_domain.upper()}] 면접 일정 확정 - {request.position_name}"
-                body = self._create_gmail_safe_html({
-                    'company_name': 'AJ Networks',
-                    'title': '면접 일정 확정',
-                    'recipient_name': interviewer_info['name'],
-                    'main_message': '면접자가 제안하신 일정 중 하나를 선택했습니다.',
-                    'position': request.position_name,
-                    'interviewer': f"{interviewer_info['name']} ({interviewer_info['department']})",
-                    'action_link': '#',
-                    'button_text': '확인완료',
-                    'additional_content': f"""
-                    <p><strong>면접자:</strong> {request.candidate_name}</p>
-                    <p><strong>확정일시:</strong> {format_date_korean(request.selected_slot.date)} {request.selected_slot.time} ({request.selected_slot.duration}분)</p>
-                    """,
-                    'contact_email': Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'
-                })
-            else:
-                subject = "면접 일정 확정 - 면접자가 일정을 선택했습니다"
-                body = f"""
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <div style="background-color: #28a745; color: white; padding: 30px; text-align: center;">
-                        <h1 style="margin: 0;">면접 일정이 확정되었습니다</h1>
-                    </div>
-                    <div style="padding: 30px;">
-                        <p>안녕하세요, {interviewer_info['name']}님</p>
-                        <p>면접자가 제안하신 일정 중 하나를 선택했습니다.</p>
-                        
-                        <h3>확정된 면접 정보</h3>
-                        <p><strong>포지션:</strong> {request.position_name}</p>
-                        <p><strong>면접자:</strong> {request.candidate_name}</p>
-                        <p><strong>확정일시:</strong> {format_date_korean(request.selected_slot.date)} {request.selected_slot.time} ({request.selected_slot.duration}분)</p>
-                    </div>
+
+            subject = f"[{self.company_domain.upper()}] 면접 일정 확정 - {request.position_name}"
+
+            selected_datetime = f"{format_date_korean(request.selected_slot.date)} {request.selected_slot.time} ({request.selected_slot.duration}분)"
+
+            body = f"""
+            <div style="font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', Arial, sans-serif; max-width: 640px; margin: 0 auto; background-color: #F9F9F9; color: #1A1A1A;">
+                <!-- Header -->
+                <div style="background-color: #FF0033; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                    <h1 style="margin: 0; font-size: 22px;">면접 일정이 확정되었습니다</h1>
                 </div>
-                """
-            
+
+                <!-- Body -->
+                <div style="padding: 30px; background-color: white;">
+                    <p style="font-size: 16px;">안녕하세요, <strong>{interviewer_info['name']}</strong>님</p>
+                    <p style="font-size: 15px; line-height: 1.6;">
+                        면접자가 제안하신 일정 중 하나를 선택했습니다.<br>
+                        아래 확정된 면접 일정을 확인해 주세요.
+                    </p>
+
+                    <h3 style="margin-top: 30px; color: #FF0033;">📝 확정된 면접 정보</h3>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                        <tr style="background-color: #F5F5F5;">
+                            <td style="padding: 10px; font-weight: bold; width: 30%;">포지션</td>
+                            <td style="padding: 10px;">{request.position_name}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; font-weight: bold;">면접자</td>
+                            <td style="padding: 10px;">{request.candidate_name}</td>
+                        </tr>
+                        <tr style="background-color: #F5F5F5;">
+                            <td style="padding: 10px; font-weight: bold;">확정일시</td>
+                            <td style="padding: 10px;">{selected_datetime}</td>
+                        </tr>
+                    </table>
+
+                    <p style="font-size: 13px; color: #4D4D4D; text-align: center; margin-top: 30px;">
+                        본 메일은 AJ네트웍스 인사팀에서 발송되었습니다. 문의: 
+                        <a href="mailto:{Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'}" style="color: #FF6600;">
+                            {Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'}
+                        </a>
+                    </p>
+                </div>
+
+                <!-- Footer -->
+                <div style="background-color: #E6E6E6; padding: 10px; text-align: center; border-radius: 0 0 8px 8px; font-size: 12px; color: #4D4D4D;">
+                    © 2025 AJ네트웍스. All rights reserved.
+                </div>
+            </div>
+            """
+
             result = self.send_email(
                 to_emails=[interviewer_email],
                 cc_emails=Config.HR_EMAILS,
@@ -658,9 +770,9 @@ class EmailService:
                 body=body,
                 is_html=True
             )
-            
+
             return result
-            
+
         except Exception as e:
             logger.error(f"❌ 면접자 선택 완료 알림 발송 실패: {e}")
             return False
@@ -683,7 +795,7 @@ class EmailService:
         """HTML 이메일 테스트"""
         try:
             test_body = self._create_gmail_safe_html({
-                'company_name': 'AJ Networks',
+                'company_name': 'AJ네트웍스',
                 'title': 'HTML 이메일 테스트',
                 'recipient_name': '테스터',
                 'main_message': '이 메일이 HTML로 제대로 표시되나요?',
