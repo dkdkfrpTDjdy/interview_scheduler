@@ -308,16 +308,15 @@ def show_request_detail(request, index):
         else:
             st.info("💡 위에서 가능한 일정을 선택해주세요.")
 
-        # 제출 버튼
-        submitted = st.form_submit_button("일정 확정", use_container_width=False)
+        # ✅ 버튼을 col로 감싸서 오른쪽 정렬
+        col1, col2, col3 = st.columns([6, 1, 1])
+        
+        with col3:
+            submitted = st.form_submit_button("일정 확정", use_container_width=True)
 
         # 버튼 스타일
         st.markdown("""
             <style>
-            div[data-testid="stFormSubmitButton"] {
-                display: flex;
-                justify-content: flex-end;
-            }
             div[data-testid="stFormSubmitButton"] > button {
                 background-color: #EF3340;
                 color: white;
