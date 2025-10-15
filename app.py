@@ -80,6 +80,9 @@ def main():
     st.title("📅 AI 면접 일정 조율 시스템")
     st.header("인사팀 관리 페이지")
 
+    # ✅ 서비스 초기화 추가 (누락된 부분)
+    db, email_service, sync_manager = init_services()
+
     # ✅ 폼 리셋 카운터 초기화
     if "form_reset_counter" not in st.session_state:
         st.session_state.form_reset_counter = 0
@@ -490,5 +493,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
