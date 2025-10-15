@@ -167,19 +167,19 @@ def main():
                         'candidate_email': candidate_email,
                         'position_name': position_name
                     }
-                    st.success("✅ 기본 정보가 저장되었습니다. 아래에서 면접 희망일시를 선택해주세요.")
+                    st.success("✅ 기본 정보가 저장되었습니다. 아래에서 면접 희망 일시를 선택해 주세요.")
         
         # ✅ 면접 희망일시 선택 섹션 (폼 밖)
         if 'basic_info' in st.session_state:
             st.markdown("---")
-            st.markdown("**📅 면접 희망일 및 시간 선택 (최대 5개)**")
+            st.markdown("**📅 면접 희망일시 선택 (최대 5개)**")
             
             available_dates = get_next_weekdays(20)
             
             # 단일 선택 박스로 통합
-            col_date, col_time = st.columns([2, 1])
+            col1, col2, col3 = st.columns([2, 1, 1])
             
-            with col_date:
+            with col1:
                 selected_date = st.selectbox(
                     "날짜 선택",
                     options=["선택안함"] + available_dates,
@@ -187,7 +187,7 @@ def main():
                     key=f"date_selector_{key_suffix}"  # ✅ 동적 key
                 )
             
-            with col_time:
+            with col2:
                 time_options = ["선택안함", "면접관선택"] + Config.TIME_SLOTS
                 selected_time = st.selectbox(
                     "시간 선택",
@@ -195,22 +195,29 @@ def main():
                     key=f"time_selector_{key_suffix}",  # ✅ 동적 key
                     help="면접관선택을 선택하면 면접관이 시간을 직접 선택합니다"
                 )
+
+            with col3:
+                add_clicked = st.button(
+                    "➕ 일정 추가",
+                    disabled=(selected_date == "선택안함" or selected_time == "선택안함"),
+                    key=f"add_slot_btn_{key_suffix}"
+                )
             
             # 선택 추가 버튼
-            if st.button("➕ 일정 추가", disabled=(selected_date == "선택안함" or selected_time == "선택안함")):
+            if add_clicked:
                 if selected_date != "선택안함" and selected_time != "선택안함":
-                    if selected_time == "면접관선택":
-                        time_value = "면접관선택"
-                    else:
-                        time_value = selected_time
-                    
+                    time_value = "면접관선택" if selected_time == "면접관선택" else selected_time
                     datetime_slot = f"{selected_date} {time_value}"
                     
-                    # 중복 방지 및 최대 5개 제한
                     if datetime_slot not in st.session_state.selected_slots:
                         if len(st.session_state.selected_slots) < 5:
                             st.session_state.selected_slots.append(datetime_slot)
-                            st.success(f"✅ 일정이 추가되었습니다: {format_date_korean(selected_date)} {time_value}")
+                            st.markdown(f"""
+                                <div style="background-color:#e6f4ea; border-left: 5px solid #2e7d32;
+                                            padding: 12px 16px; border-radius: 6px; margin-top:10px; color:#2e7d32;">
+                                    ✅ 일정이 추가되었습니다: <b>{format_date_korean(selected_date)} {time_value}</b>
+                                </div>
+                            """, unsafe_allow_html=True)
                         else:
                             st.warning("⚠️ 최대 5개까지만 선택 가능합니다.")
                     else:
@@ -244,22 +251,14 @@ def main():
                 
                 st.dataframe(df, use_container_width=True, hide_index=True)
                 
-                # 개별 삭제 버튼들
                 if len(st.session_state.selected_slots) > 0:
-                    cols = st.columns(min(len(st.session_state.selected_slots), 5))  # 최대 5개 컬럼
-                    for i, col in enumerate(cols):
-                        if i < len(st.session_state.selected_slots):
-                            with col:
-                                if st.button(f"❌ {i+1}번 삭제", key=f"delete_{i}"):
-                                    st.session_state.selected_slots.pop(i)
-                                    st.success(f"✅ {i+1}번 일정이 삭제되었습니다.")
-                                    st.rerun()
-                
-                # 전체 삭제 버튼
-                if st.button("🗑️ 전체 삭제"):
-                    st.session_state.selected_slots = []
-                    st.success("✅ 모든 일정이 삭제되었습니다.")
-                    st.rerun()
+                    # 전체 삭제 버튼만 오른쪽에 위치
+                    col1, col2, col3 = st.columns([2, 2, 1])
+                    with col3:
+                        if st.button("일정 초기화", key="delete_all"):
+                            st.session_state.selected_slots = []
+                            st.success("✅ 모든 일정이 삭제되었습니다.")
+                            st.rerun()
             
             # ✅ 최종 제출 섹션
             st.markdown("---")
