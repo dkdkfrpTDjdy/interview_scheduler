@@ -25,10 +25,10 @@ class EmailService:
     def __init__(self):
         self.email_config = Config.EmailConfig
         self.company_domain = Config.COMPANY_DOMAIN
-        self.last_send_time = {}  # 발송 간격 제어용
-        # ✅ 사용하지 않는 sent_emails 제거
-        # self.sent_emails = set()  # 이 줄 제거
-        self._sent_invitations = set()  # 중복 방지용 (이것만 유지)
+        self.last_send_time = {}  # 발송 간격 제어용 (필요시 유지)
+        # ✅ 중복 방지 관련 속성들 모두 제거
+        # self._sent_invitations = set() 
+        # self.sent_emails = set()
 
     def validate_and_correct_email(self, email: str) -> tuple[str, bool]:
         """이메일 주소 검증 및 오타 교정"""
@@ -126,18 +126,18 @@ class EmailService:
         """고유한 Message-ID 생성 (호환성 유지)"""
         return self._generate_secure_message_id()
 
-    def _check_send_rate_limit(self, recipient_email: str, min_interval: int = 60):
-        """발송 간격 제어 (초 단위)"""
-        current_time = time.time()
+    # def _check_send_rate_limit(self, recipient_email: str, min_interval: int = 60):
+    #     """발송 간격 제어 (초 단위)"""
+    #     current_time = time.time()
         
-        if recipient_email in self.last_send_time:
-            time_diff = current_time - self.last_send_time[recipient_email]
-            if time_diff < min_interval:
-                logger.warning(f"⚠️ 발송 간격 제한: {recipient_email} ({time_diff:.1f}초 전 발송)")
-                return False
+    #     if recipient_email in self.last_send_time:
+    #         time_diff = current_time - self.last_send_time[recipient_email]
+    #         if time_diff < min_interval:
+    #             logger.warning(f"⚠️ 발송 간격 제한: {recipient_email} ({time_diff:.1f}초 전 발송)")
+    #             return False
         
-        self.last_send_time[recipient_email] = current_time
-        return True
+    #     self.last_send_time[recipient_email] = current_time
+    #     return True
 
     def _create_optimized_mime_structure(self, text_body: str, html_body: str, attachment_data=None, attachment_name=None):
         """Gmail 최적화된 MIME 구조 생성"""
@@ -315,9 +315,9 @@ class EmailService:
                 return False
     
             # 발송 간격 체크
-            primary_email = validated_emails[0]
-            if not self._check_send_rate_limit(primary_email):
-                return False
+            # primary_email = validated_emails[0]
+            # if not self._check_send_rate_limit(primary_email):
+            #     return False
     
             logger.info(f"📧 이메일 발송 시작")
             logger.info(f"  - TO: {validated_emails}")
@@ -592,12 +592,10 @@ class EmailService:
             """
 
     def send_interviewer_invitation(self, request: InterviewRequest):
-        """면접관에게 일정 입력 요청 메일 발송 - 중복 방지 적용"""
+        """면접관에게 일정 입력 요청 메일 발송 - 중복 방지 제거"""
         try:
-            # ✅ 중복 방지 키 생성
-            invitation_key = f"{request.id}_{request.interviewer_id}_invitation"
-            
-            # ✅ 중복 발송 체크 (개발 중에는 주석 처리)
+            # ✅ 중복 방지 코드 모두 제거
+            # invitation_key = f"{request.id}_{request.interviewer_id}_invitation"
             # if invitation_key in self._sent_invitations:
             #     logger.warning(f"⚠️ 중복 이메일 발송 방지: {invitation_key}")
             #     return False
@@ -763,8 +761,8 @@ class EmailService:
             )
             
             # ✅ 발송 성공 시 중복 방지 키 추가
-            if result:
-                self._sent_invitations.add(invitation_key)
+            # if result:
+            #     self._sent_invitations.add(invitation_key)
             
             logger.info(f"📧 면접관 초대 메일 발송 결과: {result}")
             return result
@@ -1300,5 +1298,6 @@ AJ Networks 인사팀
         except Exception as e:
             logger.error(f"❌ HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
