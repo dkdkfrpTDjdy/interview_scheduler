@@ -29,7 +29,6 @@ def init_services():
             from sync_manager import SyncManager
             sync_manager = SyncManager(db, email_service)
             sync_manager.start_monitoring()
-            st.info("🔄 자동 모니터링이 시작되었습니다.")
         except ImportError:
             st.warning("⚠️ 자동 모니터링 모듈을 찾을 수 없습니다. 수동 모드로 실행됩니다.")
         except Exception as e:
@@ -78,7 +77,6 @@ def reset_interview_request_tab():
 
 def main():
     st.title("📅 AI 면접 일정 조율 시스템")
-    st.header("인사팀 관리 페이지")
 
     # ✅ 서비스 초기화 추가 (누락된 부분)
     db, email_service, sync_manager = init_services()
@@ -93,7 +91,6 @@ def main():
     tab1, tab2, tab3 = st.tabs(["새 면접 요청", "진행 현황", "구글 시트 관리"])
     
     with tab1:
-        st.subheader("새로운 면접 일정 조율 요청")
 
         # ✅ 동적 key suffix 생성
         key_suffix = st.session_state.form_reset_counter        
@@ -123,15 +120,14 @@ def main():
                     selected_interviewer = st.selectbox(
                         "면접관 선택",
                         options=["선택해주세요"] + interviewer_options,
-                        help="조직도에서 면접관을 선택해주세요",
+                        help="면접관을 직접 선택하거나 사번을 입력해 주세요",
                         key=f"interviewer_select_{key_suffix}"
                     )
                     interviewer_id = selected_interviewer.split(' - ')[0] if selected_interviewer != "선택해주세요" else ""
 
                 candidate_name = st.text_input(
                     "면접자 이름",
-                    placeholder="면접자",
-                    help="면접자의 이름을 입력해주세요",
+                    placeholder="정면접",
                     key=f"candidate_name_input_{key_suffix}"  # ✅ 동적 key
                 )
             
@@ -139,14 +135,12 @@ def main():
                 position_name = st.text_input(
                     "공고명",
                     placeholder="IT혁신팀 데이터분석가",
-                    help="채용 공고명을 입력해주세요",
                     key=f"position_name_input_{key_suffix}"  # ✅ 동적 key
                 )
                 
                 candidate_email = st.text_input(
                     "면접자 이메일",
                     placeholder="candidate@example.com",
-                    help="면접자의 이메일 주소를 입력해주세요",
                     key=f"candidate_email_input_{key_suffix}"  # ✅ 동적 key
                 )
             
