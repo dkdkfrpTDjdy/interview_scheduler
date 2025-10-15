@@ -385,11 +385,23 @@ class EmailService:
                 try:
                     text = msg.as_string()
                     server.sendmail(self.email_config.EMAIL_USER, all_recipients, text)
-                    server.quit()
                     
-                    # ✅ 성공 로그 수정 (sent_emails 참조 제거)
-                    logger.info(f"✅ 이메일 발송 성공: {', '.join(validated_emails)}")
+                    # ✅ 먼저 서버 연결 종료
+                    try:
+                        server.quit()
+                    except:
+                        pass
+                    
+                    # ✅ 안전한 성공 로그 (변수 직접 사용)
+                    try:
+                        success_message = f"✅ 이메일 발송 성공: {', '.join(validated_emails)}"
+                        logger.info(success_message)
+                    except Exception as log_error:
+                        # 로그 출력 실패해도 발송은 성공한 것으로 처리
+                        logger.warning(f"로그 출력 실패하지만 메일 발송은 성공: {log_error}")
+                    
                     return True
+                    
                 except Exception as smtp_error:
                     logger.error(f"❌ SMTP 발송 실패: {smtp_error}")
                     try:
@@ -400,12 +412,6 @@ class EmailService:
             else:
                 logger.error("❌ SMTP 서버 연결 실패")
                 return False
-                
-        except Exception as e:
-            logger.error(f"❌ 이메일 발송 실패: {e}")
-            import traceback
-            logger.error(f"  - Traceback: {traceback.format_exc()}")
-            return False
 
     def _get_company_signature(self, is_gmail_optimized: bool = False) -> str:
         """회사 이메일 서명 (Gmail 최적화 버전 포함)"""
@@ -1298,6 +1304,7 @@ AJ Networks 인사팀
         except Exception as e:
             logger.error(f"❌ HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
