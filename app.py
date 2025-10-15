@@ -242,23 +242,19 @@ def main():
                         
                         # ✅ 중복 발송 방지: 발송 상태 체크
                         send_key = f"email_sent_{request.id}"
-                        if send_key not in st.session_state:
-                            # 면접관에게 이메일 발송
-                            if email_service.send_interviewer_invitation(request):
-                                st.session_state[send_key] = True  # 발송 완료 표시
-                                st.success(f"✅ 면접 요청이 생성되었습니다! (ID: {request.id[:8]}...)")
-                                st.success(f"📧 면접관({basic_info['interviewer_id']})에게 일정 입력 요청 메일을 발송했습니다.")
-                                st.info("면접관이 일정을 입력하면 자동으로 면접자에게 알림이 전송됩니다.")
-                                
-                                # 세션 데이터 초기화
-                                st.session_state.selected_slots = []
-                                if 'basic_info' in st.session_state:
-                                    del st.session_state.basic_info
-                                st.rerun()
-                            else:
-                                st.error("이메일 발송에 실패했습니다.")
+                        # ✅ 항상 새 메일 발송 (중복 방지 제거)
+                        if email_service.send_interviewer_invitation(request):
+                            st.success(f"✅ 면접 요청이 생성되었습니다! (ID: {request.id[:8]}...)")
+                            st.success(f"📧 면접관({basic_info['interviewer_id']})에게 일정 입력 요청 메일을 발송했습니다.")
+                            st.info("면접관이 일정을 입력하면 자동으로 면접자에게 알림이 전송됩니다.")
+                            
+                            # 세션 데이터 초기화
+                            st.session_state.selected_slots = []
+                            if 'basic_info' in st.session_state:
+                                del st.session_state.basic_info
+                            st.rerun()
                         else:
-                            st.info("이미 이메일이 발송된 요청입니다.")
+                            st.error("이메일 발송에 실패했습니다.")
                             
                     except Exception as e:
                         st.error(f"❌ 면접 요청 저장 실패: {e}")
