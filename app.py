@@ -177,7 +177,7 @@ def main():
             available_dates = get_next_weekdays(20)
             
             # 단일 선택 박스로 통합
-            col1, col2, col3 = st.columns([2, 1, 1])
+            col1, col2, col3 = st.columns([2, 2, 1])
             
             with col1:
                 selected_date = st.selectbox(
@@ -199,7 +199,7 @@ def main():
             with col3:
                 # ✅ 빈 레이블을 추가해서 높이 맞추기
                 st.markdown("""
-                <div style="font-size:15px;">
+                <div style="font-size:16px;">
                     　
                 </div>
                 """, unsafe_allow_html=True)
@@ -253,8 +253,8 @@ def main():
                 
                 if len(st.session_state.selected_slots) > 0:
                     # 전체 삭제 버튼만 오른쪽에 위치
-                    col1, col2, col3 = st.columns([3, 3, 1])
-                    with col3:
+                    col1, col2 = st.columns([4, 1])
+                    with col2:
                         if st.button("일정 초기화", key="delete_all"):
                             st.session_state.selected_slots = []
                             st.success("✅ 모든 일정이 삭제되었습니다.")
@@ -264,9 +264,7 @@ def main():
             st.markdown("---")
             
             if st.session_state.submission_done:
-                st.success(f"✅ 면접 요청이 생성되었습니다! (ID: {st.session_state.last_request_id[:8]}...)")
-                st.success(f"📧 면접관({st.session_state.basic_info['interviewer_id']})에게 일정 입력 요청 메일을 발송했습니다.")
-                st.info("면접관이 일정을 입력하면 자동으로 면접자에게 알림이 전송됩니다.")
+                st.success(f"✅ 면접 요청이 생성되었습니다!")
 
                 # ✅ 면접 요청 탭만 초기화하는 버튼
                 if st.button("새로운 면접 요청", type="primary", use_container_width=True):
@@ -305,184 +303,188 @@ def main():
             st.info("👆 먼저 위에서 기본 정보를 입력하고 저장해주세요.")
     
     with tab2:
-        st.subheader("면접 일정 조율 현황")
+        st.subheader("📊 진행 현황")
         
-        requests = db.get_all_requests()
-        
-        if not requests:
-            st.info("진행 중인 면접 일정 조율이 없습니다.")
-        else:
-            # 상태별 통계
-            col1, col2, col3, col4 = st.columns(4)
-            
-            status_counts = {}
-            for req in requests:
-                status_counts[req.status] = status_counts.get(req.status, 0) + 1
-            
-            with col1:
-                st.metric("전체", len(requests))
-            with col2:
-                st.metric("면접관 대기", status_counts.get(Config.Status.PENDING_INTERVIEWER, 0))
-            with col3:
-                st.metric("면접자 대기", status_counts.get(Config.Status.PENDING_CANDIDATE, 0))
-            with col4:
-                st.metric("확정 완료", status_counts.get(Config.Status.CONFIRMED, 0))
-            
-            # 상세 목록
-            st.subheader("📋 상세 현황")
-            
-            data = []
-            for req in requests:
-                data.append({
-                    "요청ID": str(req.id[:8]),  # ✅ 문자열 변환
-                    "포지션": str(req.position_name),
-                    "면접관": str(req.interviewer_id),
-                    "면접자": f"{req.candidate_name} ({req.candidate_email})",
-                    "상태": str(req.status),
-                    "생성일시": req.created_at.strftime('%m/%d %H:%M'),
-                    "확정일시": f"{req.selected_slot.date} {req.selected_slot.time}" if req.selected_slot else "-"
-                })
-            
-            # ✅ DataFrame 타입 문제 해결
-            df = pd.DataFrame(data)
-            # 모든 컬럼을 명시적으로 문자열로 변환
-            for col in df.columns:
-                df[col] = df[col].astype(str)
-            
-            st.dataframe(df, use_container_width=True)
-            
-            # 🔧 추가: 개별 요청 관리
-            st.subheader("🔧 개별 요청 관리")
-            
-            # 요청 선택
-            selected_request_id = st.selectbox(
-                "관리할 요청을 선택하세요",
-                options=["선택하세요"] + [f"{req.id[:8]}... - {req.position_name} ({req.candidate_name})" for req in requests]
-            )
-            
-            if selected_request_id != "선택하세요":
-                # 선택된 요청 찾기
-                request_short_id = selected_request_id.split(' - ')[0]
-                selected_request = None
-                for req in requests:
-                    if req.id.startswith(request_short_id.replace('...', '')):
-                        selected_request = req
-                        break
+        try:
+            # 구글 시트에서 데이터 가져오기
+            if db.sheet:
+                sheet_data = db.sheet.get_all_records()
                 
-                if selected_request:
+                if not sheet_data:
+                    st.info("구글 시트에 데이터가 없습니다.")
+                else:
+                    # 상태별 통계 계산
+                    status_counts = {
+                        "일정재조율요청": 0,
+                        "면접관_일정대기": 0,
+                        "면접자_선택대기": 0,
+                        "확정완료": 0
+                    }
+                    
+                    for row in sheet_data:
+                        status = str(row.get('상태', '')).strip()
+                        if status in status_counts:
+                            status_counts[status] += 1
+                    
+                    # 통계 표시
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    total_count = len(sheet_data)
+                    interviewer_waiting = status_counts["면접관_일정대기"]
+                    candidate_waiting = status_counts["면접자_선택대기"]
+                    confirmed = status_counts["확정완료"]
+                    
+                    with col1:
+                        st.metric("전체", total_count)
+                    with col2:
+                        st.metric("면접관 대기", interviewer_waiting)
+                    with col3:
+                        st.metric("면접자 대기", candidate_waiting)
+                    with col4:
+                        st.metric("확정 완료", confirmed)
+                    
+                    # 상세 목록 표시
+                    st.subheader("📋 상세 현황")
+                    
+                    # DataFrame으로 변환하여 표시
+                    df = pd.DataFrame(sheet_data)
+                    
+                    # 필요한 컬럼만 선택 (구글 시트 컬럼명에 맞게 조정)
+                    display_columns = []
+                    if '요청ID' in df.columns:
+                        display_columns.append('요청ID')
+                    if '포지션' in df.columns:
+                        display_columns.append('포지션')
+                    if '면접관' in df.columns:
+                        display_columns.append('면접관')
+                    if '면접자명' in df.columns:
+                        display_columns.append('면접자명')
+                    if '면접자이메일' in df.columns:
+                        display_columns.append('면접자이메일')
+                    if '상태' in df.columns:
+                        display_columns.append('상태')
+                    if '생성일시' in df.columns:
+                        display_columns.append('생성일시')
+                    if '확정일시' in df.columns:
+                        display_columns.append('확정일시')
+                    
+                    if display_columns:
+                        display_df = df[display_columns].copy()
+                        
+                        # 모든 컬럼을 문자열로 변환
+                        for col in display_df.columns:
+                            display_df[col] = display_df[col].astype(str)
+                        
+                        # 상태별 색상 구분을 위한 스타일링
+                        def highlight_status(val):
+                            if val == "확정완료":
+                                return 'background-color: #d4edda; color: #155724'
+                            elif val == "면접관_일정대기":
+                                return 'background-color: #fff3cd; color: #856404'
+                            elif val == "면접자_선택대기":
+                                return 'background-color: #cce7ff; color: #004085'
+                            elif val == "일정재조율요청":
+                                return 'background-color: #f8d7da; color: #721c24'
+                            return ''
+                        
+                        if '상태' in display_df.columns:
+                            styled_df = display_df.style.applymap(highlight_status, subset=['상태'])
+                            st.dataframe(styled_df, use_container_width=True)
+                        else:
+                            st.dataframe(display_df, use_container_width=True)
+                    else:
+                        st.dataframe(df, use_container_width=True)
+                    
+                    # 관리 기능
+                    st.subheader("🔧 관리 기능")
+                    
                     col1, col2, col3 = st.columns(3)
                     
                     with col1:
-                        if st.button("📧 면접관에게 다시 알림", use_container_width=True):
-                            if email_service.send_interviewer_invitation(selected_request):
-                                st.success("✅ 면접관에게 알림을 다시 발송했습니다.")
-                            else:
-                                st.error("❌ 알림 발송에 실패했습니다.")
+                        if st.button("🔄 데이터 새로고침", use_container_width=True):
+                            st.cache_resource.clear()  # 캐시 클리어
+                            st.rerun()
                     
                     with col2:
-                        if st.button("📧 면접자에게 다시 알림", use_container_width=True):
-                            if selected_request.available_slots:
-                                if email_service.send_candidate_invitation(selected_request):
-                                    st.success("✅ 면접자에게 알림을 다시 발송했습니다.")
-                                else:
-                                    st.error("❌ 알림 발송에 실패했습니다.")
+                        if st.button("📋 구글 시트 열기", use_container_width=True):
+                            if Config.GOOGLE_SHEET_ID:
+                                st.markdown(f"[구글 시트 바로가기]({Config.GOOGLE_SHEET_URL})")
                             else:
-                                st.warning("⚠️ 면접관이 아직 일정을 입력하지 않았습니다.")
+                                st.error("구글 시트 ID가 설정되지 않았습니다.")
                     
                     with col3:
-                        if st.button("❌ 요청 취소", use_container_width=True, type="secondary"):
-                            selected_request.status = Config.Status.CANCELLED
-                            selected_request.updated_at = datetime.now()
-                            db.save_interview_request(selected_request)
-                            db.update_google_sheet(selected_request)
-                            st.success("✅ 요청이 취소되었습니다.")
-                            st.rerun()
-    
-    with tab3:
-        st.subheader("📊 구글 시트 관리")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            if st.button("🔄 전체 동기화", use_container_width=True):
-                try:
-                    requests = db.get_all_requests()
-                    success_count = 0
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
+                        if st.button("📊 전체 동기화", use_container_width=True):
+                            try:
+                                requests = db.get_all_requests()
+                                success_count = 0
+                                progress_bar = st.progress(0)
+                                status_text = st.empty()
+                                
+                                for i, req in enumerate(requests):
+                                    status_text.text(f"동기화 중... {i+1}/{len(requests)}")
+                                    if db.update_google_sheet(req):
+                                        success_count += 1
+                                    progress_bar.progress((i + 1) / len(requests))
+                                
+                                progress_bar.empty()
+                                status_text.empty()
+                                st.success(f"✅ 구글 시트 동기화 완료 ({success_count}/{len(requests)})")
+                            except Exception as e:
+                                st.error(f"❌ 구글 시트 동기화 실패: {e}")
                     
-                    for i, req in enumerate(requests):
-                        status_text.text(f"동기화 중... {i+1}/{len(requests)}")
-                        if db.update_google_sheet(req):
-                            success_count += 1
-                        progress_bar.progress((i + 1) / len(requests))
+                    # 개별 요청 관리 (구글 시트 데이터 기반)
+                    st.subheader("🔧 개별 요청 관리")
                     
-                    progress_bar.empty()
-                    status_text.empty()
-                    st.success(f"✅ 구글 시트 동기화 완료 ({success_count}/{len(requests)})")
-                except Exception as e:
-                    st.error(f"❌ 구글 시트 동기화 실패: {e}")
-        
-        with col2:
-            if st.button("📊 통계 업데이트", use_container_width=True):
-                try:
-                    stats = db.get_statistics()
-                    st.success("✅ 통계 정보가 업데이트되었습니다.")
+                    # 요청 선택 옵션 생성
+                    request_options = ["선택하세요"]
+                    for row in sheet_data:
+                        request_id = str(row.get('요청ID', ''))[:8]
+                        position = str(row.get('포지션', ''))
+                        candidate = str(row.get('면접자명', ''))
+                        if request_id and position and candidate:
+                            request_options.append(f"{request_id}... - {position} ({candidate})")
                     
-                    # 통계 표시
-                    col_a, col_b, col_c = st.columns(3)
-                    with col_a:
-                        st.metric("전체 요청", stats['total'])
-                    with col_b:
-                        st.metric("확정 완료", stats['confirmed'])
-                    with col_c:
-                        avg_time = f"{stats['avg_processing_time']:.1f}시간" if stats['avg_processing_time'] > 0 else "N/A"
-                        st.metric("평균 처리시간", avg_time)
+                    selected_request_id = st.selectbox(
+                        "관리할 요청을 선택하세요",
+                        options=request_options
+                    )
+                    
+                    if selected_request_id != "선택하세요":
+                        # 선택된 요청의 상세 정보 표시
+                        request_short_id = selected_request_id.split(' - ')[0].replace('...', '')
                         
-                except Exception as e:
-                    st.error(f"❌ 통계 업데이트 실패: {e}")
-        
-        with col3:
-            if st.button("📋 시트 열기", use_container_width=True):
-                if Config.GOOGLE_SHEET_ID:
-                    st.markdown(f"[구글 시트 바로가기]({Config.GOOGLE_SHEET_URL})")
-                else:
-                    st.error("구글 시트 ID가 설정되지 않았습니다.")
-        
-        with col4:
-            if st.button("📧 확정 알림 재발송", use_container_width=True):
-                try:
-                    confirmed_requests = [req for req in db.get_all_requests() 
-                                        if req.status == Config.Status.CONFIRMED and req.selected_slot]
-                    
-                    sent_count = 0
-                    for req in confirmed_requests:
-                        if email_service.send_confirmation_notification(req, sender_type="system"):
-                            sent_count += 1
-                    
-                    st.success(f"✅ {sent_count}건의 확정 알림을 재발송했습니다.")
-                    
-                except Exception as e:
-                    st.error(f"❌ 재발송 실패: {e}")
-        
-        # 실시간 시트 미리보기
-        st.subheader("📋 실시간 시트 미리보기")
-        try:
-            if db.sheet:
-                sheet_data = db.sheet.get_all_records()
-                if sheet_data:
-                    # ✅ 구글 시트 데이터 타입 문제 해결
-                    df = pd.DataFrame(sheet_data)
-                    # 모든 컬럼을 문자열로 변환
-                    for col in df.columns:
-                        df[col] = df[col].astype(str)
-                    st.dataframe(df, use_container_width=True, height=400)
-                else:
-                    st.info("구글 시트가 비어있습니다.")
+                        # 해당 요청 찾기
+                        selected_row = None
+                        for row in sheet_data:
+                            if str(row.get('요청ID', '')).startswith(request_short_id):
+                                selected_row = row
+                                break
+                        
+                        if selected_row:
+                            # 요청 상세 정보 표시
+                            st.info(f"**선택된 요청:** {selected_row.get('포지션', '')} - {selected_row.get('면접자명', '')} (상태: {selected_row.get('상태', '')})")
+                            
+                            # 관리 버튼들
+                            col1, col2, col3 = st.columns(3)
+                            
+                            with col1:
+                                if st.button("📧 면접관에게 알림", use_container_width=True):
+                                    st.info("면접관 알림 기능은 개발 중입니다.")
+                            
+                            with col2:
+                                if st.button("📧 면접자에게 알림", use_container_width=True):
+                                    st.info("면접자 알림 기능은 개발 중입니다.")
+                            
+                            with col3:
+                                if st.button("❌ 요청 취소", use_container_width=True, type="secondary"):
+                                    st.warning("요청 취소 기능은 개발 중입니다.")
+            
             else:
-                st.warning("구글 시트에 연결되지 않았습니다.")
+                st.error("구글 시트에 연결되지 않았습니다.")
+                
         except Exception as e:
-            st.error(f"시트 데이터 로드 실패: {e}")
+            st.error(f"데이터 로드 실패: {e}")
+            st.info("구글 시트 연결을 확인해주세요.")
 
 if __name__ == "__main__":
     main()
