@@ -197,19 +197,19 @@ def show_request_detail(request, index):
     <div style="background-color: white; padding: 25px; border-radius: 10px; border-left: 5px solid #0078d4; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,120,212,0.1);">
         <table style="width: 100%; border-collapse: collapse; text-align: center;">
             <tr>
-                <td style="padding: 10px 0; font-weight: bold; color: #0078d4; width: 120px;">포지션</td>
-                <td style="padding: 10px 0; color: #333; font-size: 1.1rem; font-weight: bold;">{request.position_name}</td>
+                <td style="padding: 10px 0; font-weight: bold; color: #1A1A1A; width: 120px;">공고명</td>
+                <td style="padding: 10px 0; color: #333;">{request.position_name}</td>
             </tr>
             <tr>
-                <td style="padding: 10px 0; font-weight: bold; color: #0078d4;">면접자</td>
+                <td style="padding: 10px 0; font-weight: bold; color: #1A1A1A;">면접자</td>
                 <td style="padding: 10px 0; color: #333;">{request.candidate_name}</td>
             </tr>
             <tr>
-                <td style="padding: 10px 0; font-weight: bold; color: #0078d4;">이메일</td>
-                <td style="padding: 10px 0; color: #333; font-size: 0.9rem;">{request.candidate_email}</td>
+                <td style="padding: 10px 0; font-weight: bold; color: #1A1A1A;">이메일</td>
+                <td style="padding: 10px 0; color: #333;">{request.candidate_email}</td>
             </tr>
             <tr>
-                <td style="padding: 10px 0; font-weight: bold; color: #0078d4;">요청일</td>
+                <td style="padding: 10px 0; font-weight: bold; color: #1A1A1A;">요청일</td>
                 <td style="padding: 10px 0; color: #333;">{request.created_at.strftime('%Y년 %m월 %d일 %H:%M')}</td>
             </tr>
         </table>
@@ -243,7 +243,7 @@ def show_request_detail(request, index):
     #     st.dataframe(pd.DataFrame(slots_data), use_container_width=True, hide_index=True)
     
     # 🔧 수정: 일정 입력 폼 (폼 밖에서 상태 관리)
-    st.write("**⏰ 가능한 면접 일정을 선택해주세요**")
+    st.write("**아래에서 가능한 면접 일정을 모두 선택해 주세요**")
     
     # 세션 상태로 선택 상태 관리
     if f'selected_slots_{index}' not in st.session_state:
@@ -334,11 +334,8 @@ def show_request_detail(request, index):
     
     # 🔧 폼은 제출 버튼만 포함
     with st.form(f"interviewer_schedule_{index}"):
-        # 선택된 일정 미리보기
         if selected_slots:
             st.write("**선택된 일정:**")
-            
-            # ✅ 선택된 일정을 표로 표시
             preview_data = []
             for i, slot in enumerate(selected_slots, 1):
                 preview_data.append({
@@ -347,18 +344,33 @@ def show_request_detail(request, index):
                     "시간": slot.time,
                     "소요시간": f"{slot.duration}분"
                 })
-            
             st.dataframe(pd.DataFrame(preview_data), use_container_width=True, hide_index=True)
         else:
             st.info("💡 위에서 가능한 일정을 선택해주세요.")
+
+    col1, col2, col3 = st.columns([6, 1, 1])  # 비율은 필요에 따라 조정 가능
+
+    with col3:
+        submitted = st.form_submit_button("일정 확정", use_container_width=True)
         
-        # 제출 버튼
-        submitted = st.form_submit_button(
-            "📧 면접자에게 일정 전송", 
-            type="primary",
-            disabled=len(selected_slots) == 0  # 선택된 슬롯이 없으면 비활성화
-        )
-        
+        st.markdown("""
+            <style>
+            div[data-testid="stFormSubmitButton"] > button {
+                background-color: #EF3340;
+                color: white;
+                font-weight: 600;
+                font-size: 16px;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 24px;
+            }
+            div[data-testid="stFormSubmitButton"] > button:hover {
+                background-color: #FF4D00;
+                transform: scale(1.02);
+            }
+            </style>
+        """, unsafe_allow_html=True)
+
         if submitted:
             if not selected_slots:
                 st.error("최소 1개 이상의 면접 일정을 선택해주세요.")
