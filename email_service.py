@@ -11,7 +11,7 @@ import uuid
 import hashlib
 import re
 import socket
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from config import Config
 from models import InterviewRequest, InterviewSlot
 from utils import get_employee_email, get_employee_info, format_date_korean, create_calendar_invite
@@ -30,7 +30,7 @@ class EmailService:
         # self._sent_invitations = set() 
         # self.sent_emails = set()
 
-    def validate_and_correct_email(self, email: str) -> tuple[str, bool]:
+    def validate_and_correct_email(self, email: str) -> Tuple[str, bool]:
         """이메일 주소 검증 및 오타 교정"""
         # 일반적인 오타 패턴
         common_typos = {
@@ -43,7 +43,7 @@ class EmailService:
         }
         
         # 기본 이메일 형식 검증
-        if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\$', email):
+        if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
             return email, False
         
         local_part, domain = email.split('@')
@@ -315,7 +315,7 @@ class EmailService:
                 return False
     
             # 발송 간격 체크
-            # primary_email = validated_emails[0]
+            primary_email = validated_emails[0]
             # if not self._check_send_rate_limit(primary_email):
             #     return False
     
@@ -1304,6 +1304,7 @@ AJ Networks 인사팀
         except Exception as e:
             logger.error(f"❌ HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
