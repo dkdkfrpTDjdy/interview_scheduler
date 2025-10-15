@@ -328,12 +328,11 @@ class EmailService:
             has_gmail = self._has_gmail_recipients(validated_emails, cc_emails, bcc_emails)
             logger.info(f"  - Gmail 수신자 포함: {has_gmail}")
             
-            # ✅ 컨텐츠 최적화 - Gmail도 원본 HTML 그대로 사용
+            # 컨텐츠 최적화
             if has_gmail and is_html:
-                # Gmail용 제목만 최적화, HTML은 원본 그대로
                 optimized_subject = self._optimize_subject_for_gmail(subject)
                 text_body = self._html_to_text(body)
-                html_body = body  # ✅ Gmail에도 원본 HTML 그대로 보냄
+                html_body = body
             else:
                 optimized_subject = subject
                 text_body = self._html_to_text(body) if is_html else body
@@ -341,7 +340,6 @@ class EmailService:
             
             # MIME 구조 생성
             if is_html:
-                # MIME 구조 생성 (text + html + optional attachment)
                 msg = self._create_optimized_mime_structure(
                     text_body=text_body,
                     html_body=html_body,
@@ -353,7 +351,6 @@ class EmailService:
                 text_part = MIMEText(body, 'plain', 'utf-8')
                 msg.attach(text_part)
                 
-                # 첨부파일 추가
                 if attachment_data and attachment_name:
                     attachment = MIMEBase('application', 'octet-stream')
                     attachment.set_payload(attachment_data)
@@ -385,12 +382,20 @@ class EmailService:
             # SMTP 연결 및 발송
             server = self._create_smtp_connection()
             if server:
-                text = msg.as_string()
-                server.sendmail(self.email_config.EMAIL_USER, all_recipients, text)
-                server.quit()
-                
-                logger.info(f"✅ 이메일 발송 성공: {validated_emails}")
-                return True
+                try:
+                    text = msg.as_string()
+                    server.sendmail(self.email_config.EMAIL_USER, all_recipients, text)
+                    server.quit()
+                    
+                    logger.info(f"✅ 이메일 발송 성공: {validated_emails}")
+                    return True
+                except Exception as smtp_error:
+                    logger.error(f"❌ SMTP 발송 실패: {smtp_error}")
+                    try:
+                        server.quit()
+                    except:
+                        pass
+                    return False
             else:
                 logger.error("❌ SMTP 서버 연결 실패")
                 return False
@@ -1294,3 +1299,4 @@ AJ Networks 인사팀
         except Exception as e:
             logger.error(f"❌ HTML 테스트 메일 발송 실패: {e}")
             return False
+
