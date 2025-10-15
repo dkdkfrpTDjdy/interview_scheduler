@@ -46,10 +46,18 @@ def load_organization_data():
     """조직도 데이터 로드"""
     return load_employee_data()
 
-# ✅ 면접 요청 탭만 초기화하는 함수
+# ✅ 면접 요청 탭만 초기화하는 함수 (개선 버전)
 def reset_interview_request_tab():
     """면접 요청 탭만 완전 초기화 (다른 탭 상태는 유지)"""
-    keys = [
+    
+    # ✅ 1단계: 카운터 증가로 모든 위젯 key 무효화
+    if "form_reset_counter" not in st.session_state:
+        st.session_state.form_reset_counter = 0
+    st.session_state.form_reset_counter += 1
+    
+    # ✅ 2단계: 면접 요청 관련 세션 상태 정리
+    keys_to_clean = [
+        # 폼 내부 위젯 key들 (동적 key 사용 시 필요없지만 혹시 모를 잔여 제거)
         "interviewer_id_input",
         "interviewer_select", 
         "candidate_name_input",
@@ -57,31 +65,24 @@ def reset_interview_request_tab():
         "candidate_email_input",
         "date_selector",
         "time_selector",
+        
+        # 비즈니스 로직 상태들
         "basic_info",
         "selected_slots", 
         "last_request_id",
         "submission_done"
     ]
-    for key in keys:
-        if key in st.session_state:
-            st.session_state.pop(key)
     
-    # 면접 요청 관련 세션 상태만 초기화
-    interview_session_keys = [
-        "basic_info",
-        "selected_slots", 
-        "last_request_id",
-        "submission_done"
-    ]
-    for key in interview_session_keys:
-        if key in st.session_state:
-            del st.session_state[key]
-
-db, email_service, sync_manager = init_services()
+    for key in keys_to_clean:
+        st.session_state.pop(key, None)  # None으로 기본값 설정하여 KeyError 방지
 
 def main():
     st.title("📅 AI 면접 일정 조율 시스템")
     st.header("인사팀 관리 페이지")
+
+    # ✅ 폼 리셋 카운터 초기화
+    if "form_reset_counter" not in st.session_state:
+        st.session_state.form_reset_counter = 0
     
     # 조직도 데이터 로드
     org_data = load_organization_data()
@@ -90,6 +91,9 @@ def main():
     
     with tab1:
         st.subheader("새로운 면접 일정 조율 요청")
+
+        # ✅ 동적 key suffix 생성
+        key_suffix = st.session_state.form_reset_counter        
         
         # ✅ 면접 희망일시 선택 상태 관리 (초기화 보장)
         if 'selected_slots' not in st.session_state:
@@ -108,7 +112,7 @@ def main():
                         "면접관 사번",
                         placeholder="예: 223286",
                         help="면접관의 사번을 입력해주세요",
-                        key="interviewer_id_input"
+                        key=f"interviewer_id_input_{key_suffix}"  # ✅ 동적 key
                     )
                 else:  # 조직도 데이터가 있는 경우
                     interviewer_options = [f"{emp['employee_id']} - {emp['name']} ({emp['department']})" 
@@ -117,7 +121,7 @@ def main():
                         "면접관 선택",
                         options=["선택해주세요"] + interviewer_options,
                         help="조직도에서 면접관을 선택해주세요",
-                        key="interviewer_select"
+                        key=f"interviewer_select_{key_suffix}"
                     )
                     interviewer_id = selected_interviewer.split(' - ')[0] if selected_interviewer != "선택해주세요" else ""
 
@@ -125,7 +129,7 @@ def main():
                     "면접자 이름",
                     placeholder="면접자",
                     help="면접자의 이름을 입력해주세요",
-                    key="candidate_name_input"
+                    key=f"candidate_name_input_{key_suffix}"  # ✅ 동적 key
                 )
             
             with col2:
@@ -133,14 +137,14 @@ def main():
                     "공고명",
                     placeholder="IT혁신팀 데이터분석가",
                     help="채용 공고명을 입력해주세요",
-                    key="position_name_input"
+                    key=f"position_name_input_{key_suffix}"  # ✅ 동적 key
                 )
                 
                 candidate_email = st.text_input(
                     "면접자 이메일",
                     placeholder="candidate@example.com",
                     help="면접자의 이메일 주소를 입력해주세요",
-                    key="candidate_email_input"
+                    key=f"candidate_email_input_{key_suffix}"  # ✅ 동적 key
                 )
             
             # ✅ 폼 제출 버튼 수정
@@ -183,7 +187,7 @@ def main():
                     "날짜 선택",
                     options=["선택안함"] + available_dates,
                     format_func=lambda x: format_date_korean(x) if x != "선택안함" else x,
-                    key="date_selector"
+                    key=f"date_selector_{key_suffix}"  # ✅ 동적 key
                 )
             
             with col_time:
@@ -191,7 +195,7 @@ def main():
                 selected_time = st.selectbox(
                     "시간 선택",
                     options=time_options,
-                    key="time_selector",
+                    key=f"time_selector_{key_suffix}",  # ✅ 동적 key
                     help="면접관선택을 선택하면 면접관이 시간을 직접 선택합니다"
                 )
             
@@ -486,4 +490,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
