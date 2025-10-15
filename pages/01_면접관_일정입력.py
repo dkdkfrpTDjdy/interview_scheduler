@@ -70,7 +70,7 @@ def show_login_form():
                 box-shadow: 0 5px 15px rgba(0,0,0,0.2);">
         <div style="font-size: 2rem; margin-bottom: 10px;">🔐</div>
         <h1 style="margin: 0 0 10px 0; font-size: 1.5rem; font-weight: 400;">면접관 인증</h1>
-        <p style="font-size: 0.95rem; opacity: 0.9; margin: 0;">사번을 입력하여 본인의 면접 요청을 확인하세요</p>
+        <p style="font-size: 0.95rem; opacity: 0.9; margin: 0;">면접 요청을 확인하세요</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -78,7 +78,6 @@ def show_login_form():
     
     with col2:
         with st.form("interviewer_login"):
-            st.subheader("사번 입력")
             
             employee_id = st.text_input(
                 label="사번 입력",
@@ -122,9 +121,10 @@ def show_login_form():
             <h4 style="color: #495057; margin-top: 0;">이용 안내</h4>
             <div style="text-align: left; margin: 15px 0;">
                 <p style="margin: 8px 0; color: #6c757d;">• <strong>사번</strong>을 정확히 입력하세요</p>
+                <p style="margin: 8px 0; color: #6c757d;">• 예정된 면접이 표시됩니다</p>
             </div>
             <div style="background-color: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 15px;">
-                <p style="margin: 0; color: #1565c0;"><strong>📞 문의:</strong> <a href="mailto:hr@ajnet.co.kr">hr@ajnet.co.kr</a></p>
+                <p style="margin: 0; color: #1565c0;"><strong>📞 기타 문의:</strong> <a href="mailto:hr@ajnet.co.kr">hr@ajnet.co.kr</a></p>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -158,44 +158,36 @@ def show_interviewer_dashboard():
     """면접관 대시보드"""
     interviewer_info = st.session_state.interviewer_info
     pending_requests = st.session_state.pending_requests
-    
+
     # 헤더
-    col1, col2 = st.columns([3, 1])
-    
+    col1, _ = st.columns([3, 1])  # col2 제거
+
     with col1:
         st.markdown(f"""
-        <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 25px; border-radius: 12px; margin: 20px 0;">
-            <h2 style="color: #1565c0; margin: 0; display: flex; align-items: center;">
-                <span style="margin-right: 15px;">👋</span> 안녕하세요, {interviewer_info['name']}님!
+        <div style="margin: 20px 0;">
+            <h2 style="color: #1A1A1A; margin: 0; display: flex; align-items: center;">
+                <span style="margin-right: 10px;">👋</span> 안녕하세요, {interviewer_info['name']}님!
             </h2>
-            <p style="color: #1976d2; margin: 8px 0 0 0; font-size: 1rem;">({interviewer_info['department']})</p>
+            <p style="color: #1A1A1A; margin: 8px 0 0 0; font-size: 1rem;">({interviewer_info['department']})</p>
         </div>
         """, unsafe_allow_html=True)
-    
-    with col2:
-        if st.button("🚪 로그아웃", use_container_width=True):
-            # 세션 상태 초기화
-            for key in ['authenticated_interviewer', 'interviewer_info', 'pending_requests']:
-                if key in st.session_state:
-                    del st.session_state[key]
-            st.rerun()
-    
+
     # 대기 중인 요청 표시
     if not pending_requests:
         st.markdown("""
-        <div style="text-align: center; padding: 60px; background-color: #f8f9fa; border-radius: 15px; margin: 30px 0;">
-            <div style="font-size: 4rem; margin-bottom: 20px; color: #6c757d;">📭</div>
-            <h3 style="color: #6c757d; margin: 0 0 15px 0;">처리할 면접 요청이 없습니다</h3>
-            <p style="color: #6c757d; font-size: 1.1rem;">새로운 면접 요청이 오면 여기에 표시됩니다.</p>
+        <div style="text-align: center; margin: 30px 0;">
+            <div style="font-size: 4rem; margin-bottom: 20px; color: #1A1A1A;">📭</div>
+            <h3 style="color: #1A1A1A; margin: 0 0 15px 0;">처리할 면접 요청이 없습니다</h3>
+            <p style="color: #1A1A1A; font-size: 1.1rem;">새로운 면접 요청이 오면 여기에 표시됩니다.</p>
         </div>
         """, unsafe_allow_html=True)
         return
-    
+
     st.subheader(f"📋 대기 중인 면접 요청 ({len(pending_requests)}건)")
-    
+
     # 각 요청에 대해 처리
     for i, request in enumerate(pending_requests):
-        with st.expander(f"📅 {request.position_name} - {request.candidate_name} ({request.created_at.strftime('%m/%d')})", expanded=len(pending_requests)==1):
+        with st.expander(f"📅 {request.position_name} - {request.candidate_name} ({request.created_at.strftime('%m/%d')})", expanded=len(pending_requests) == 1):
             show_request_detail(request, i)
 
 def show_request_detail(request, index):
@@ -262,7 +254,7 @@ def show_request_detail(request, index):
     
     if hasattr(request, 'preferred_datetime_slots') and request.preferred_datetime_slots:
         for i, datetime_slot in enumerate(request.preferred_datetime_slots):
-            st.markdown(f"### 📅 옵션 {i+1}")
+            st.markdown(f"📅 면접 일시 {i+1}")
             
             if "면접관선택" in datetime_slot:
                 # 면접관이 시간을 직접 선택해야 하는 경우
@@ -274,9 +266,9 @@ def show_request_detail(request, index):
                     # 체크박스 상태를 세션에서 관리
                     checkbox_key = f"slot_{index}_{i}"
                     is_selected = st.checkbox(
-                        f"📅 {format_date_korean(date_part)} (시간 선택 필요)",
+                        f"{format_date_korean(date_part)}(시간 선택)",
                         key=checkbox_key,
-                        help="이 날짜를 선택하고 시간을 지정해주세요"
+                        help="시간을 지정해주세요"
                     )
                     
                     # 세션 상태 업데이트
@@ -285,7 +277,7 @@ def show_request_detail(request, index):
                 with col2:
                     # 체크박스 상태에 따라 disabled 설정
                     selected_time = st.selectbox(
-                        "⏰ 시간 선택",
+                        "시간 선택",
                         options=["선택안함"] + Config.TIME_SLOTS,
                         key=f"time_select_{index}_{i}",
                         disabled=not is_selected,  # 실시간 반영
@@ -294,7 +286,7 @@ def show_request_detail(request, index):
                 
                 with col3:
                     duration = st.selectbox(
-                        "⏱️ 소요시간",
+                        "소요시간",
                         options=[30, 60, 90, 120],
                         index=1,
                         format_func=lambda x: f"{x}분",
@@ -318,18 +310,18 @@ def show_request_detail(request, index):
                     is_selected = st.checkbox(
                         f"📅 {format_date_korean(date_part)} {time_part}",
                         key=checkbox_key,
-                        help="이 일정이 가능하면 선택해주세요"
+                        help="해당 일정이 가능하면 선택해주세요"
                     )
                     
                     # 세션 상태 업데이트
                     st.session_state[f'selected_slots_{index}'][f'slot_{i}'] = is_selected
                 
                 with col2:
-                    st.markdown(f"**⏰ {time_part}** (고정)")
+                    st.markdown(f"**{time_part}** (고정)")
                 
                 with col3:
                     duration = st.selectbox(
-                        "⏱️ 소요시간",
+                        "소요시간",
                         options=[30, 60, 90, 120],
                         index=1,
                         format_func=lambda x: f"{x}분",
@@ -345,7 +337,7 @@ def show_request_detail(request, index):
     with st.form(f"interviewer_schedule_{index}"):
         # 선택된 일정 미리보기
         if selected_slots:
-            st.write("**✅ 선택된 일정:**")
+            st.write("**선택된 일정:**")
             
             # ✅ 선택된 일정을 표로 표시
             preview_data = []
@@ -371,7 +363,7 @@ def show_request_detail(request, index):
         
         if submitted:
             if not selected_slots:
-                st.error("❌ 최소 1개 이상의 면접 일정을 선택해주세요.")
+                st.error("최소 1개 이상의 면접 일정을 선택해주세요.")
             else:
                 # 요청 업데이트
                 request.available_slots = selected_slots
@@ -383,7 +375,7 @@ def show_request_detail(request, index):
                 
                 # 면접자에게 이메일 발송
                 if email_service.send_candidate_invitation(request):
-                    st.success("✅ 면접 일정이 면접자에게 전송되었습니다!")
+                    st.success("면접 일정이 면접자에게 전송되었습니다!")
                     
                     # 세션 상태에서 처리된 요청 제거
                     st.session_state.pending_requests = [r for r in st.session_state.pending_requests if r.id != request.id]
@@ -395,7 +387,7 @@ def show_request_detail(request, index):
                     # 페이지 새로고침
                     st.rerun()
                 else:
-                    st.error("❌ 면접 일정은 저장되었지만 이메일 발송에 실패했습니다.")
+                    st.error("면접 일정은 저장되었지만 이메일 발송에 실패했습니다.")
 
 if __name__ == "__main__":
     main()
