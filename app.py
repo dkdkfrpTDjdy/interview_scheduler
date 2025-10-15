@@ -172,7 +172,7 @@ def main():
                         if len(st.session_state.selected_slots) < 5:
                             st.session_state.selected_slots.append(datetime_slot)
                             st.success(f"✅ 일정이 추가되었습니다: {format_date_korean(selected_date)} {time_value}")
-                            st.rerun()
+                            # st.rerun()
                         else:
                             st.warning("⚠️ 최대 5개까지만 선택 가능합니다.")
                     else:
@@ -250,7 +250,7 @@ def main():
                             st.session_state.selected_slots = []
                             if 'basic_info' in st.session_state:
                                 del st.session_state.basic_info
-                            st.rerun()
+                            # st.rerun()
                         else:
                             st.error("이메일 발송에 실패했습니다.")
                             
@@ -433,4 +433,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
