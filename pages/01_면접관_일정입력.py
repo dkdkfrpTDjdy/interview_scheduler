@@ -61,9 +61,9 @@ def main():
 def show_login_form():
     """면접관 사번 입력 폼"""
     st.markdown("""
-    <div style="background: linear-gradient(135deg, #1A1A1A 0%, #FF3300 100%);
+    <div style="background-color: #1A1A1A;
                 color: white;
-                padding: 20px;
+                padding: 10px;
                 border-radius: 12px;
                 text-align: center;
                 margin: 15px 0;
@@ -78,19 +78,17 @@ def show_login_form():
     
     with col2:
         with st.form("interviewer_login"):
-            st.subheader("🆔 사번 입력")
+            st.subheader("사번 입력")
             
             employee_id = st.text_input(
-                "사번을 입력해주세요",
                 placeholder="예: 223286",
-                help="사번으로 검색 가능합니다"
             )
             
-            submitted = st.form_submit_button("🔍 면접 요청 확인", use_container_width=True, type="primary")
+            submitted = st.form_submit_button("🔍 면접 요청 확인", type="primary")
             
             if submitted:
                 if not employee_id.strip():
-                    st.error("❌ 사번을 입력해주세요.")
+                    st.error("사번을 입력해주세요.")
                 else:
                     # ✅ 면접관 정보 확인 로직 개선
                     interviewer_info = get_employee_info(employee_id)
