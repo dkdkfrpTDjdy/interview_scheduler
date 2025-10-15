@@ -46,6 +46,38 @@ def load_organization_data():
     """조직도 데이터 로드"""
     return load_employee_data()
 
+# ✅ 면접 요청 탭만 초기화하는 함수
+def reset_interview_request_tab():
+    """면접 요청 탭만 완전 초기화 (다른 탭 상태는 유지)"""
+    # 면접 요청 관련 위젯만 초기화
+    interview_widget_keys = [
+        "interviewer_id_input",
+        "interviewer_select", 
+        "candidate_name_input",
+        "position_name_input",
+        "candidate_email_input",
+        "date_selector",
+        "time_selector",
+    ]
+    for key in interview_widget_keys:
+        if key in st.session_state:
+            del st.session_state[key]
+    
+    # 면접 요청 관련 세션 상태만 초기화
+    interview_session_keys = [
+        "basic_info",
+        "selected_slots", 
+        "last_request_id",
+        "submission_done"
+    ]
+    for key in interview_session_keys:
+        if key in st.session_state:
+            del st.session_state[key]
+    
+    # 면접 요청 관련 기본값 재설정
+    st.session_state.selected_slots = []
+    st.session_state.submission_done = False
+
 db, email_service, sync_manager = init_services()
 
 def main():
@@ -60,9 +92,11 @@ def main():
     with tab1:
         st.subheader("새로운 면접 일정 조율 요청")
         
-        # ✅ 면접 희망일시 선택 상태 관리
+        # ✅ 면접 희망일시 선택 상태 관리 (초기화 보장)
         if 'selected_slots' not in st.session_state:
             st.session_state.selected_slots = []
+        if 'submission_done' not in st.session_state:
+            st.session_state.submission_done = False
         
         # ✅ 폼 구조 개선: 기본 정보만 폼 안에, 일정 선택은 폼 밖으로
         with st.form("new_interview_request"):
@@ -110,8 +144,8 @@ def main():
                     key="candidate_email_input"
                 )
             
-            # ✅ 폼 제출 버튼 수정 (use_container_width → width)
-            basic_info_submitted = st.form_submit_button("💾 기본 정보 저장", width="stretch")
+            # ✅ 폼 제출 버튼 수정
+            basic_info_submitted = st.form_submit_button("💾 기본 정보 저장", use_container_width=True)
             
             # 기본 정보 검증 및 세션 저장
             if basic_info_submitted:
@@ -177,7 +211,6 @@ def main():
                         if len(st.session_state.selected_slots) < 5:
                             st.session_state.selected_slots.append(datetime_slot)
                             st.success(f"✅ 일정이 추가되었습니다: {format_date_korean(selected_date)} {time_value}")
-                            # st.rerun()
                         else:
                             st.warning("⚠️ 최대 5개까지만 선택 가능합니다.")
                     else:
@@ -203,9 +236,13 @@ def main():
                         "시간": time_display
                     })
                 
-                # Streamlit 테이블로 표시 (width 수정)
+                # ✅ DataFrame 타입 문제 해결
                 df = pd.DataFrame(table_data)
-                st.dataframe(df, width="stretch", hide_index=True)
+                # 모든 컬럼을 문자열로 변환하여 Arrow 변환 에러 방지
+                for col in df.columns:
+                    df[col] = df[col].astype(str)
+                
+                st.dataframe(df, use_container_width=True, hide_index=True)
                 
                 # 개별 삭제 버튼들
                 if len(st.session_state.selected_slots) > 0:
@@ -227,39 +264,19 @@ def main():
             # ✅ 최종 제출 섹션
             st.markdown("---")
             
-            # 초기 상태 세팅
-            if "submission_done" not in st.session_state:
-                st.session_state.submission_done = False
-            
             if st.session_state.submission_done:
                 st.success(f"✅ 면접 요청이 생성되었습니다! (ID: {st.session_state.last_request_id[:8]}...)")
                 st.success(f"📧 면접관({st.session_state.basic_info['interviewer_id']})에게 일정 입력 요청 메일을 발송했습니다.")
                 st.info("면접관이 일정을 입력하면 자동으로 면접자에게 알림이 전송됩니다.")
 
-                if st.button("🔁 초기화"):
-                    # 위젯 상태 초기화
-                    keys_to_clear = [
-                        "interviewer_id_input",
-                        "interviewer_select",
-                        "candidate_name_input",
-                        "position_name_input",
-                        "candidate_email_input",
-                        "date_selector",
-                        "time_selector",
-                    ]
-                    for key in keys_to_clear:
-                        st.session_state.pop(key, None)
-                
-                    # 내부 상태 초기화
-                    st.session_state.pop("basic_info", None)
-                    st.session_state.pop("last_request_id", None)
-                    st.session_state.submission_done = False
-                    st.session_state.selected_slots = []
-                
+                # ✅ 면접 요청 탭만 초기화하는 버튼
+                if st.button("🔁 새로운 면접 요청 시작", type="primary", use_container_width=True):
+                    reset_interview_request_tab()  # 면접 요청 탭만 초기화
+                    st.success("✅ 면접 요청 폼이 초기화되었습니다. 새로운 면접 요청을 시작할 수 있습니다.")
                     st.rerun()
                     
             else:
-                if st.button("📧 면접 일정 조율 시작", type="primary"):
+                if st.button("📧 면접 일정 조율 시작", type="primary", use_container_width=True):
                     basic_info = st.session_state.basic_info
                     
                     # 유효성 검사
@@ -319,18 +336,22 @@ def main():
             data = []
             for req in requests:
                 data.append({
-                    "요청ID": req.id[:8],
-                    "포지션": req.position_name,
-                    "면접관": req.interviewer_id,
+                    "요청ID": str(req.id[:8]),  # ✅ 문자열 변환
+                    "포지션": str(req.position_name),
+                    "면접관": str(req.interviewer_id),
                     "면접자": f"{req.candidate_name} ({req.candidate_email})",
-                    "상태": req.status,
+                    "상태": str(req.status),
                     "생성일시": req.created_at.strftime('%m/%d %H:%M'),
                     "확정일시": f"{req.selected_slot.date} {req.selected_slot.time}" if req.selected_slot else "-"
                 })
             
+            # ✅ DataFrame 타입 문제 해결
             df = pd.DataFrame(data)
-            df = df.astype(str)
-            st.dataframe(df, width="stretch")
+            # 모든 컬럼을 명시적으로 문자열로 변환
+            for col in df.columns:
+                df[col] = df[col].astype(str)
+            
+            st.dataframe(df, use_container_width=True)
             
             # 🔧 추가: 개별 요청 관리
             st.subheader("🔧 개별 요청 관리")
@@ -354,14 +375,14 @@ def main():
                     col1, col2, col3 = st.columns(3)
                     
                     with col1:
-                        if st.button("📧 면접관에게 다시 알림", width="stretch"):
+                        if st.button("📧 면접관에게 다시 알림", use_container_width=True):
                             if email_service.send_interviewer_invitation(selected_request):
                                 st.success("✅ 면접관에게 알림을 다시 발송했습니다.")
                             else:
                                 st.error("❌ 알림 발송에 실패했습니다.")
                     
                     with col2:
-                        if st.button("📧 면접자에게 다시 알림", width="stretch"):
+                        if st.button("📧 면접자에게 다시 알림", use_container_width=True):
                             if selected_request.available_slots:
                                 if email_service.send_candidate_invitation(selected_request):
                                     st.success("✅ 면접자에게 알림을 다시 발송했습니다.")
@@ -371,7 +392,7 @@ def main():
                                 st.warning("⚠️ 면접관이 아직 일정을 입력하지 않았습니다.")
                     
                     with col3:
-                        if st.button("❌ 요청 취소", width="stretch", type="secondary"):
+                        if st.button("❌ 요청 취소", use_container_width=True, type="secondary"):
                             selected_request.status = Config.Status.CANCELLED
                             selected_request.updated_at = datetime.now()
                             db.save_interview_request(selected_request)
@@ -385,7 +406,7 @@ def main():
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            if st.button("🔄 전체 동기화", width="stretch"):
+            if st.button("🔄 전체 동기화", use_container_width=True):
                 try:
                     requests = db.get_all_requests()
                     success_count = 0
@@ -405,7 +426,7 @@ def main():
                     st.error(f"❌ 구글 시트 동기화 실패: {e}")
         
         with col2:
-            if st.button("📊 통계 업데이트", width="stretch"):
+            if st.button("📊 통계 업데이트", use_container_width=True):
                 try:
                     stats = db.get_statistics()
                     st.success("✅ 통계 정보가 업데이트되었습니다.")
@@ -424,14 +445,14 @@ def main():
                     st.error(f"❌ 통계 업데이트 실패: {e}")
         
         with col3:
-            if st.button("📋 시트 열기", width="stretch"):
+            if st.button("📋 시트 열기", use_container_width=True):
                 if Config.GOOGLE_SHEET_ID:
                     st.markdown(f"[구글 시트 바로가기]({Config.GOOGLE_SHEET_URL})")
                 else:
                     st.error("구글 시트 ID가 설정되지 않았습니다.")
         
         with col4:
-            if st.button("📧 확정 알림 재발송", width="stretch"):
+            if st.button("📧 확정 알림 재발송", use_container_width=True):
                 try:
                     confirmed_requests = [req for req in db.get_all_requests() 
                                         if req.status == Config.Status.CONFIRMED and req.selected_slot]
@@ -452,8 +473,12 @@ def main():
             if db.sheet:
                 sheet_data = db.sheet.get_all_records()
                 if sheet_data:
+                    # ✅ 구글 시트 데이터 타입 문제 해결
                     df = pd.DataFrame(sheet_data)
-                    st.dataframe(df, width="stretch", height=400)
+                    # 모든 컬럼을 문자열로 변환
+                    for col in df.columns:
+                        df[col] = df[col].astype(str)
+                    st.dataframe(df, use_container_width=True, height=400)
                 else:
                     st.info("구글 시트가 비어있습니다.")
             else:
@@ -463,10 +488,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
