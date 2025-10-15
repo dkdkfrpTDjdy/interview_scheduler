@@ -88,7 +88,7 @@ def main():
     # 조직도 데이터 로드
     org_data = load_organization_data()
         
-    tab1, tab2, tab3 = st.tabs(["새 면접 요청", "진행 현황", "구글 시트 관리"])
+    tab1, tab2= st.tabs(["새 면접 요청", "진행 현황"])
     
     with tab1:
 
