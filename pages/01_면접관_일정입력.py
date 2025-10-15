@@ -81,7 +81,8 @@ def show_login_form():
             st.subheader("사번 입력")
             
             employee_id = st.text_input(
-                placeholder="예: 223286",
+                label="사번 입력",
+                placeholder="예: 223286"
             )
             
             submitted = st.form_submit_button("🔍 면접 요청 확인", type="primary")
