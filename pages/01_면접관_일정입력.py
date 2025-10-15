@@ -61,7 +61,7 @@ def main():
 def show_login_form():
     """면접관 사번 입력 폼"""
     st.markdown("""
-    <div style="background: linear-gradient(135deg, #ED1C24 0%, #FF3300 100%);
+    <div style="background: linear-gradient(135deg, #1A1A1A 0%, #FF3300 100%);
                 color: white;
                 padding: 20px;
                 border-radius: 12px;
@@ -82,8 +82,8 @@ def show_login_form():
             
             employee_id = st.text_input(
                 "사번을 입력해주세요",
-                placeholder="예: EMP001, 홍길동, 개발팀",
-                help="사번, 이름, 또는 부서명으로 검색 가능합니다"
+                placeholder="예: 223286",
+                help="사번으로 검색 가능합니다"
             )
             
             submitted = st.form_submit_button("🔍 면접 요청 확인", use_container_width=True, type="primary")
@@ -97,9 +97,7 @@ def show_login_form():
                     
                     # 정확한 매칭 또는 부분 매칭 확인
                     is_valid = (
-                        interviewer_info['employee_id'] == employee_id or  # 정확한 사번 매칭
-                        employee_id.lower() in interviewer_info['name'].lower() or  # 이름 매칭
-                        employee_id.lower() in interviewer_info['department'].lower()  # 부서 매칭
+                        interviewer_info['employee_id'] == employee_id 
                     )
                     
                     if is_valid:
@@ -112,10 +110,9 @@ def show_login_form():
                             st.session_state.pending_requests = pending_requests
                             st.rerun()
                         else:
-                            st.warning("⚠️ 현재 처리할 면접 요청이 없습니다.")
-                            st.info("인사팀에서 면접 요청을 보내면 여기서 확인할 수 있습니다.")
+                            st.warning("현재 처리할 면접 요청이 없습니다.")
                     else:
-                        st.error("❌ 등록되지 않은 사번입니다. 인사팀에 문의해주세요.")
+                        st.error("등록되지 않은 사번입니다. 인사팀에 문의해주세요.")
     
     # 도움말
     st.markdown("---")
@@ -123,11 +120,9 @@ def show_login_form():
     with col2:
         st.markdown("""
         <div style="background-color: #f8f9fa; padding: 25px; border-radius: 12px; text-align: center; border: 1px solid #dee2e6;">
-            <h4 style="color: #495057; margin-top: 0;">💡 이용 안내</h4>
+            <h4 style="color: #495057; margin-top: 0;">이용 안내</h4>
             <div style="text-align: left; margin: 15px 0;">
-                <p style="margin: 8px 0; color: #6c757d;">• <strong>사번</strong>으로 정확히 입력하세요</p>
-                <p style="margin: 8px 0; color: #6c757d;">• <strong>이름</strong>으로도 검색 가능합니다</p>
-                <p style="margin: 8px 0; color: #6c757d;">• <strong>부서명</strong>으로도 찾을 수 있습니다</p>
+                <p style="margin: 8px 0; color: #6c757d;">• <strong>사번</strong>을 정확히 입력하세요</p>
             </div>
             <div style="background-color: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 15px;">
                 <p style="margin: 0; color: #1565c0;"><strong>📞 문의:</strong> <a href="mailto:hr@ajnet.co.kr">hr@ajnet.co.kr</a></p>
