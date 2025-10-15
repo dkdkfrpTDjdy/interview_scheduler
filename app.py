@@ -406,11 +406,15 @@ def main():
                             st.rerun()
                     
                     with col2:
-                        if st.button("📋 구글 시트 열기", use_container_width=True):
-                            if Config.GOOGLE_SHEET_ID:
-                                st.markdown(f"[구글 시트 바로가기]({Config.GOOGLE_SHEET_URL})")
-                            else:
-                                st.error("구글 시트 ID가 설정되지 않았습니다.")
+                        if Config.GOOGLE_SHEET_ID:
+                            st.link_button(
+                                "📋 구글 시트 열기",
+                                Config.GOOGLE_SHEET_URL,
+                                use_container_width=True
+                            )
+                        else:
+                            st.button("📋 구글 시트 열기", disabled=True, use_container_width=True)
+                            st.error("구글 시트 ID가 설정되지 않았습니다.")
                     
                     with col3:
                         if st.button("📊 전체 동기화", use_container_width=True):
