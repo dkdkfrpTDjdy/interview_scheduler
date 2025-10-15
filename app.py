@@ -299,6 +299,7 @@ def main():
                 })
             
             df = pd.DataFrame(data)
+            df = df.astype(str)
             st.dataframe(df, width="stretch")
             
             # 🔧 추가: 개별 요청 관리
@@ -432,3 +433,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
