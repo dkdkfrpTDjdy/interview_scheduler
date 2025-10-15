@@ -74,7 +74,8 @@ def main():
                     interviewer_id = st.text_input(
                         "면접관 사번",
                         placeholder="예: 223286",
-                        help="면접관의 사번을 입력해주세요"
+                        help="면접관의 사번을 입력해주세요",
+                        key="interviewer_id_input"
                     )
                 else:  # 조직도 데이터가 있는 경우
                     interviewer_options = [f"{emp['employee_id']} - {emp['name']} ({emp['department']})" 
@@ -82,27 +83,31 @@ def main():
                     selected_interviewer = st.selectbox(
                         "면접관 선택",
                         options=["선택해주세요"] + interviewer_options,
-                        help="조직도에서 면접관을 선택해주세요"
+                        help="조직도에서 면접관을 선택해주세요",
+                        key="interviewer_select"
                     )
                     interviewer_id = selected_interviewer.split(' - ')[0] if selected_interviewer != "선택해주세요" else ""
 
                 candidate_name = st.text_input(
                     "면접자 이름",
                     placeholder="면접자",
-                    help="면접자의 이름을 입력해주세요"
+                    help="면접자의 이름을 입력해주세요",
+                    key="candidate_name_input"
                 )
             
             with col2:
                 position_name = st.text_input(
                     "공고명",
                     placeholder="IT혁신팀 데이터분석가",
-                    help="채용 공고명을 입력해주세요"
+                    help="채용 공고명을 입력해주세요",
+                    key="position_name_input"
                 )
                 
                 candidate_email = st.text_input(
                     "면접자 이메일",
                     placeholder="candidate@example.com",
-                    help="면접자의 이메일 주소를 입력해주세요"
+                    help="면접자의 이메일 주소를 입력해주세요",
+                    key="candidate_email_input"
                 )
             
             # ✅ 폼 제출 버튼 수정 (use_container_width → width)
@@ -232,11 +237,19 @@ def main():
                 st.info("면접관이 일정을 입력하면 자동으로 면접자에게 알림이 전송됩니다.")
                 
                 if st.button("🔁 초기화"):
-                    # 모든 상태 초기화
+                    # 🔄 기본 입력값 초기화
+                    st.session_state.interviewer_id_input = ""
+                    st.session_state.candidate_name_input = ""
+                    st.session_state.position_name_input = ""
+                    st.session_state.candidate_email_input = ""
+                    st.session_state.interviewer_select = "선택해주세요"  # selectbox 기본값
+                    
+                    # 🔄 내부 상태 초기화
                     st.session_state.selected_slots = []
                     if "basic_info" in st.session_state:
                         del st.session_state.basic_info
                     st.session_state.submission_done = False
+                
                     st.rerun()
             else:
                 if st.button("📧 면접 일정 조율 시작", type="primary"):
@@ -443,6 +456,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
