@@ -26,9 +26,9 @@ class EmailService:
         self.email_config = Config.EmailConfig
         self.company_domain = Config.COMPANY_DOMAIN
         self.last_send_time = {}  # 발송 간격 제어용
-        # ✅ 중복 방지용 세트 초기화
-        self.sent_emails = set()
-        self._sent_invitations = set()
+        # ✅ 사용하지 않는 sent_emails 제거
+        # self.sent_emails = set()  # 이 줄 제거
+        self._sent_invitations = set()  # 중복 방지용 (이것만 유지)
 
     def validate_and_correct_email(self, email: str) -> tuple[str, bool]:
         """이메일 주소 검증 및 오타 교정"""
@@ -387,7 +387,8 @@ class EmailService:
                     server.sendmail(self.email_config.EMAIL_USER, all_recipients, text)
                     server.quit()
                     
-                    logger.info(f"✅ 이메일 발송 성공: {validated_emails}")
+                    # ✅ 성공 로그 수정 (sent_emails 참조 제거)
+                    logger.info(f"✅ 이메일 발송 성공: {', '.join(validated_emails)}")
                     return True
                 except Exception as smtp_error:
                     logger.error(f"❌ SMTP 발송 실패: {smtp_error}")
@@ -1299,4 +1300,5 @@ AJ Networks 인사팀
         except Exception as e:
             logger.error(f"❌ HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
