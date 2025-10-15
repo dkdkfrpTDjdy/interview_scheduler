@@ -48,47 +48,24 @@ def load_organization_data():
 
 db, email_service, sync_manager = init_services()
 
-# ✅ 탭 변경 감지 및 초기화 함수
-def reset_form_data():
-    """새 면접 요청 폼 데이터 초기화"""
-    keys_to_clear = [
-        'selected_slots', 'basic_info', 'date_selector', 'time_selector',
-        'form_reset_flag'
-    ]
-    for key in keys_to_clear:
-        if key in st.session_state:
-            del st.session_state[key]
-
 def main():
     st.title("📅 AI 면접 일정 조율 시스템")
     st.header("인사팀 관리 페이지")
     
     # 조직도 데이터 로드
     org_data = load_organization_data()
-    
-    # ✅ 탭 변경 감지
-    if 'current_tab' not in st.session_state:
-        st.session_state.current_tab = "새 면접 요청"
-    
+        
     tab1, tab2, tab3 = st.tabs(["새 면접 요청", "진행 현황", "구글 시트 관리"])
     
     with tab1:
-        # ✅ 탭 변경 시 폼 초기화
-        if st.session_state.current_tab != "새 면접 요청":
-            reset_form_data()
-            st.session_state.current_tab = "새 면접 요청"
-        
         st.subheader("새로운 면접 일정 조율 요청")
         
         # ✅ 면접 희망일시 선택 상태 관리
         if 'selected_slots' not in st.session_state:
             st.session_state.selected_slots = []
         
-        # ✅ 폼 초기화 플래그 (이메일 발송 성공 시 설정)
-        form_should_reset = st.session_state.get('form_reset_flag', False)
-        
         # ✅ 폼 구조 개선: 기본 정보만 폼 안에, 일정 선택은 폼 밖으로
-        with st.form("new_interview_request", clear_on_submit=form_should_reset):
+        with st.form("new_interview_request"):
             col1, col2 = st.columns(2)
             
             with col1:
@@ -97,8 +74,7 @@ def main():
                     interviewer_id = st.text_input(
                         "면접관 사번",
                         placeholder="예: 223286",
-                        help="면접관의 사번을 입력해주세요",
-                        value="" if form_should_reset else st.session_state.get('interviewer_id_input', "")
+                        help="면접관의 사번을 입력해주세요"
                     )
                 else:  # 조직도 데이터가 있는 경우
                     interviewer_options = [f"{emp['employee_id']} - {emp['name']} ({emp['department']})" 
@@ -106,31 +82,27 @@ def main():
                     selected_interviewer = st.selectbox(
                         "면접관 선택",
                         options=["선택해주세요"] + interviewer_options,
-                        help="조직도에서 면접관을 선택해주세요",
-                        index=0 if form_should_reset else st.session_state.get('interviewer_select_index', 0)
+                        help="조직도에서 면접관을 선택해주세요"
                     )
                     interviewer_id = selected_interviewer.split(' - ')[0] if selected_interviewer != "선택해주세요" else ""
 
                 candidate_name = st.text_input(
                     "면접자 이름",
                     placeholder="면접자",
-                    help="면접자의 이름을 입력해주세요",
-                    value="" if form_should_reset else st.session_state.get('candidate_name_input', "")
+                    help="면접자의 이름을 입력해주세요"
                 )
             
             with col2:
                 position_name = st.text_input(
                     "공고명",
                     placeholder="IT혁신팀 데이터분석가",
-                    help="채용 공고명을 입력해주세요",
-                    value="" if form_should_reset else st.session_state.get('position_name_input', "")
+                    help="채용 공고명을 입력해주세요"
                 )
                 
                 candidate_email = st.text_input(
                     "면접자 이메일",
                     placeholder="candidate@example.com",
-                    help="면접자의 이메일 주소를 입력해주세요",
-                    value="" if form_should_reset else st.session_state.get('candidate_email_input', "")
+                    help="면접자의 이메일 주소를 입력해주세요"
                 )
             
             # ✅ 폼 제출 버튼 추가 (기본 정보 저장용)
@@ -156,21 +128,7 @@ def main():
                         'candidate_email': candidate_email,
                         'position_name': position_name
                     }
-                    
-                    # ✅ 입력값 세션 저장 (폼 유지용)
-                    if not org_data:
-                        st.session_state.interviewer_id_input = interviewer_id
-                    else:
-                        st.session_state.interviewer_select_index = interviewer_options.index(selected_interviewer) if selected_interviewer in interviewer_options else 0
-                    st.session_state.candidate_name_input = candidate_name
-                    st.session_state.candidate_email_input = candidate_email
-                    st.session_state.position_name_input = position_name
-                    
                     st.success("✅ 기본 정보가 저장되었습니다. 아래에서 면접 희망일시를 선택해주세요.")
-        
-        # ✅ 폼 초기화 플래그 리셋
-        if form_should_reset:
-            st.session_state.form_reset_flag = False
         
         # ✅ 면접 희망일시 선택 섹션 (폼 밖)
         if 'basic_info' in st.session_state:
@@ -292,23 +250,10 @@ def main():
                                 st.success(f"📧 면접관({basic_info['interviewer_id']})에게 일정 입력 요청 메일을 발송했습니다.")
                                 st.info("면접관이 일정을 입력하면 자동으로 면접자에게 알림이 전송됩니다.")
                                 
-                                # ✅ 폼 데이터 완전 초기화
+                                # 세션 데이터 초기화
                                 st.session_state.selected_slots = []
                                 if 'basic_info' in st.session_state:
                                     del st.session_state.basic_info
-                                
-                                # ✅ 폼 입력값 초기화
-                                form_input_keys = [
-                                    'interviewer_id_input', 'interviewer_select_index',
-                                    'candidate_name_input', 'candidate_email_input', 'position_name_input'
-                                ]
-                                for key in form_input_keys:
-                                    if key in st.session_state:
-                                        del st.session_state[key]
-                                
-                                # ✅ 폼 초기화 플래그 설정
-                                st.session_state.form_reset_flag = True
-                                
                                 st.rerun()
                             else:
                                 st.error("이메일 발송에 실패했습니다.")
@@ -321,10 +266,6 @@ def main():
             st.info("👆 먼저 위에서 기본 정보를 입력하고 저장해주세요.")
     
     with tab2:
-        # ✅ 탭 변경 감지
-        if st.session_state.current_tab != "진행 현황":
-            st.session_state.current_tab = "진행 현황"
-        
         st.subheader("면접 일정 조율 현황")
         
         requests = db.get_all_requests()
@@ -414,10 +355,6 @@ def main():
                             st.rerun()
     
     with tab3:
-        # ✅ 탭 변경 감지
-        if st.session_state.current_tab != "구글 시트 관리":
-            st.session_state.current_tab = "구글 시트 관리"
-        
         st.subheader("📊 구글 시트 관리")
         
         col1, col2, col3, col4 = st.columns(4)
