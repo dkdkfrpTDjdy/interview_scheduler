@@ -198,7 +198,11 @@ def main():
 
             with col3:
                 # ✅ 빈 레이블을 추가해서 높이 맞추기
-                st.write("　")  # 빈 레이블 (전각 공백 사용)
+                st.markdown("""
+                <div style="font-size:10px;">
+                    　
+                </div>
+                """, unsafe_allow_html=True)
                 add_clicked = st.button(
                     "➕ 일정 추가",
                     disabled=(selected_date == "선택안함" or selected_time == "선택안함"),
