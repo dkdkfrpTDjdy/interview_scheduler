@@ -235,28 +235,25 @@ def main():
                 st.success(f"✅ 면접 요청이 생성되었습니다! (ID: {st.session_state.last_request_id[:8]}...)")
                 st.success(f"📧 면접관({st.session_state.basic_info['interviewer_id']})에게 일정 입력 요청 메일을 발송했습니다.")
                 st.info("면접관이 일정을 입력하면 자동으로 면접자에게 알림이 전송됩니다.")
-                
+
                 if st.button("🔁 초기화"):
-                    # 🔄 위젯 상태 안전 초기화
+                    # 입력 필드 위젯 상태 초기화
                     for key in [
                         "interviewer_id_input",
+                        "interviewer_select",
                         "candidate_name_input",
                         "position_name_input",
                         "candidate_email_input",
-                        "interviewer_select",
                         "date_selector",
                         "time_selector",
                     ]:
-                        if key in st.session_state:
-                            st.session_state.pop(key)
+                        st.session_state.pop(key, None)
                 
-                    # 🔄 내부 상태 초기화
+                    # 내부 상태 초기화
                     st.session_state.selected_slots = []
                     st.session_state.submission_done = False
-                    if "basic_info" in st.session_state:
-                        del st.session_state.basic_info
-                    if "last_request_id" in st.session_state:
-                        del st.session_state.last_request_id
+                    st.session_state.last_request_id = ""
+                    st.session_state.pop("basic_info", None)
                 
                     st.rerun()
             else:
@@ -464,6 +461,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
