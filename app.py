@@ -199,7 +199,7 @@ def main():
             with col3:
                 # ✅ 빈 레이블을 추가해서 높이 맞추기
                 st.markdown("""
-                <div style="font-size:10px;">
+                <div style="font-size:15px;">
                     　
                 </div>
                 """, unsafe_allow_html=True)
