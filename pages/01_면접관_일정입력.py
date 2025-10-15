@@ -318,17 +318,17 @@ def show_request_detail(request, index):
         st.markdown("""
             <style>
             div[data-testid="stFormSubmitButton"] > button {
-                background-color: #EF3340;
+                background-color: #1A1A1A;
                 color: white;
                 font-weight: 600;
-                font-size: 16px;
+                font-size: 14px;
                 border: none;
                 border-radius: 8px;
-                padding: 12px 24px;
+                padding: 10px 20px;
             }
             div[data-testid="stFormSubmitButton"] > button:hover {
-                background-color: #FF4D00;
-                transform: scale(1.02);
+                background-color: #EF3340;
+                transform: scale(1.01);
             }
             </style>
         """, unsafe_allow_html=True)
