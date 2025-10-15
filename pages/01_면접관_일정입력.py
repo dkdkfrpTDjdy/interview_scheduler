@@ -160,16 +160,16 @@ def show_interviewer_dashboard():
     pending_requests = st.session_state.pending_requests
 
     # 헤더
-    col1, _ = st.columns([3, 1])  # col2 제거
+    # col1, _ = st.columns([3, 1])  # col2 제거
 
-    with col1:
-        st.markdown(f"""
-        <div style="margin: 20px 0;">
-            <h2 style="color: #1A1A1A; margin: 0; display: flex; align-items: center;">
-                <span style="margin-right: 10px;">👋</span> 안녕하세요, {interviewer_info['name']}님!
-            </h2>
-        </div>
-        """, unsafe_allow_html=True)
+    # with col1:
+    #     st.markdown(f"""
+    #     <div style="margin: 20px 0;">
+    #         <h2 style="color: #1A1A1A; margin: 0; display: flex; align-items: center;">
+    #             <span style="margin-right: 10px;">👋</span> 안녕하세요, {interviewer_info['name']}님!
+    #         </h2>
+    #     </div>
+    #     """, unsafe_allow_html=True)
 
     # 대기 중인 요청 표시
     if not pending_requests:
@@ -182,11 +182,11 @@ def show_interviewer_dashboard():
         """, unsafe_allow_html=True)
         return
 
-    st.subheader(f"📋 대기 중인 면접 요청 ({len(pending_requests)}건)")
+    st.subheader(f"📋 {interviewer_info['name']} ({interviewer_info['department']}) 님의 대기 중인 면접 요청 ({len(pending_requests)}건)")
 
     # 각 요청에 대해 처리
     for i, request in enumerate(pending_requests):
-        with st.expander(f"📅 {request.position_name} - {request.candidate_name} ({request.created_at.strftime('%m/%d')})", expanded=len(pending_requests) == 1):
+        with st.expander(f"📅 {request.position_name} - {request.candidate_name}", expanded=len(pending_requests) == 1):
             show_request_detail(request, i)
 
 def show_request_detail(request, index):
@@ -253,7 +253,7 @@ def show_request_detail(request, index):
     
     if hasattr(request, 'preferred_datetime_slots') and request.preferred_datetime_slots:
         for i, datetime_slot in enumerate(request.preferred_datetime_slots):
-            st.markdown(f"**📅 면접 일시 {i+1}")
+            st.markdown(f"**📅 면접 일시 {i+1}**")
             
             if "면접관선택" in datetime_slot:
                 # 면접관이 시간을 직접 선택해야 하는 경우
