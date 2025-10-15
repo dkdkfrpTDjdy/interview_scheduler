@@ -26,6 +26,9 @@ class EmailService:
         self.email_config = Config.EmailConfig
         self.company_domain = Config.COMPANY_DOMAIN
         self.last_send_time = {}  # 발송 간격 제어용
+        # ✅ 중복 방지용 세트 초기화
+        self.sent_emails = set()
+        self._sent_invitations = set()
 
     def validate_and_correct_email(self, email: str) -> tuple[str, bool]:
         """이메일 주소 검증 및 오타 교정"""
@@ -386,9 +389,6 @@ class EmailService:
                 server.sendmail(self.email_config.EMAIL_USER, all_recipients, text)
                 server.quit()
                 
-                # 발송 성공 시 해시 기록
-                self.sent_emails.add(email_hash)
-                
                 logger.info(f"✅ 이메일 발송 성공: {validated_emails}")
                 return True
             else:
@@ -587,7 +587,15 @@ class EmailService:
 
     def send_interviewer_invitation(self, request: InterviewRequest):
         """면접관에게 일정 입력 요청 메일 발송 - 중복 방지 적용"""
-        try:           
+        try:
+            # ✅ 중복 방지 키 생성
+            invitation_key = f"{request.id}_{request.interviewer_id}_invitation"
+            
+            # ✅ 중복 발송 체크 (개발 중에는 주석 처리)
+            # if invitation_key in self._sent_invitations:
+            #     logger.warning(f"⚠️ 중복 이메일 발송 방지: {invitation_key}")
+            #     return False
+                   
             interviewer_email = get_employee_email(request.interviewer_id)
             interviewer_info = get_employee_info(request.interviewer_id)
             
@@ -1286,5 +1294,3 @@ AJ Networks 인사팀
         except Exception as e:
             logger.error(f"❌ HTML 테스트 메일 발송 실패: {e}")
             return False
-
-
