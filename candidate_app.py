@@ -411,7 +411,7 @@ def show_candidate_dashboard():
             show_request_detail(request, i)
 
 def show_request_detail(request, index):
-    """요청 상세 정보 및 일정 선택 폼 - HTML 문제 해결"""
+    """요청 상세 정보 및 일정 선택 폼 - 라디오 버튼 반응 개선"""
     import time
     
     # 면접 정보 표시
@@ -455,7 +455,7 @@ def show_request_detail(request, index):
     
     st.write("**🗓️ 제안된 면접 일정 중 선택해주세요**")
     
-    # 🔧 HTML 테이블 대신 Streamlit 네이티브 방식 사용 (방안 1)
+    # 제안된 일정 테이블 표시
     if proposed_slots:
         # 데이터프레임으로 변환하여 표시
         slot_data = []
@@ -512,131 +512,116 @@ def show_request_detail(request, index):
     
     slot_options.append("❌ 제안된 일정으로는 불가능 (다른 일정 요청)")
     
-    # 🔧 동적 폼 키 생성 및 상태 관리 (방안 1)
-    current_timestamp = int(time.time())
-    form_key = f"candidate_selection_{index}_{current_timestamp}"
-    submission_key = f"submitted_{index}"
+    # ✅ 라디오 버튼 반응 개선 - 세션 상태로 선택 관리
+    radio_key = f"radio_selection_{index}"
+    if radio_key not in st.session_state:
+        st.session_state[radio_key] = 0
     
-    # 선택 폼
-    with st.form(form_key):
-        selected_option = st.radio(
-            "원하는 면접 일정을 선택해주세요:",
-            options=range(len(slot_options)),
-            format_func=lambda x: slot_options[x]
+    # 라디오 버튼으로 일정 선택
+    selected_option = st.radio(
+        "원하는 면접 일정을 선택해주세요:",
+        options=range(len(slot_options)),
+        format_func=lambda x: slot_options[x],
+        key=radio_key,
+        help="원하는 일정을 선택하거나, 다른 일정이 필요한 경우 마지막 옵션을 선택하세요"
+    )
+    
+    # ✅ 실시간 선택 반응 표시
+    if selected_option < len(proposed_slots):
+        selected_slot_info = proposed_slots[selected_option]
+        st.success(f"✅ 선택하신 일정: {format_date_korean(selected_slot_info['date'])} {selected_slot_info['time']} ({selected_slot_info['duration']}분)")
+    elif selected_option == len(slot_options) - 1:
+        st.warning("⚠️ 다른 일정 요청을 선택하셨습니다. 아래에 요청사항을 작성해주세요.")
+    
+    # 다른 일정 요청 시 입력창
+    candidate_note = ""
+    if selected_option == len(slot_options) - 1:
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); padding: 25px; border-radius: 12px; border-left: 6px solid #ffc107; margin: 25px 0;">
+            <h4 style="color: #856404; margin-top: 0; font-size: 1.3rem;">📝 다른 일정 요청</h4>
+            <p style="color: #856404; margin-bottom: 15px;">제안된 일정이 맞지 않으시나요? 가능한 일정을 구체적으로 알려주세요.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        candidate_note = st.text_area(
+            "가능한 면접 일정이나 요청사항을 입력해주세요:",
+            placeholder="예시:\n• 다음 주 화요일 오후 2시 이후 가능합니다\n• 월요일과 수요일은 전체 불가능합니다\n• 오전 시간대를 선호합니다\n• 온라인 면접을 희망합니다",
+            height=150,
+            key=f"candidate_note_{index}",
+            help="구체적으로 작성해주시면 더 빠른 조율이 가능합니다"
         )
+    
+    # ✅ 제출 버튼 및 처리
+    submit_key = f"submit_{index}"
+    if st.button("✅ 면접 일정 선택 완료", key=submit_key, use_container_width=True, type="primary"):
+        if 'row_number' not in request:
+            st.error("❌ 요청 데이터에 문제가 있습니다. 페이지를 새로고침해주세요.")
+            return
         
-        candidate_note = ""
-        if selected_option == len(slot_options) - 1:
-            st.markdown("""
-            <div style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); padding: 25px; border-radius: 12px; border-left: 6px solid #ffc107; margin: 25px 0;">
-                <h4 style="color: #856404; margin-top: 0; font-size: 1.3rem;">📝 다른 일정 요청</h4>
-                <p style="color: #856404; margin-bottom: 15px;">제안된 일정이 맞지 않으시나요? 가능한 일정을 구체적으로 알려주세요.</p>
-            </div>
-            """, unsafe_allow_html=True)
+        if selected_option < len(proposed_slots):
+            # 정규 일정 선택
+            selected_slot = proposed_slots[selected_option]
             
-            # 입력창 키도 동적 생성
-            note_key = f"candidate_note_{index}_{current_timestamp}"
-            
-            # 이전 제출 후라면 초기값을 빈 문자열로 설정
-            initial_value = "" if st.session_state.get(submission_key, False) else ""
-            
-            candidate_note = st.text_area(
-                "가능한 면접 일정이나 요청사항을 입력해주세요:",
-                value=initial_value,  # 명시적 초기값 설정
-                placeholder="예시:\n• 다음 주 화요일 오후 2시 이후 가능합니다\n• 월요일과 수요일은 전체 불가능합니다\n• 오전 시간대를 선호합니다\n• 온라인 면접을 희망합니다",
-                height=150,
-                key=note_key,
-                help="구체적으로 작성해주시면 더 빠른 조율이 가능합니다"
-            )
-        
-        submitted = st.form_submit_button("✅ 면접 일정 선택 완료", use_container_width=True, type="primary")
-        
-        if submitted:
-            # 제출 상태 기록
-            st.session_state[submission_key] = True
-            
-            if 'row_number' not in request:
-                st.error("❌ 요청 데이터에 문제가 있습니다. 페이지를 새로고침해주세요.")
-                return
-            
-            if selected_option < len(proposed_slots):
-                # 정규 일정 선택
-                selected_slot = proposed_slots[selected_option]
+            with st.spinner("📝 일정을 확정하고 있습니다..."):
+                success = update_sheet_selection(
+                    request, 
+                    selected_slot=selected_slot, 
+                    candidate_note=candidate_note, 
+                    is_alternative_request=False
+                )
                 
-                with st.spinner("📝 일정을 확정하고 있습니다..."):
+                if success:
+                    st.success("🎉 면접 일정이 확정되었습니다!")
+                    st.info("📧 관련자 모두에게 확정 알림이 전송됩니다.")
+                    
+                    # 확정 정보 표시
+                    st.markdown(f"""
+                    <div style="background-color: #d4edda; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 5px solid #28a745;">
+                        <h4 style="color: #155724; margin-top: 0;">📅 확정된 면접 일정</h4>
+                        <p style="color: #155724; margin: 0;"><strong>{format_date_korean(selected_slot['date'])} {selected_slot['time']} ({selected_slot['duration']}분)</strong></p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # 세션 데이터 강제 업데이트
+                    time.sleep(2)
+                    candidate_info = st.session_state.authenticated_candidate
+                    updated_requests = force_refresh_candidate_data(candidate_info['name'], candidate_info['email'])
+                    if updated_requests:
+                        st.session_state.candidate_requests = updated_requests
+                    
+                    st.rerun()
+                else:
+                    st.error("❌ 일정 확정 중 오류가 발생했습니다.")
+        else:
+            # 다른 일정 요청
+            if not candidate_note.strip():
+                st.error("❌ 가능한 일정을 구체적으로 입력해주세요.")
+            else:
+                with st.spinner("📝 일정 재조율 요청을 전송하고 있습니다..."):
                     success = update_sheet_selection(
                         request, 
-                        selected_slot=selected_slot, 
+                        selected_slot=None, 
                         candidate_note=candidate_note, 
-                        is_alternative_request=False
+                        is_alternative_request=True
                     )
                     
                     if success:
-                        st.success("🎉 면접 일정이 확정되었습니다!")
-                        st.info("📧 관련자 모두에게 확정 알림이 전송됩니다.")
+                        st.success("📧 일정 재조율 요청이 인사팀에 전달되었습니다!")
+                        st.info("인사팀에서 검토 후 별도 연락드리겠습니다.")
                         
-                        # 확정 정보 표시
+                        # 요청사항 표시
                         st.markdown(f"""
-                        <div style="background-color: #d4edda; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 5px solid #28a745;">
-                            <h4 style="color: #155724; margin-top: 0;">📅 확정된 면접 일정</h4>
-                            <p style="color: #155724; margin: 0;"><strong>{format_date_korean(selected_slot['date'])} {selected_slot['time']} ({selected_slot['duration']}분)</strong></p>
+                        <div style="background-color: #d1ecf1; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 5px solid #17a2b8;">
+                            <h4 style="color: #0c5460; margin-top: 0;">📝 전달된 요청사항</h4>
+                            <p style="color: #0c5460; margin: 0; white-space: pre-line;">{candidate_note}</p>
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        
-                        # 폼 관련 세션 상태 클리어
-                        keys_to_clear = [k for k in st.session_state.keys() if f"_{index}_" in k]
-                        for key in keys_to_clear:
-                            if key in st.session_state:
-                                del st.session_state[key]
-                        
-                        # 세션 데이터 강제 업데이트
+                        # 세션 업데이트를 위한 새로고침
                         time.sleep(2)
-                        candidate_info = st.session_state.authenticated_candidate
-                        updated_requests = force_refresh_candidate_data(candidate_info['name'], candidate_info['email'])
-                        if updated_requests:
-                            st.session_state.candidate_requests = updated_requests
-                        
                         st.rerun()
                     else:
-                        st.error("❌ 일정 확정 중 오류가 발생했습니다.")
-            else:
-                # 다른 일정 요청
-                if not candidate_note.strip():
-                    st.error("❌ 가능한 일정을 구체적으로 입력해주세요.")
-                else:
-                    with st.spinner("📝 일정 재조율 요청을 전송하고 있습니다..."):
-                        success = update_sheet_selection(
-                            request, 
-                            selected_slot=None, 
-                            candidate_note=candidate_note, 
-                            is_alternative_request=True
-                        )
-                        
-                        if success:
-                            st.success("📧 일정 재조율 요청이 인사팀에 전달되었습니다!")
-                            st.info("인사팀에서 검토 후 별도 연락드리겠습니다.")
-                            
-                            # 요청사항 표시
-                            st.markdown(f"""
-                            <div style="background-color: #d1ecf1; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 5px solid #17a2b8;">
-                                <h4 style="color: #0c5460; margin-top: 0;">📝 전달된 요청사항</h4>
-                                <p style="color: #0c5460; margin: 0; white-space: pre-line;">{candidate_note}</p>
-                            </div>
-                            """, unsafe_allow_html=True)
-                            
-                            # 폼 관련 세션 상태 클리어
-                            keys_to_clear = [k for k in st.session_state.keys() if f"_{index}_" in k]
-                            for key in keys_to_clear:
-                                if key in st.session_state:
-                                    del st.session_state[key]
-                            
-                            # 세션 업데이트를 위한 새로고침
-                            time.sleep(2)
-                            st.rerun()
-                        else:
-                            st.error("❌ 일정 재조율 요청 전송 중 오류가 발생했습니다.")
-                            
+                        st.error("❌ 일정 재조율 요청 전송 중 오류가 발생했습니다.")
 
 def show_confirmed_schedule(request):
     """확정된 일정 표시"""
