@@ -175,9 +175,7 @@ def show_interviewer_dashboard():
     if not pending_requests:
         st.markdown("""
         <div style="text-align: center; margin: 30px 0;">
-            <div style="font-size: 4rem; margin-bottom: 20px; color: #1A1A1A;">📭</div>
-            <h3 style="color: #1A1A1A; margin: 0 0 15px 0;">처리할 면접 요청이 없습니다</h3>
-            <p style="color: #1A1A1A; font-size: 1.1rem;">새로운 면접 요청이 오면 여기에 표시됩니다.</p>
+            <h3 style="color: #1A1A1A; margin: 0 0 15px 0;">모든 면접 일정을 처리하였습니다</h3>
         </div>
         """, unsafe_allow_html=True)
         return
