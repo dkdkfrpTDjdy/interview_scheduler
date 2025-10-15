@@ -244,7 +244,6 @@ def show_request_detail(request, index):
                             "시간 선택",
                             options=["선택안함"] + Config.TIME_SLOTS,
                             key=f"time_select_{index}_{i}",
-                            disabled=not is_selected,
                             help="면접 시작 시간을 선택해주세요"
                         )
                     
@@ -255,7 +254,6 @@ def show_request_detail(request, index):
                             index=1,
                             format_func=lambda x: f"{x}분",
                             key=f"duration_{index}_{i}",
-                            disabled=not is_selected,
                             help="예상 면접 소요 시간"
                         )
                     
@@ -285,8 +283,7 @@ def show_request_detail(request, index):
                             options=[30, 60, 90, 120],
                             index=1,
                             format_func=lambda x: f"{x}분",
-                            key=f"duration_{index}_{i}_fixed",
-                            disabled=not is_selected
+                            key=f"duration_{index}_{i}_fixed"
                         )
                     
                     # 선택된 슬롯 추가
@@ -318,7 +315,7 @@ def show_request_detail(request, index):
         st.markdown("""
             <style>
             div[data-testid="stFormSubmitButton"] > button {
-                background-color: #1A1A1A;
+                background-color: #2C2C2C;
                 color: white;
                 font-weight: 600;
                 font-size: 14px;
