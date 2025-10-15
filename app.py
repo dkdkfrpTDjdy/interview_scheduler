@@ -198,7 +198,7 @@ def main():
 
             with col3:
                 # ✅ 빈 레이블을 추가해서 높이 맞추기
-                st.caption("　")  # 빈 레이블 (전각 공백 사용)
+                st.write("　")  # 빈 레이블 (전각 공백 사용)
                 add_clicked = st.button(
                     "➕ 일정 추가",
                     disabled=(selected_date == "선택안함" or selected_time == "선택안함"),
@@ -249,7 +249,7 @@ def main():
                 
                 if len(st.session_state.selected_slots) > 0:
                     # 전체 삭제 버튼만 오른쪽에 위치
-                    col1, col2, col3 = st.columns([2, 1, 1])
+                    col1, col2, col3 = st.columns([3, 3, 1])
                     with col3:
                         if st.button("일정 초기화", key="delete_all"):
                             st.session_state.selected_slots = []
