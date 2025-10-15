@@ -297,13 +297,13 @@ class EmailService:
                    attachment_mime_type: Optional[str] = None):
         """이메일 발송 (Gmail 최적화 적용)"""
         try:
-            # ✅ 중복 발송 방지 체크
+            # 중복 발송 방지 체크
             email_hash = hashlib.md5(f"{subject}{str(to_emails)}{body[:100]}".encode()).hexdigest()
             if email_hash in self.sent_emails:
                 logger.warning(f"⚠️ 중복 이메일 발송 방지: {to_emails}")
                 return False
             
-            # 1. 이메일 주소 검증 및 교정
+            # 이메일 주소 검증 및 교정
             validated_emails = []
             for email in (to_emails if isinstance(to_emails, list) else [to_emails]):
                 corrected_email, was_corrected = self.validate_and_correct_email(email)
@@ -317,46 +317,33 @@ class EmailService:
             if not validated_emails:
                 logger.error("전송 가능한 이메일이 없습니다.")
                 return False
-
+    
             # 발송 간격 체크
             primary_email = validated_emails[0]
             if not self._check_send_rate_limit(primary_email):
                 return False
-
+    
             logger.info(f"📧 이메일 발송 시작")
             logger.info(f"  - TO: {validated_emails}")
             logger.info(f"  - CC: {cc_emails}")
             logger.info(f"  - Subject: {subject}")
             
-            # 2. Gmail 수신자 감지
+            # Gmail 수신자 감지
             has_gmail = self._has_gmail_recipients(validated_emails, cc_emails, bcc_emails)
             logger.info(f"  - Gmail 수신자 포함: {has_gmail}")
             
-            # 3. 컨텐츠 최적화
+            # ✅ 컨텐츠 최적화 - Gmail도 원본 HTML 그대로 사용
             if has_gmail and is_html:
-                # Gmail용 최적화된 제목
+                # Gmail용 제목만 최적화, HTML은 원본 그대로
                 optimized_subject = self._optimize_subject_for_gmail(subject)
-                
-                # ✅ HTML Body를 htmlBody 파라미터로 전달
                 text_body = self._html_to_text(body)
-                html_body = self._create_gmail_safe_html({
-                    'company_name': 'AJ Networks',
-                    'title': '면접 시스템 알림',
-                    'recipient_name': '고객',
-                    'main_message': self._strip_emojis(text_body)[:200] + "...",
-                    'position': '',
-                    'interviewer': '',
-                    'action_link': '#',
-                    'button_text': '확인하기',
-                    'additional_content': body if len(body) < 500 else body[:500] + "...",
-                    'contact_email': Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'
-                })
+                html_body = body  # ✅ Gmail에도 원본 HTML 그대로 보냄
             else:
                 optimized_subject = subject
                 text_body = self._html_to_text(body) if is_html else body
                 html_body = body if is_html else f"<pre>{body}</pre>"
             
-            # 4. MIME 구조 생성
+            # MIME 구조 생성
             if is_html:
                 # MIME 구조 생성 (text + html + optional attachment)
                 msg = self._create_optimized_mime_structure(
@@ -382,7 +369,7 @@ class EmailService:
                     msg.attach(attachment)
                     logger.info(f"  - 첨부파일: {attachment_name}")
             
-            # 5. 헤더 설정
+            # 헤더 설정
             msg = self._add_anti_spam_headers(msg, primary_email)
             msg['To'] = ', '.join(validated_emails)
             msg['Subject'] = optimized_subject
@@ -399,14 +386,14 @@ class EmailService:
             if bcc_emails:
                 all_recipients.extend(bcc_emails)
             
-            # 6. SMTP 연결 및 발송
+            # SMTP 연결 및 발송
             server = self._create_smtp_connection()
             if server:
                 text = msg.as_string()
                 server.sendmail(self.email_config.EMAIL_USER, all_recipients, text)
                 server.quit()
                 
-                # ✅ 발송 성공 시 해시 기록
+                # 발송 성공 시 해시 기록
                 self.sent_emails.add(email_hash)
                 
                 logger.info(f"✅ 이메일 발송 성공: {validated_emails}")
@@ -1315,3 +1302,4 @@ AJ Networks 인사팀
         except Exception as e:
             logger.error(f"❌ HTML 테스트 메일 발송 실패: {e}")
             return False
+
