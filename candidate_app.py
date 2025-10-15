@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 구글 시트 연결 함수
+# (기존 함수들 - 변경사항 없음)
 @st.cache_resource
 def init_google_sheet():
     """구글 시트 직접 연결"""
@@ -55,11 +55,11 @@ def init_google_sheet():
 # 전역 변수
 google_sheet = init_google_sheet()
 
+# (기존 함수들 동일...)
 def normalize_text(text: str) -> str:
     """텍스트 정규화 - 공백, 대소문자, 특수문자 제거"""
     if not text:
         return ""
-    # 모든 공백 제거, 소문자 변환
     return str(text).strip().lower().replace(" ", "").replace("\n", "").replace("\t", "")
 
 def find_candidate_requests(name: str, email: str):
@@ -68,19 +68,16 @@ def find_candidate_requests(name: str, email: str):
         if not google_sheet:
             return []
         
-        # 구글 시트에서 모든 데이터 가져오기
         all_values = google_sheet.get_all_values()
-        if not all_values or len(all_values) < 2:  # 헤더 + 최소 1개 데이터
+        if not all_values or len(all_values) < 2:
             return []
         
-        headers = all_values[0]  # 첫 번째 행이 헤더
+        headers = all_values[0]
         
-        # 🔧 컬럼 인덱스 찾기 - 정확한 컬럼명으로 매칭
         try:
             name_col_idx = None
             email_col_idx = None
             
-            # 가능한 컬럼명들 체크
             for i, header in enumerate(headers):
                 header_normalized = normalize_text(header)
                 if header_normalized in ['면접자명', '면접자이름', '이름', 'name', 'candidate_name']:
@@ -89,7 +86,6 @@ def find_candidate_requests(name: str, email: str):
                     email_col_idx = i
             
             if name_col_idx is None or email_col_idx is None:
-                # 컬럼을 찾지 못한 경우, 전체 헤더 출력하여 디버깅
                 st.error(f"❌ 필요한 컬럼을 찾을 수 없습니다. 현재 컬럼: {headers}")
                 return []
                 
@@ -97,35 +93,28 @@ def find_candidate_requests(name: str, email: str):
             st.error(f"❌ 헤더 분석 실패: {e}")
             return []
         
-        # 정규화된 검색어
         normalized_search_name = normalize_text(name)
         normalized_search_email = normalize_text(email)
         
         matching_requests = []
         
-        # 데이터 행들 순회 (헤더 제외)
-        for row_idx, row in enumerate(all_values[1:], start=2):  # 2부터 시작 (1-based, 헤더 제외)
+        for row_idx, row in enumerate(all_values[1:], start=2):
             try:
-                # 안전하게 데이터 추출
                 row_name = row[name_col_idx] if name_col_idx < len(row) else ""
                 row_email = row[email_col_idx] if email_col_idx < len(row) else ""
                 
-                # 정규화하여 비교
                 normalized_row_name = normalize_text(row_name)
                 normalized_row_email = normalize_text(row_email)
                 
-                # 매칭 확인
                 if (normalized_row_name == normalized_search_name and 
                     normalized_row_email == normalized_search_email):
                     
-                    # 매칭된 경우 전체 행 데이터를 딕셔너리로 변환
-                    request_obj = {'_row_number': row_idx}  # 행 번호 저장
+                    request_obj = {'_row_number': row_idx}
                     
                     for col_idx, header in enumerate(headers):
                         value = row[col_idx] if col_idx < len(row) else ""
                         request_obj[header] = value
                     
-                    # 추가 필드 매핑 (하위 호환성)
                     request_obj.update({
                         'id': request_obj.get('요청ID', ''),
                         'position_name': request_obj.get('포지션명', ''),
@@ -144,7 +133,6 @@ def find_candidate_requests(name: str, email: str):
                     matching_requests.append(request_obj)
                     
             except Exception as e:
-                # 개별 행 처리 실패는 넘어감
                 continue
         
         return matching_requests
@@ -163,7 +151,6 @@ def parse_proposed_slots(slots_str: str):
     
     for part in parts:
         try:
-            # "2025-10-16 09:00(60분)" 형식 파싱
             if '(' in part and ')' in part:
                 datetime_part, duration_part = part.split('(')
                 duration = duration_part.replace('분)', '')
@@ -203,10 +190,8 @@ def update_sheet_selection(request, selected_slot=None, candidate_note="", is_al
         
         row_number = request['row_number']
         
-        # 현재 시트 구조 확인
         headers = google_sheet.row_values(1)
         
-        # 컬럼 인덱스 찾기 (0-based에서 1-based로 변환)
         try:
             confirmed_col = headers.index('확정일시') + 1
             status_col = headers.index('상태') + 1  
@@ -216,32 +201,27 @@ def update_sheet_selection(request, selected_slot=None, candidate_note="", is_al
             st.error(f"❌ 필요한 컬럼을 찾을 수 없습니다: {e}")
             return False
         
-        # 업데이트 실행
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M')
         
-        # 개별 셀 업데이트
         if is_alternative_request:
-            # 다른 일정 요청인 경우
-            google_sheet.update_cell(row_number, confirmed_col, "")  # 확정일시 비움
-            google_sheet.update_cell(row_number, status_col, "일정재조율요청")  # 상태 변경
-            google_sheet.update_cell(row_number, note_col, f"[다른 일정 요청] {candidate_note}")  # 요청사항
-            google_sheet.update_cell(row_number, update_col, current_time)  # 업데이트 시간
+            google_sheet.update_cell(row_number, confirmed_col, "")
+            google_sheet.update_cell(row_number, status_col, "일정재조율요청")
+            google_sheet.update_cell(row_number, note_col, f"[다른 일정 요청] {candidate_note}")
+            google_sheet.update_cell(row_number, update_col, current_time)
             
         else:
-            # 정규 일정 선택인 경우
             if selected_slot:
                 confirmed_datetime = f"{selected_slot['date']} {selected_slot['time']}({selected_slot['duration']}분)"
                 note_text = f"[확정시 요청사항] {candidate_note}" if candidate_note.strip() else ""
                 
-                google_sheet.update_cell(row_number, confirmed_col, confirmed_datetime)  # 확정일시
-                google_sheet.update_cell(row_number, status_col, "확정완료")  # 상태 변경
-                google_sheet.update_cell(row_number, note_col, note_text)  # 요청사항
-                google_sheet.update_cell(row_number, update_col, current_time)  # 업데이트 시간
+                google_sheet.update_cell(row_number, confirmed_col, confirmed_datetime)
+                google_sheet.update_cell(row_number, status_col, "확정완료")
+                google_sheet.update_cell(row_number, note_col, note_text)
+                google_sheet.update_cell(row_number, update_col, current_time)
             else:
                 st.error("❌ 선택된 슬롯 정보가 없습니다.")
                 return False
         
-        # 업데이트 확인을 위한 잠시 대기
         time.sleep(1)
         
         return True
@@ -253,7 +233,6 @@ def update_sheet_selection(request, selected_slot=None, candidate_note="", is_al
 def force_refresh_candidate_data(name, email):
     """면접자 데이터 강제 새로고침"""
     try:
-        # Streamlit 캐시 클리어
         try:
             st.cache_resource.clear()
         except:
@@ -263,20 +242,17 @@ def force_refresh_candidate_data(name, email):
             except:
                 pass
         
-        # 구글 시트 재연결
         global google_sheet
         google_sheet = init_google_sheet()
         
         if not google_sheet:
             return []
         
-        # 데이터 다시 조회
         return find_candidate_requests(name, email)
         
     except Exception as e:
         return []
 
-# 면접자 앱에서는 pages 폴더 숨기기
 def hide_pages():
     """면접자 앱에서 불필요한 페이지 숨기기"""
     hide_streamlit_style = """
@@ -340,21 +316,6 @@ def show_candidate_login():
                         st.rerun()
                     else:
                         st.error("❌ 입력하신 정보와 일치하는 면접 요청을 찾을 수 없습니다.")
-                        
-                        # 🔧 디버깅을 위한 추가 정보 (임시)
-                        if google_sheet:
-                            try:
-                                headers = google_sheet.row_values(1)
-                                st.info(f"💡 구글 시트 연결됨. 컬럼: {headers}")
-                                
-                                # 첫 번째 데이터 행 확인
-                                if len(google_sheet.get_all_values()) > 1:
-                                    first_data_row = google_sheet.row_values(2)
-                                    st.info(f"💡 첫 번째 데이터: {first_data_row}")
-                                else:
-                                    st.warning("⚠️ 구글 시트에 데이터가 없습니다.")
-                            except Exception as e:
-                                st.error(f"시트 확인 중 오류: {e}")
 
     # 도움말
     st.markdown("---")
@@ -410,6 +371,58 @@ def show_candidate_dashboard():
         with st.expander(f"📅 {request['position_name']} - {request['created_at']} 신청", expanded=len(candidate_requests)==1):
             show_request_detail(request, i)
 
+# ✅ 다른 일정 요청 완료 후 자동 초기화 함수
+def show_alternative_request_success(candidate_note: str):
+    """다른 일정 요청 성공 화면 표시 및 자동 초기화"""
+    
+    # 성공 화면 표시
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); color: white; padding: 40px; border-radius: 15px; text-align: center; margin: 30px 0; box-shadow: 0 10px 30px rgba(23,162,184,0.3);">
+        <div style="font-size: 3rem; margin-bottom: 20px;">📧</div>
+        <h1 style="margin: 0 0 15px 0; font-size: 2rem; font-weight: 300;">일정 재조율 요청이 전달되었습니다!</h1>
+        <p style="font-size: 1.1rem; opacity: 0.9; margin: 0;">인사팀에서 검토 후 별도 연락드리겠습니다.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 요청사항 표시
+    st.markdown(f"""
+    <div style="background-color: #d1ecf1; padding: 25px; border-radius: 10px; margin: 20px 0; border-left: 5px solid #17a2b8;">
+        <h4 style="color: #0c5460; margin-top: 0;">📝 전달된 요청사항</h4>
+        <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #bee5eb;">
+            <p style="color: #0c5460; margin: 0; white-space: pre-line; font-size: 1.1rem; line-height: 1.6;">{candidate_note}</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 안내 메시지
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 25px; border-radius: 12px; border-left: 6px solid #2196f3; margin: 25px 0;">
+        <h4 style="color: #1565c0; margin-top: 0;">📋 다음 단계</h4>
+        <ul style="color: #1565c0; line-height: 1.8; margin: 0;">
+            <li>인사팀에서 요청사항을 검토합니다</li>
+            <li>가능한 대안 일정을 찾아 연락드립니다</li>
+            <li>추가 문의가 있으시면 hr@ajnet.co.kr로 연락해주세요</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # ✅ 3초 후 자동 초기화
+    st.markdown("""
+    <div style="text-align: center; margin: 30px 0;">
+        <p style="color: #666; font-size: 0.9rem;">잠시 후 초기 화면으로 돌아갑니다...</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 자동 초기화 스크립트
+    time.sleep(3)
+    
+    # 세션 상태 초기화
+    for key in ['authenticated_candidate', 'candidate_requests']:
+        if key in st.session_state:
+            del st.session_state[key]
+    
+    st.rerun()
+
 def show_request_detail(request, index):
     """요청 상세 정보 및 일정 선택 폼 - 라디오 버튼 반응 개선"""
     import time
@@ -457,7 +470,6 @@ def show_request_detail(request, index):
     
     # 제안된 일정 테이블 표시
     if proposed_slots:
-        # 데이터프레임으로 변환하여 표시
         slot_data = []
         for i, slot in enumerate(proposed_slots, 1):
             slot_data.append({
@@ -469,7 +481,6 @@ def show_request_detail(request, index):
         
         df = pd.DataFrame(slot_data)
         
-        # 스타일이 적용된 데이터프레임 표시
         st.markdown("""
         <div style="border: 2px solid #28a745; border-radius: 8px; overflow: hidden; margin: 15px 0;">
         """, unsafe_allow_html=True)
@@ -479,26 +490,10 @@ def show_request_detail(request, index):
             use_container_width=True, 
             hide_index=True,
             column_config={
-                "옵션": st.column_config.TextColumn(
-                    "옵션",
-                    help="선택 가능한 면접 일정 옵션",
-                    width="small"
-                ),
-                "날짜": st.column_config.TextColumn(
-                    "날짜",
-                    help="면접 날짜",
-                    width="medium"
-                ),
-                "시간": st.column_config.TextColumn(
-                    "시간", 
-                    help="면접 시작 시간",
-                    width="small"
-                ),
-                "소요시간": st.column_config.TextColumn(
-                    "소요시간",
-                    help="예상 면접 소요 시간",
-                    width="small"
-                )
+                "옵션": st.column_config.TextColumn("옵션", help="선택 가능한 면접 일정 옵션", width="small"),
+                "날짜": st.column_config.TextColumn("날짜", help="면접 날짜", width="medium"),
+                "시간": st.column_config.TextColumn("시간", help="면접 시작 시간", width="small"),
+                "소요시간": st.column_config.TextColumn("소요시간", help="예상 면접 소요 시간", width="small")
             }
         )
         
@@ -593,7 +588,7 @@ def show_request_detail(request, index):
                 else:
                     st.error("❌ 일정 확정 중 오류가 발생했습니다.")
         else:
-            # 다른 일정 요청
+            # ✅ 다른 일정 요청 - 개선된 처리
             if not candidate_note.strip():
                 st.error("❌ 가능한 일정을 구체적으로 입력해주세요.")
             else:
@@ -606,20 +601,8 @@ def show_request_detail(request, index):
                     )
                     
                     if success:
-                        st.success("📧 일정 재조율 요청이 인사팀에 전달되었습니다!")
-                        st.info("인사팀에서 검토 후 별도 연락드리겠습니다.")
-                        
-                        # 요청사항 표시
-                        st.markdown(f"""
-                        <div style="background-color: #d1ecf1; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 5px solid #17a2b8;">
-                            <h4 style="color: #0c5460; margin-top: 0;">📝 전달된 요청사항</h4>
-                            <p style="color: #0c5460; margin: 0; white-space: pre-line;">{candidate_note}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # 세션 업데이트를 위한 새로고침
-                        time.sleep(2)
-                        st.rerun()
+                        # ✅ 성공 화면 표시 및 자동 초기화
+                        show_alternative_request_success(candidate_note)
                     else:
                         st.error("❌ 일정 재조율 요청 전송 중 오류가 발생했습니다.")
 
