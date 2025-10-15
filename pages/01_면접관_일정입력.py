@@ -61,10 +61,16 @@ def main():
 def show_login_form():
     """면접관 사번 입력 폼"""
     st.markdown("""
-    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px; border-radius: 15px; text-align: center; margin: 30px 0; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
-        <div style="font-size: 3rem; margin-bottom: 20px;">🔐</div>
-        <h1 style="margin: 0 0 15px 0; font-size: 2rem; font-weight: 300;">면접관 인증</h1>
-        <p style="font-size: 1.1rem; opacity: 0.9; margin: 0;">사번을 입력하여 본인의 면접 요청을 확인하세요</p>
+    <div style="background: linear-gradient(135deg, #ED1C24 0%, #FF3300 100%);
+                color: white;
+                padding: 20px;
+                border-radius: 12px;
+                text-align: center;
+                margin: 15px 0;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.2);">
+        <div style="font-size: 2rem; margin-bottom: 10px;">🔐</div>
+        <h1 style="margin: 0 0 10px 0; font-size: 1.5rem; font-weight: 400;">면접관 인증</h1>
+        <p style="font-size: 0.95rem; opacity: 0.9; margin: 0;">사번을 입력하여 본인의 면접 요청을 확인하세요</p>
     </div>
     """, unsafe_allow_html=True)
     
