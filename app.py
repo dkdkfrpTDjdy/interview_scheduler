@@ -253,7 +253,7 @@ def main():
                 
                 if len(st.session_state.selected_slots) > 0:
                     # 전체 삭제 버튼만 오른쪽에 위치
-                    col1, col2 = st.columns([4, 1])
+                    col1, col2 = st.columns([10, 1])
                     with col2:
                         if st.button("일정 초기화", key="delete_all"):
                             st.session_state.selected_slots = []
@@ -432,55 +432,6 @@ def main():
                             except Exception as e:
                                 st.error(f"❌ 구글 시트 동기화 실패: {e}")
                     
-                    # 개별 요청 관리 (구글 시트 데이터 기반)
-                    st.subheader("🔧 개별 요청 관리")
-                    
-                    # 요청 선택 옵션 생성
-                    request_options = ["선택하세요"]
-                    for row in sheet_data:
-                        request_id = str(row.get('요청ID', ''))[:8]
-                        position = str(row.get('포지션', ''))
-                        candidate = str(row.get('면접자명', ''))
-                        if request_id and position and candidate:
-                            request_options.append(f"{request_id}... - {position} ({candidate})")
-                    
-                    selected_request_id = st.selectbox(
-                        "관리할 요청을 선택하세요",
-                        options=request_options
-                    )
-                    
-                    if selected_request_id != "선택하세요":
-                        # 선택된 요청의 상세 정보 표시
-                        request_short_id = selected_request_id.split(' - ')[0].replace('...', '')
-                        
-                        # 해당 요청 찾기
-                        selected_row = None
-                        for row in sheet_data:
-                            if str(row.get('요청ID', '')).startswith(request_short_id):
-                                selected_row = row
-                                break
-                        
-                        if selected_row:
-                            # 요청 상세 정보 표시
-                            st.info(f"**선택된 요청:** {selected_row.get('포지션', '')} - {selected_row.get('면접자명', '')} (상태: {selected_row.get('상태', '')})")
-                            
-                            # 관리 버튼들
-                            col1, col2, col3 = st.columns(3)
-                            
-                            with col1:
-                                if st.button("📧 면접관에게 알림", use_container_width=True):
-                                    st.info("면접관 알림 기능은 개발 중입니다.")
-                            
-                            with col2:
-                                if st.button("📧 면접자에게 알림", use_container_width=True):
-                                    st.info("면접자 알림 기능은 개발 중입니다.")
-                            
-                            with col3:
-                                if st.button("❌ 요청 취소", use_container_width=True, type="secondary"):
-                                    st.warning("요청 취소 기능은 개발 중입니다.")
-            
-            else:
-                st.error("구글 시트에 연결되지 않았습니다.")
                 
         except Exception as e:
             st.error(f"데이터 로드 실패: {e}")
