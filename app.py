@@ -105,8 +105,8 @@ def main():
                     help="면접자의 이메일 주소를 입력해주세요"
                 )
             
-            # ✅ 폼 제출 버튼 추가 (기본 정보 저장용)
-            basic_info_submitted = st.form_submit_button("💾 기본 정보 저장", use_container_width=True)
+            # ✅ 폼 제출 버튼 수정 (use_container_width → width)
+            basic_info_submitted = st.form_submit_button("💾 기본 정보 저장", width="stretch")
             
             # 기본 정보 검증 및 세션 저장
             if basic_info_submitted:
@@ -198,9 +198,9 @@ def main():
                         "시간": time_display
                     })
                 
-                # Streamlit 테이블로 표시
+                # Streamlit 테이블로 표시 (width 수정)
                 df = pd.DataFrame(table_data)
-                st.dataframe(df, use_container_width=True, hide_index=True)
+                st.dataframe(df, width="stretch", hide_index=True)
                 
                 # 개별 삭제 버튼들
                 if len(st.session_state.selected_slots) > 0:
@@ -221,7 +221,7 @@ def main():
             
             # ✅ 최종 제출 섹션
             st.markdown("---")
-            if st.button("📧 면접 일정 조율 시작", use_container_width=True, type="primary"):
+            if st.button("📧 면접 일정 조율 시작", width="stretch", type="primary"):
                 basic_info = st.session_state.basic_info
                 
                 # 최종 유효성 검사
@@ -240,9 +240,7 @@ def main():
                     try:
                         db.save_interview_request(request)
                         
-                        # ✅ 중복 발송 방지: 발송 상태 체크
-                        send_key = f"email_sent_{request.id}"
-                        # ✅ 항상 새 메일 발송 (중복 방지 제거)
+                        # ✅ 항상 새 메일 발송
                         if email_service.send_interviewer_invitation(request):
                             st.success(f"✅ 면접 요청이 생성되었습니다! (ID: {request.id[:8]}...)")
                             st.success(f"📧 면접관({basic_info['interviewer_id']})에게 일정 입력 요청 메일을 발송했습니다.")
@@ -301,7 +299,7 @@ def main():
                 })
             
             df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(df, width="stretch")
             
             # 🔧 추가: 개별 요청 관리
             st.subheader("🔧 개별 요청 관리")
@@ -325,14 +323,14 @@ def main():
                     col1, col2, col3 = st.columns(3)
                     
                     with col1:
-                        if st.button("📧 면접관에게 다시 알림", use_container_width=True):
+                        if st.button("📧 면접관에게 다시 알림", width="stretch"):
                             if email_service.send_interviewer_invitation(selected_request):
                                 st.success("✅ 면접관에게 알림을 다시 발송했습니다.")
                             else:
                                 st.error("❌ 알림 발송에 실패했습니다.")
                     
                     with col2:
-                        if st.button("📧 면접자에게 다시 알림", use_container_width=True):
+                        if st.button("📧 면접자에게 다시 알림", width="stretch"):
                             if selected_request.available_slots:
                                 if email_service.send_candidate_invitation(selected_request):
                                     st.success("✅ 면접자에게 알림을 다시 발송했습니다.")
@@ -342,7 +340,7 @@ def main():
                                 st.warning("⚠️ 면접관이 아직 일정을 입력하지 않았습니다.")
                     
                     with col3:
-                        if st.button("❌ 요청 취소", use_container_width=True, type="secondary"):
+                        if st.button("❌ 요청 취소", width="stretch", type="secondary"):
                             selected_request.status = Config.Status.CANCELLED
                             selected_request.updated_at = datetime.now()
                             db.save_interview_request(selected_request)
@@ -356,7 +354,7 @@ def main():
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            if st.button("🔄 전체 동기화", use_container_width=True):
+            if st.button("🔄 전체 동기화", width="stretch"):
                 try:
                     requests = db.get_all_requests()
                     success_count = 0
@@ -376,7 +374,7 @@ def main():
                     st.error(f"❌ 구글 시트 동기화 실패: {e}")
         
         with col2:
-            if st.button("📊 통계 업데이트", use_container_width=True):
+            if st.button("📊 통계 업데이트", width="stretch"):
                 try:
                     stats = db.get_statistics()
                     st.success("✅ 통계 정보가 업데이트되었습니다.")
@@ -395,14 +393,14 @@ def main():
                     st.error(f"❌ 통계 업데이트 실패: {e}")
         
         with col3:
-            if st.button("📋 시트 열기", use_container_width=True):
+            if st.button("📋 시트 열기", width="stretch"):
                 if Config.GOOGLE_SHEET_ID:
                     st.markdown(f"[구글 시트 바로가기]({Config.GOOGLE_SHEET_URL})")
                 else:
                     st.error("구글 시트 ID가 설정되지 않았습니다.")
         
         with col4:
-            if st.button("📧 확정 알림 재발송", use_container_width=True):
+            if st.button("📧 확정 알림 재발송", width="stretch"):
                 try:
                     confirmed_requests = [req for req in db.get_all_requests() 
                                         if req.status == Config.Status.CONFIRMED and req.selected_slot]
@@ -424,7 +422,7 @@ def main():
                 sheet_data = db.sheet.get_all_records()
                 if sheet_data:
                     df = pd.DataFrame(sheet_data)
-                    st.dataframe(df, use_container_width=True, height=400)
+                    st.dataframe(df, width="stretch", height=400)
                 else:
                     st.info("구글 시트가 비어있습니다.")
             else:
