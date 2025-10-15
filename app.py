@@ -221,41 +221,51 @@ def main():
             
             # ✅ 최종 제출 섹션
             st.markdown("---")
-            if st.button("📧 면접 일정 조율 시작", width="stretch", type="primary"):
-                basic_info = st.session_state.basic_info
+            
+            # 초기 상태 세팅
+            if "submission_done" not in st.session_state:
+                st.session_state.submission_done = False
+            
+            if st.session_state.submission_done:
+                st.success(f"✅ 면접 요청이 생성되었습니다! (ID: {st.session_state.last_request_id[:8]}...)")
+                st.success(f"📧 면접관({st.session_state.basic_info['interviewer_id']})에게 일정 입력 요청 메일을 발송했습니다.")
+                st.info("면접관이 일정을 입력하면 자동으로 면접자에게 알림이 전송됩니다.")
                 
-                # 최종 유효성 검사
-                if not st.session_state.selected_slots:
-                    st.error("1개 이상의 면접 희망일시를 선택해주세요.")
-                else:
-                    # 새 면접 요청 생성
-                    request = InterviewRequest.create_new(
-                        interviewer_id=basic_info['interviewer_id'],
-                        candidate_email=basic_info['candidate_email'],
-                        candidate_name=basic_info['candidate_name'],
-                        position_name=basic_info['position_name'],
-                        preferred_datetime_slots=st.session_state.selected_slots.copy()
-                    )
+                if st.button("🔁 초기화"):
+                    # 모든 상태 초기화
+                    st.session_state.selected_slots = []
+                    if "basic_info" in st.session_state:
+                        del st.session_state.basic_info
+                    st.session_state.submission_done = False
+                    st.rerun()
+            else:
+                if st.button("📧 면접 일정 조율 시작", type="primary"):
+                    basic_info = st.session_state.basic_info
                     
-                    try:
-                        db.save_interview_request(request)
+                    # 유효성 검사
+                    if not st.session_state.selected_slots:
+                        st.error("1개 이상의 면접 희망일시를 선택해주세요.")
+                    else:
+                        # 면접 요청 생성
+                        request = InterviewRequest.create_new(
+                            interviewer_id=basic_info['interviewer_id'],
+                            candidate_email=basic_info['candidate_email'],
+                            candidate_name=basic_info['candidate_name'],
+                            position_name=basic_info['position_name'],
+                            preferred_datetime_slots=st.session_state.selected_slots.copy()
+                        )
                         
-                        # ✅ 항상 새 메일 발송
-                        if email_service.send_interviewer_invitation(request):
-                            st.success(f"✅ 면접 요청이 생성되었습니다! (ID: {request.id[:8]}...)")
-                            st.success(f"📧 면접관({basic_info['interviewer_id']})에게 일정 입력 요청 메일을 발송했습니다.")
-                            st.info("면접관이 일정을 입력하면 자동으로 면접자에게 알림이 전송됩니다.")
+                        try:
+                            db.save_interview_request(request)
                             
-                            # 세션 데이터 초기화
-                            st.session_state.selected_slots = []
-                            if 'basic_info' in st.session_state:
-                                del st.session_state.basic_info
-                            # st.rerun()
-                        else:
-                            st.error("이메일 발송에 실패했습니다.")
-                            
-                    except Exception as e:
-                        st.error(f"❌ 면접 요청 저장 실패: {e}")
+                            if email_service.send_interviewer_invitation(request):
+                                st.session_state.last_request_id = request.id
+                                st.session_state.submission_done = True
+                                st.rerun()
+                            else:
+                                st.error("이메일 발송에 실패했습니다.")
+                        except Exception as e:
+                            st.error(f"❌ 면접 요청 저장 실패: {e}")
         else:
             st.info("👆 먼저 위에서 기본 정보를 입력하고 저장해주세요.")
     
@@ -433,5 +443,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
