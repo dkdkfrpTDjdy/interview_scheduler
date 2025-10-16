@@ -224,7 +224,7 @@ def show_request_detail(request, index):
             for i, datetime_slot in enumerate(request.preferred_datetime_slots):
                 st.markdown(f"**📅 면접 일시 {i+1}**")
                 
-                if "면접관선택" in datetime_slot:
+                if "면접관 선택" in datetime_slot:
                     # 면접관이 시간을 직접 선택해야 하는 경우
                     date_part = datetime_slot.split(' ')[0]
                     
