@@ -587,12 +587,12 @@ class EmailService:
                         <h3 style="color: #FF0033;">📅 확정된 면접 일정</h3>
                         <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
                             <tr style="background-color: #F5F5F5;">
-                                <td style="padding: 12px; border: 1px solid #D9D9D9; font-weight: bold; width: 30%;">포지션</td>
-                                <td style="padding: 12px; border: 1px solid #D9D9D9;">{request.position_name}</td>
+                                <td style="padding: 10px; border: 1px solid #D9D9D9; font-weight: bold; width: 30%;">포지션</td>
+                                <td style="padding: 10px; border: 1px solid #D9D9D9;">{request.position_name}</td>
                             </tr>
                             <tr>
-                                <td style="padding: 12px; border: 1px solid #D9D9D9; font-weight: bold;">면접일시</td>
-                                <td style="padding: 12px; border: 1px solid #D9D9D9;">{confirmed_datetime}</td>
+                                <td style="padding: 10px; border: 1px solid #D9D9D9; font-weight: bold;">면접일시</td>
+                                <td style="padding: 10px; border: 1px solid #D9D9D9;">{confirmed_datetime}</td>
                             </tr>
                         </table>
                     </div>
