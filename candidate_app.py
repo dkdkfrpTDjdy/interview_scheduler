@@ -505,7 +505,7 @@ def show_request_detail(request, index):
         slot_text = f"옵션 {i+1}: {format_date_korean(slot['date'])} {slot['time']} ({slot['duration']}분)"
         slot_options.append(slot_text)
     
-    slot_options.append("❌ 제안된 일정으로는 불가능 (다른 일정 요청)")
+    slot_options.append("다른 일정 요청")
     
     # ✅ 라디오 버튼 반응 개선 - 세션 상태로 선택 관리
     radio_key = f"radio_selection_{index}"
@@ -531,17 +531,11 @@ def show_request_detail(request, index):
     # 다른 일정 요청 시 입력창
     candidate_note = ""
     if selected_option == len(slot_options) - 1:
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); padding: 25px; border-radius: 12px; border-left: 6px solid #ffc107; margin: 25px 0;">
-            <h4 style="color: #856404; margin-top: 0; font-size: 1.3rem;">📝 다른 일정 요청</h4>
-            <p style="color: #856404; margin-bottom: 15px;">제안된 일정이 맞지 않으시나요? 가능한 일정을 구체적으로 알려주세요.</p>
-        </div>
-        """, unsafe_allow_html=True)
         
         candidate_note = st.text_area(
-            "가능한 면접 일정이나 요청사항을 입력해주세요:",
-            placeholder="예시:\n• 다음 주 화요일 오후 2시 이후 가능합니다\n• 월요일과 수요일은 전체 불가능합니다\n• 오전 시간대를 선호합니다\n• 온라인 면접을 희망합니다",
-            height=150,
+            "가능한 면접 일정이나 요청사항을 입력해주세요",
+            placeholder="예시:\n• 월요일과 수요일은 전체 불가능합니다\n• 오전 시간대를 선호합니다\n• 온라인 면접을 희망합니다",
+            height=180,
             key=f"candidate_note_{index}",
             help="구체적으로 작성해주시면 더 빠른 조율이 가능합니다"
         )
