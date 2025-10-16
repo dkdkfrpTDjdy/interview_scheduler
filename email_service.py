@@ -146,24 +146,6 @@ class EmailService:
                 
         return msg
 
-    def _optimize_subject_for_gmail(self, subject: str) -> str:
-        """Gmail 최적화 제목"""
-        # 이모지 제거
-        emoji_pattern = re.compile("["
-                                 u"\U0001F600-\U0001F64F"
-                                 u"\U0001F300-\U0001F5FF"
-                                 u"\U0001F680-\U0001F6FF"
-                                 u"\U0001F1E0-\U0001F1FF"
-                                 "]+", flags=re.UNICODE)
-        clean_subject = emoji_pattern.sub('', subject)
-        
-        # 회사명 추가
-        company_name = getattr(Config, 'COMPANY_NAME', self.company_domain.upper())
-        if company_name not in clean_subject:
-            clean_subject = f"[{company_name}] {clean_subject}"
-        
-        return clean_subject.strip()
-
     def _create_gmail_safe_html(self, content_data: dict) -> str:
         """Gmail 안전 HTML 생성 - AJ 로고 포함"""
         # AJ 로고 URL
@@ -292,7 +274,6 @@ class EmailService:
             
             # 컨텐츠 최적화
             if has_gmail and is_html:
-                optimized_subject = self._optimize_subject_for_gmail(subject)
                 text_body = self._html_to_text(body)
                 html_body = body
             else:
