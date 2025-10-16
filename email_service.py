@@ -59,9 +59,8 @@ class EmailService:
             return False
 
     def _is_gmail_recipient(self, email: str) -> bool:
-        """Gmail 수신자인지 확인"""
         gmail_domains = ['gmail.com', 'gamail.com', 'gmial.com', 'gmai.com', 'gmail.co']
-        return any(domain in email.lower() for domain in gmail_domains)
+        return any(domain == email.lower().split('@')[-1] for domain in gmail_domains)
 
     def _has_gmail_recipients(self, to_emails: List[str], cc_emails: Optional[List[str]] = None, bcc_emails: Optional[List[str]] = None) -> bool:
         """수신자 중 Gmail 사용자가 있는지 확인"""
