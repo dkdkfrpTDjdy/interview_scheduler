@@ -197,14 +197,14 @@ class EmailService:
                 </p>
                 
                 <!-- 면접 정보 테이블 -->
-                <table style="width:100%; border-collapse:collapse; border:2px solid #EF3340; margin:20px 0; border-radius:8px; overflow:hidden; background-color:#efeff1;">
+                <table style="width:100%; border-collapse:collapse; border:1px solid #e7e7e7; margin:20px 0; border-radius:8px; overflow:hidden; background-color:#ffffff;">
                     <tr>
-                        <td style="padding:15px; font-weight:bold; color:#1A1A1A; border:1px solid #e7e7e7; width:30%;">포지션</td>
-                        <td style="padding:15px; color:#737272; border:1px solid #1A1A1A;">{content_data.get('position', '')}</td>
+                        <td style="padding:14px; font-weight:bold; color:#1A1A1A; border:1px solid #e7e7e7; width:30%; text-align:center;">포지션</td>
+                        <td style="padding:14px; color:#737272; border:1px solid #e7e7e7; text-align:center;">{content_data.get('position', '')}</td>
                     </tr>
                     <tr>
-                        <td style="padding:15px; font-weight:bold; color:#1A1A1A; border:1px solid #e7e7e7;">면접관</td>
-                        <td style="padding:15px; color:#737272; border:1px solid #1A1A1A;">{content_data.get('interviewer', '')}</td>
+                        <td style="padding:14px; font-weight:bold; color:#1A1A1A; border:1px solid #e7e7e7; text-align:center;">면접관</td>
+                        <td style="padding:14px; color:#737272; border:1px solid #e7e7e7; text-align:center;">{content_data.get('interviewer', '')}</td>
                     </tr>
                 </table>
                 
@@ -224,7 +224,7 @@ class EmailService:
                 </div>
                 
                 <!-- 참고사항 -->
-                <div style="background-color:#f9f9f9;padding:20x;border-radius:10px;border-left:5px solid #737272;margin:30px 0;">
+                <div style="background-color:#f9f9f9;padding:20px;border-radius:10px;border-left:5px solid #737272;margin:30px 0;">
                     <p style="margin:0 0 15px 0;font-weight:bold;color:#1A1A1A;font-size:16px;">📝 참고사항</p>
                     <ul style="margin:0;padding-left:20px;color:#737272;line-height:1.8;">
                         <li>제안된 일정 중 선택하시거나, 다른 일정이 필요한 경우 직접 입력해주세요</li>
@@ -248,7 +248,7 @@ class EmailService:
             <div style="background-color:#efeff1;padding:20px;text-align:center;border-top:2px solid #e7e7e7;">
                 <p style="margin:0;font-size:14px;color:#737272;">
                     본 메일은 <strong style="color:#EF3340;">{content_data.get('company_name', 'AJ네트웍스')}</strong> 인사팀에서 발송되었습니다.<br>
-                    문의: <a href="mailto:{content_data.get('contact_email', 'hr@ajnet.co.kr')}" style="color:#e0752e;text-decoration:none;font-weight:bold;">{content_data.get('contact_email', 'hr@ajnet.co.kr')}</a>
+                    문의: <a href="mailto:{content_data.get('contact_email', 'hr@ajnet.co.kr')}" style="color:#EF3340;text-decoration:none;font-weight:bold;">{content_data.get('contact_email', 'hr@ajnet.co.kr')}</a>
                 </p>
             </div>
         </div>
@@ -369,13 +369,13 @@ class EmailService:
         # 면접 일정 테이블 HTML 생성
         slots_html = ""
         for i, slot in enumerate(request.available_slots, 1):
-            bg_color = "#efeff1" if i % 2 == 0 else "white"
+            bg_color = "#ffffff"
             slots_html += f"""
             <tr style="background-color: {bg_color};">
-                <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7;">{i}</td>
-                <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7;">{format_date_korean(slot.date)}</td>
-                <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7;">{slot.time}</td>
-                <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7;">{slot.duration}분</td>
+                <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{i}</td>
+                <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{format_date_korean(slot.date)}</td>
+                <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{slot.time}</td>
+                <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{slot.duration}분</td>
             </tr>
             """
         
@@ -389,14 +389,14 @@ class EmailService:
             'action_link': candidate_link,
             'button_text': '면접 일정 선택하기',
             'additional_content': f"""
-            <h4 style="color: #EF3340; margin: 0 0 20px 0;">🗓️ 제안된 면접 일정</h4>
+            <h4 style="color: #EF3340; margin: 0 0 20px 0; font-size:16px;">🗓️ 제안된 면접 일정</h4>
             <table style="width: 100%; border-collapse: collapse; border: 2px solid #EF3340; border-radius: 8px; overflow: hidden;">
                 <thead>
                     <tr style="background: linear-gradient(135deg, #EF3340 0%, #e0752e 100%); color: white;">
-                        <th style="padding: 12px; border: 1px solid #e7e7e7; font-weight: bold;">번호</th>
-                        <th style="padding: 12px; border: 1px solid #e7e7e7; font-weight: bold;">날짜</th>
-                        <th style="padding: 12px; border: 1px solid #e7e7e7; font-weight: bold;">시간</th>
-                        <th style="padding: 12px; border: 1px solid #e7e7e7; font-weight: bold;">소요시간</th>
+                        <th style="padding: 14px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">번호</th>
+                        <th style="padding: 14px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">날짜</th>
+                        <th style="padding: 14px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">시간</th>
+                        <th style="padding: 14px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">소요시간</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -510,8 +510,8 @@ class EmailService:
             for i, slot in enumerate(request.available_slots, 1):
                 bg_color = "#efeff1" if i % 2 == 0 else "white"
                 slots_html += f"""
-                <tr style="background-color: {bg_color};">
-                    <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7;">면접 일자 {i}</td>
+                <tr style="background-color: {bg_color};
+                    <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7;">{i}</td>
                     <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7;">{format_date_korean(slot.date)}</td>
                     <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7;">{slot.time}</td>
                     <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7;">{slot.duration}분</td>
@@ -524,7 +524,7 @@ class EmailService:
                 'company_name': 'AJ네트웍스',
                 'title': '면접 일정 선택',
                 'recipient_name': request.candidate_name,
-                'main_message': f'{request.position_name} 포지션 지원에 감사드립니다. 면접관이 제안한 일정 중에서 원하시는 시간을 선택해주세요.',
+                'main_message': f'{request.position_name} 포지션 지원에 감사드립니다.<br>면접관이 제안한 일정 중에서 원하시는 시간을 선택해주세요.',
                 'position': request.position_name,
                 'interviewer': f"{interviewer_info['name']} ({interviewer_info['department']})",
                 'action_link': candidate_link,
