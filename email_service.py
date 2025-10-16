@@ -417,7 +417,7 @@ class EmailService:
 
             link = "https://interview-scheduler-ajnetworks.streamlit.app/면접관_일정입력"
 
-            subject = f"[AJ네트웍스] 면접 일정 입력 요청 - {request.position_name}"
+            subject = f"[인사팀] 면접 일정 입력 요청의 건"
             body = f"""
             <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #ffffff; font-family: Arial, sans-serif; color: #1A1A1A;">
             <tr>
@@ -425,34 +425,33 @@ class EmailService:
                 <table width="640" cellpadding="0" cellspacing="0" style="background-color: #efeff1;">
                     <!-- Header -->
                     <tr>
-                    <td align="center" style="background-color: #efeff1; color: #1A1A1A; padding: 20px;">
-                        <h2 style="margin: 10px 0 0; font-size: 20px;">면접 일정 입력 요청</h2>
+                    <td align="center" style="background-color: #ffffff; color: #1A1A1A; padding: 20px;">
+                        <h2 style="margin: 10px 0 0; font-size: 20px;">{request.position_name}면접 일정 입력 요청</h2>
                     </td>
                     </tr>
 
                     <!-- Body -->
                     <tr>
                     <td style="padding: 30px;">
-                        <p style="font-size: 15px; margin: 0 0 10px;">안녕하세요, <strong>{interviewer_info['name']}</strong>님</p>
+                        <p style="font-size: 15px; margin: 0 0 10px;">안녕하세요, <strong>{interviewer_info['name']} ({interviewer_info['employee_id']}) </strong>님</p>
                         <p style="font-size: 15px; line-height: 1.5; margin: 0 0 20px;">
                         새로운 면접 일정 조율 요청이 도착했습니다.<br>
                         아래 정보를 확인하시고 <strong style="color: #1A1A1A;">면접 가능 일정을 입력</strong>해 주세요.
                         </p>
 
                         <!-- Interview Info Table -->
-                        <table width="100%" cellpadding="10" cellspacing="0" style="border: 1px solid #e7e7e7; font-size: 14px;">
-                        <tr style="background-color: #f5f5f5;">
-                            <td style="width: 30%; font-weight: bold;">포지션</td>
-                            <td>{request.position_name}</td>
+                        <table width="100%" cellpadding="10" cellspacing="0" style="border-collapse: collapse; background-color: #ffffff; font-size: 14px;">
+                        <tr>
+                            <td style="width: 30%; font-weight: bold; text-align: center; border: 1px solid #e7e7e7;">포지션</td>
+                            <td style="text-align: center; border: 1px solid #e7e7e7;">{request.position_name}</td>
                         </tr>
                         <tr>
-                        <tr style="background-color: #f5f5f5;">
-                            <td style="font-weight: bold;">면접자</td>
-                            <td>{request.candidate_name}</td>
+                            <td style="font-weight: bold; text-align: center; border: 1px solid #e7e7e7;">면접자</td>
+                            <td style="text-align: center; border: 1px solid #e7e7e7;">{request.candidate_name}</td>
                         </tr>
-                        <tr style="background-color: #f5f5f5;">
-                            <td style="font-weight: bold;">이메일</td>
-                            <td>{request.candidate_email}</td>
+                        <tr>
+                            <td style="font-weight: bold; text-align: center; border: 1px solid #e7e7e7;">이메일</td>
+                            <td style="text-align: center; border: 1px solid #e7e7e7;">{request.candidate_email}</td>
                         </tr>
                         </table>
 
@@ -464,12 +463,12 @@ class EmailService:
                         </div>
 
                         <!-- Contact -->
-                        <p style=""background-color: #f5f5f5; font-size: 13px; color: #737272; text-align: center;">
+                        <p style=""background-color: #f5f5f5; font-size: 12px; color: #737272; text-align: center;">
                         본 메일은 AJ네트웍스 인사팀에서 발송되었습니다.<br>
                         문의: <a href="mailto:{Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'}" style="color: #e0752e;">{Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'}</a>
                         </p>
                     </td>
-                    </tr>
+                    </tr>ㅇ
 
                     <!-- Footer -->
                     <tr>
