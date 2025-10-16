@@ -173,7 +173,7 @@ class EmailService:
     <meta charset="UTF-8">
     <title>{content_data.get('title', '이메일 알림')}</title>
 </head>
-<body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:#f8f9fa;">
+<body style="margin:0;padding:0;font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;background-color:#f8f9fa;">
     <div style="max-width:600px;margin:0 auto;background-color:#ffffff;">
         <div style="background-color:#007bff;color:#ffffff;padding:30px;text-align:center;">
             <h1 style="margin:0;font-size:24px;">{content_data.get('company_name', 'AJ네트웍스')}</h1>
@@ -201,10 +201,11 @@ class EmailService:
             </table>
             
             <div style="text-align:center;margin:30px 0;">
-                <a href="{content_data.get('action_link', '#')}" 
-                   style="display:inline-block;padding:15px 30px;background-color:#007bff;color:#ffffff;text-decoration:none;border-radius:5px;">
-                    {content_data.get('button_text', '확인하기')}
-                </a>
+            <a href="{content_data.get('action_link', '#')}" 
+            style="display:inline-block;padding:15px 30px;background-color:#007bff;color:#ffffff;
+                    text-decoration:none;border-radius:5px;font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+            {content_data.get('button_text', '확인하기')}
+            </a>
             </div>
             
             <div style="background-color:#f8f9fa;padding:20px;border-radius:5px;">
@@ -338,7 +339,7 @@ class EmailService:
             bg_color = "#E6E6E6" if i % 2 == 0 else "white"  # 보조색 (K10)
             slots_html += f"""
             <tr style="background-color: {bg_color};">
-                <td style="padding: 15px; text-align: center; border: 1px solid #D9D9D9;">옵션 {i}</td>
+                <td style="padding: 15px; text-align: center; border: 1px solid #D9D9D9;">면접 일자 {i}</td>
                 <td style="padding: 15px; text-align: center; border: 1px solid #D9D9D9;">{format_date_korean(slot.date)}</td>
                 <td style="padding: 15px; text-align: center; border: 1px solid #D9D9D9;">{slot.time}</td>
                 <td style="padding: 15px; text-align: center; border: 1px solid #D9D9D9;">{slot.duration}분</td>
@@ -373,60 +374,76 @@ class EmailService:
                 'contact_email': Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'
             })
         else:
-            return f"""
-            <div style="font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', Arial, sans-serif; max-width: 640px; margin: 0 auto; background-color: #F9F9F9; color: #1A1A1A;">
-                <div style="background-color: #FF0033; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-                    <h1 style="margin: 0; font-size: 24px;">면접 일정 선택 요청</h1>
-                </div>
-
-                <div style="padding: 30px; background-color: white;">
-                    <p style="font-size: 16px;">안녕하세요, <strong>{request.candidate_name}</strong>님</p>
-                    <p style="font-size: 15px; line-height: 1.6;">
-                        {request.position_name} 포지션 지원에 감사드립니다.<br>
-                        아래 면접관이 제안한 일정 중에서 원하시는 시간을 선택해 주세요.
-                    </p>
-
-                    <div style="margin-top: 25px;">
-                        <h3 style="color: #FF0033;">📝 면접 정보</h3>
-                        <p><strong>포지션:</strong> {request.position_name}<br>
-                        <strong>면접관:</strong> {interviewer_info['name']} ({interviewer_info['department']})</p>
+            subject = "📅 [면접 일정 선택] 면접 일정을 선택해주세요"
+            return {
+                "subject": subject,
+                "body": f"""
+                <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 650px; margin: 0 auto;">
+                    <div style="background-color: #28a745; color: white; padding: 25px; text-align: center; border-radius: 8px 8px 0 0;">
+                        <h2 style="margin: 0; font-size: 24px;">📅 면접 일정 선택</h2>
                     </div>
-
-                    <h3 style="margin-top: 30px; color: #FF0033;">📅 제안된 면접 일정</h3>
-                    <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-                        <thead>
-                            <tr style="background-color: #FF0033; color: white;">
-                                <th style="padding: 12px; border: 1px solid #D9D9D9;">옵션</th>
-                                <th style="padding: 12px; border: 1px solid #D9D9D9;">날짜</th>
-                                <th style="padding: 12px; border: 1px solid #D9D9D9;">시간</th>
-                                <th style="padding: 12px; border: 1px solid #D9D9D9;">소요시간</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {slots_html}
-                        </tbody>
-                    </table>
-
-                    <div style="text-align: center; margin: 40px 0 20px;">
-                        <a href="{candidate_link}" 
-                        style="background: #FF0033; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
-                        👉 면접 일정 선택하기
-                        </a>
+                    
+                    <div style="padding: 30px; background-color: #f8f9fa; border-radius: 0 0 8px 8px;">
+                        <p style="font-size: 16px; margin-bottom: 10px;">안녕하세요, <strong>{request.candidate_name}</strong>님</p>
+                        <p style="font-size: 16px; margin-bottom: 25px;">면접관께서 제안하신 면접 일정 중에서 원하시는 시간을 선택해주세요.</p>
+                        
+                        <div style="background-color: white; padding: 20px; border-radius: 8px; border-left: 4px solid #28a745; margin: 25px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <h3 style="color: #28a745; margin-top: 0; margin-bottom: 15px;">📋 면접 정보</h3>
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <tr>
+                                    <td style="padding: 10px 0; font-weight: bold; width: 120px; color: #333;">포지션</td>
+                                    <td style="padding: 10px 0; color: #555;">{request.position_name}</td>
+                                </tr>
+                                <tr style="background-color: #f8f9fa;">
+                                    <td style="padding: 10px 0; font-weight: bold; color: #333;">면접관</td>
+                                    <td style="padding: 10px 0; color: #555;">{interviewer_info['name']} ({interviewer_info['department']})</td>
+                                </tr>
+                            </table>
+                        </div>
+                        
+                        <div style="background-color: white; padding: 25px; border-radius: 8px; margin: 25px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <h3 style="color: #28a745; margin-top: 0; margin-bottom: 20px;">🗓️ 제안된 면접 일정</h3>
+                            <table style="width: 100%; border-collapse: collapse; border: 2px solid #28a745; border-radius: 8px; overflow: hidden;">
+                                <thead>
+                                    <tr style="background-color: #28a745; color: white;">
+                                        <th style="padding: 15px; text-align: center; font-weight: bold;">번호</th>
+                                        <th style="padding: 15px; text-align: center; font-weight: bold;">날짜</th>
+                                        <th style="padding: 15px; text-align: center; font-weight: bold;">시간</th>
+                                        <th style="padding: 15px; text-align: center; font-weight: bold;">소요시간</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {slots_html}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div style="text-align: center; margin: 35px 0;">
+                            <a href="{candidate_link}" 
+                            style="background-color: #28a745; color: white; padding: 15px 35px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px; box-shadow: 0 2px 4px rgba(40,167,69,0.3);">
+                                ✅ 면접 일정 선택하기
+                            </a>
+                        </div>
+                        <div style="background-color: #d1ecf1; padding: 20px; border-radius: 8px; border-left: 4px solid #17a2b8;">
+                            <p style="margin: 0; font-weight: bold; color: #0c5460;">📝 참고사항</p>
+                            <ul style="margin: 15px 0; padding-left: 20px; color: #0c5460;">
+                                <li>제안된 일정 중 선택하시거나, 다른 일정이 필요한 경우 요청사항을 입력해주세요</li>
+                                <li>일정 선택 후 자동으로 모든 관련자에게 확정 알림이 전송됩니다</li>
+                                <li>궁금한 사항이 있으시면 인사팀으로 연락해주세요</li>
+                                <li>면접 당일 10분 전까지 도착해주시기 바랍니다</li>
+                            </ul>
+                        </div>
+                        <div style="background-color: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #856404; margin: 25px 0;">
+                            <p style="margin: 0; font-weight: bold; color: #856404;">🔗 링크가 작동하지 않는 경우</p>
+                            <p style="margin: 10px 0; color: #856404;">아래 URL을 복사해서 브라우저에 직접 입력해주세요:</p>
+                            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; font-family: monospace; word-break: break-all; margin: 15px 0; border: 1px solid #dee2e6;">
+                                {candidate_link}
+                            </div>
+                        </div>
                     </div>
-
-                    <p style="font-size: 13px; color: #4D4D4D; text-align: center; margin-top: 30px;">
-                        본 메일은 AJ네트웍스 인사팀에서 발송되었습니다. 문의: 
-                        <a href="mailto:{Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'}" style="color: #FF6600;">
-                            {Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'}
-                        </a>
-                    </p>
                 </div>
-
-                <div style="background-color: #E6E6E6; padding: 10px; text-align: center; border-radius: 0 0 8px 8px; font-size: 12px; color: #4D4D4D;">
-                    © 2025 AJ네트웍스. All rights reserved.
-                </div>
-            </div>
-            """
+                """
+            }
 
 
     def send_interviewer_invitation(self, request: InterviewRequest):
