@@ -266,9 +266,11 @@ def hide_pages():
 def show_candidate_login():
     """면접자 인증 페이지"""
     st.markdown("""
-    <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 40px; border-radius: 15px; text-align: center; margin: 30px 0; box-shadow: 0 10px 30px rgba(40,167,69,0.3);">
+    <div style="color: #1A1A1A; padding: 20px; border-radius: 15px; text-align: center; margin: 30px 0; box-shadow: 0 10px 30px rgba(40,167,69,0.3);">
+        <img src="https://i.imgur.com/JxtMWx3.png" 
+             alt="면접자 인증 이미지"
+             style="max-width: 180px; margin-bottom: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);" />
         <div style="font-size: 3rem; margin-bottom: 20px;">🔐</div>
-        <h1 style="margin: 0 0 15px 0; font-size: 2rem; font-weight: 300;">면접자 인증</h1>
         <p style="font-size: 1.1rem; opacity: 0.9; margin: 0;">이름과 이메일 주소를 입력하여 면접 일정을 확인하세요</p>
     </div>
     """, unsafe_allow_html=True)
@@ -281,7 +283,6 @@ def show_candidate_login():
     
     with col2:
         with st.form("candidate_login"):
-            st.subheader("📝 정보 입력")
             
             candidate_name = st.text_input(
                 "이름을 입력해주세요",
@@ -295,7 +296,7 @@ def show_candidate_login():
                 help="면접 신청 시 입력한 이메일 주소를 정확히 입력해주세요"
             )
             
-            submitted = st.form_submit_button("🔍 면접 일정 확인", use_container_width=True, type="primary")
+            submitted = st.form_submit_button("🔍 면접 일정 확인", type="primary")
             
             if submitted:
                 if not candidate_name.strip():
@@ -325,8 +326,7 @@ def show_candidate_login():
         <div style="background-color: #f8f9fa; padding: 25px; border-radius: 12px; text-align: center; border: 1px solid #dee2e6;">
             <h4 style="color: #495057; margin-top: 0;">💡 이용 안내</h4>
             <div style="text-align: left; margin: 15px 0;">
-                <p style="margin: 8px 0; color: #6c757d;">• 면접 신청 시 입력한 <strong>정확한 이름과 이메일</strong>을 입력해주세요</p>
-                <p style="margin: 8px 0; color: #6c757d;">• 대소문자와 띄어쓰기는 <strong>자동으로 처리</strong>됩니다</p>
+                <p style="margin: 8px 0; color: #6c757d;">• 지원 시 입력한 <strong>정확한 이름과 이메일</strong>을 입력해주세요</p>
                 <p style="margin: 8px 0; color: #6c757d;">• 면접관이 일정을 입력해야 <strong>선택 가능</strong>합니다</p>
             </div>
             <div style="background-color: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 15px;">
