@@ -525,7 +525,7 @@ def show_candidate_login():
         st.markdown("""
         <div style="background: white; padding: 30px; margin: 20px 0;">
             <h4 style="color: #1A1A1A; margin: 0 0 20px 0; font-weight: 500; text-align: center;">💡 이용 안내</h4>
-            <div style="background-color: #efeff1; padding: 20px; border-radius: 8px; margin: 15px 0;">
+            <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 15px 0;">
                 <p style="margin: 10px 0; color: #1A1A1A; line-height: 1.6;">
                     • 지원 시 입력한 <strong>정확한 이름과 이메일</strong>을 입력해주세요
                 </p>
