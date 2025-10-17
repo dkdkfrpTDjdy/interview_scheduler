@@ -277,7 +277,7 @@ def show_candidate_login():
         /* Streamlit form submit 버튼 색상 커스터마이징 */
         div.stFormSubmitButton > button[kind="secondaryFormSubmit"],
         div[data-testid="stFormSubmitButton"] > button {
-            background-color: #1A1A1A !important;
+            background-color: #e7e7e7 !important;
             color: white !important;
             border: none !important;
             border-radius: 8px !important;
@@ -359,31 +359,7 @@ def show_candidate_dashboard():
     candidate_info = st.session_state.authenticated_candidate
     candidate_requests = st.session_state.candidate_requests
     
-    # 헤더
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        st.markdown(f"""
-        <div style="background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%); padding: 25px; border-radius: 12px; margin: 20px 0;">
-            <h2 style="color: #155724; margin: 0; display: flex; align-items: center;">
-                <span style="margin-right: 15px;">👋</span> 안녕하세요, {candidate_info['name']}님!
-            </h2>
-            <p style="color: #155724; margin: 8px 0 0 0; font-size: 1rem;">({candidate_info['email']})</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        if st.button("🚪 로그아웃", use_container_width=True):
-            for key in ['authenticated_candidate', 'candidate_requests']:
-                if key in st.session_state:
-                    del st.session_state[key]
-            st.rerun()
-    
-    if not candidate_requests:
-        st.info("면접 요청을 찾을 수 없습니다.")
-        return
-    
-    st.subheader(f"📋 나의 면접 일정 ({len(candidate_requests)}건)")
+    st.subheader(f"📋{candidate_info['name']}님의 면접 일정 ({len(candidate_requests)}건)")
     
     # 각 요청 처리
     for i, request in enumerate(candidate_requests):
@@ -499,17 +475,13 @@ def show_request_detail(request, index):
             })
         
         df = pd.DataFrame(slot_data)
-        
-        st.markdown("""
-        <div style="border: 2px solid #28a745; border-radius: 8px; overflow: hidden; margin: 15px 0;">
-        """, unsafe_allow_html=True)
-        
+
         st.dataframe(
             df, 
             use_container_width=True, 
             hide_index=True,
             column_config={
-                "옵션": st.column_config.TextColumn("옵션", help="선택 가능한 면접 일정 옵션", width="small"),
+                "번호": st.column_config.TextColumn("번호", help="선택 가능한 면접 일정 옵션", width="small"),
                 "날짜": st.column_config.TextColumn("날짜", help="면접 날짜", width="medium"),
                 "시간": st.column_config.TextColumn("시간", help="면접 시작 시간", width="small"),
                 "소요시간": st.column_config.TextColumn("소요시간", help="예상 면접 소요 시간", width="small")
@@ -521,31 +493,66 @@ def show_request_detail(request, index):
     # ✅ slot_options를 정의
     slot_options = []
     for i, slot in enumerate(proposed_slots):
-        slot_text = f"옵션 {i+1}: {format_date_korean(slot['date'])} {slot['time']} ({slot['duration']}분)"
+        slot_text = f"{i+1}: {format_date_korean(slot['date'])} {slot['time']} ({slot['duration']}분)"
         slot_options.append(slot_text)
     
     slot_options.append("다른 일정 요청")
     
-    # ✅ 라디오 버튼 반응 개선 - 세션 상태로 선택 관리
-    radio_key = f"radio_selection_{index}"
-    if radio_key not in st.session_state:
-        st.session_state[radio_key] = 0
+    # ✅ 셀렉트박스 반응 개선 - 세션 상태로 선택 관리
+    select_key = f"select_selection_{index}"
+    if select_key not in st.session_state:
+        st.session_state[select_key] = slot_options[0]  # 기본값 첫 번째 옵션으로 설정
     
-    # 라디오 버튼으로 일정 선택
-    selected_option = st.radio(
+    # 셀렉트박스로 일정 선택
+    selected_option_text = st.selectbox(
         "원하는 면접 일정을 선택해주세요:",
-        options=range(len(slot_options)),
-        format_func=lambda x: slot_options[x],
-        key=radio_key,
+        options=slot_options,
+        index=slot_options.index(st.session_state[select_key]) if st.session_state[select_key] in slot_options else 0,
+        key=select_key,
         help="원하는 일정을 선택하거나, 다른 일정이 필요한 경우 마지막 옵션을 선택하세요"
     )
     
+    # ✅ 선택값 인덱스로 변환
+    selected_option = slot_options.index(selected_option_text)
+    
     # ✅ 실시간 선택 반응 표시
+    # ✅ 실시간 선택 반응 표시 (HTML 스타일 카드)
     if selected_option < len(proposed_slots):
         selected_slot_info = proposed_slots[selected_option]
-        st.success(f"✅ 선택하신 일정: {format_date_korean(selected_slot_info['date'])} {selected_slot_info['time']} ({selected_slot_info['duration']}분)")
+        st.markdown(f"""
+        <div style="
+            background-color: #f0f8f5;
+            border-left: 6px solid #28a745;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.1);
+        ">
+            <h4 style="color: #155724; margin: 0 0 5px 0;">✅ 선택하신 일정</h4>
+            <p style="color: #155724; font-size: 1.05rem; margin: 0;">
+                <strong>{format_date_korean(selected_slot_info['date'])}</strong>
+                &nbsp;&nbsp;{selected_slot_info['time']}
+                &nbsp;&nbsp;(<em>{selected_slot_info['duration']}분</em>)
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
     elif selected_option == len(slot_options) - 1:
-        st.warning("⚠️ 다른 일정 요청을 선택하셨습니다. 아래에 요청사항을 작성해주세요.")
+        st.markdown("""
+        <div style="
+            background-color: #fff4e5;
+            border-left: 6px solid #ff9800;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0;
+            box-shadow: 0 2px 8px rgba(255, 152, 0, 0.1);
+        ">
+            <h4 style="color: #7a3e00; margin: 0 0 5px 0;">⚠️ 다른 일정 요청 선택됨</h4>
+            <p style="color: #7a3e00; font-size: 1.05rem; margin: 0;">
+                아래 입력창에 가능한 일정을 구체적으로 작성해주세요.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
     
     # 다른 일정 요청 시 입력창
     candidate_note = ""
@@ -579,8 +586,6 @@ def show_request_detail(request, index):
                 )
                 
                 if success:
-                    st.success("🎉 면접 일정이 확정되었습니다!")
-                    st.info("📧 관련자 모두에게 확정 알림이 전송됩니다.")
                     
                     # 확정 정보 표시
                     st.markdown(f"""
