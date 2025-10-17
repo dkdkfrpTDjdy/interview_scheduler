@@ -287,7 +287,7 @@ def show_candidate_login():
             )
 
             # 내부에서 버튼을 오른쪽 정렬하기 위해 columns 사용
-            btn_col1, btn_col2 = st.columns([3, 1])
+            btn_col1, btn_col2 = st.columns([5, 1])
             with btn_col2:
                 submitted = st.form_submit_button("면접 일정 확인", type="primary")
 
