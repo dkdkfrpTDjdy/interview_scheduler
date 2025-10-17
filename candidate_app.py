@@ -270,12 +270,13 @@ def show_candidate_login():
         st.error("❌ 구글 시트에 연결할 수 없습니다. 관리자에게 문의해주세요.")
         return
 
-    # ✅ 스타일 선언을 form 전에 배치 (이게 핵심)
+    # ✅ 완전한 셀렉터로 버튼 스타일 적용
     st.markdown(
         """
         <style>
-        /* form 내부의 submit 버튼 스타일 적용 */
-        div[data-testid="stFormSubmitButton"] button {
+        /* Streamlit form submit 버튼 색상 커스터마이징 */
+        div.stFormSubmitButton > button[kind="secondaryFormSubmit"],
+        div[data-testid="stFormSubmitButton"] > button {
             background-color: #EF3340 !important;
             color: white !important;
             border: none !important;
@@ -285,7 +286,8 @@ def show_candidate_login():
             transition: all 0.3s ease !important;
         }
 
-        div[data-testid="stFormSubmitButton"] button:hover {
+        div.stFormSubmitButton > button[kind="secondaryFormSubmit"]:hover,
+        div[data-testid="stFormSubmitButton"] > button:hover {
             background-color: #d72d38 !important;
             transform: scale(1.03);
         }
@@ -310,7 +312,7 @@ def show_candidate_login():
                 help="면접 신청 시 입력한 이메일 주소를 정확히 입력해주세요"
             )
 
-            # 버튼 컬럼 정렬
+            # 버튼 오른쪽 정렬
             btn_col1, btn_col2 = st.columns([5, 1])
             with btn_col2:
                 submitted = st.form_submit_button("면접 일정 확인")
