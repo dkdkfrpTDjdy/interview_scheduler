@@ -278,7 +278,7 @@ def show_candidate_login():
         div.stFormSubmitButton > button[kind="secondaryFormSubmit"],
         div[data-testid="stFormSubmitButton"] > button {
             background-color: #e7e7e7 !important;
-            color: white !important;
+            color: #1A1A1A !important;
             border: none !important;
             border-radius: 8px !important;
             font-weight: bold !important;
