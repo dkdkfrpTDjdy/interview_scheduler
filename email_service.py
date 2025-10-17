@@ -187,14 +187,6 @@ class EmailService:
                                 {content_data.get('position', '')}
                             </td>
                         </tr>
-                        <tr>
-                            <td style="padding:14px; font-weight:bold; color:#1A1A1A; border:1px solid #e7e7e7; text-align:center; font-size:14px;">
-                                면접관
-                            </td>
-                            <td style="padding:14px; color:#737272; border:1px solid #e7e7e7; text-align:center; font-size:14px;">
-                                {content_data.get('interviewer', '')}
-                            </td>
-                        </tr>
                     </table>
                 </div>
                 
