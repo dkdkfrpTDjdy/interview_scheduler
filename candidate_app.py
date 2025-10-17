@@ -270,8 +270,8 @@ def show_candidate_login():
         <img src="https://i.imgur.com/JxtMWx3.png" 
              alt="면접자 인증 이미지"
              style="max-width: 180px; margin-bottom: 20px;" />
-        <div style="font-size: 3rem; margin-bottom: 20px;">🔐</div>
-        <p style="font-size: 1.1rem; opacity: 0.9; margin: 0;">이름과 이메일 주소를 입력하여 면접 일정을 확인하세요</p>
+        <div style="font-size: 14px; margin-bottom: 20px;">면접 조율</div>
+        <p style="font-size: 14px; opacity: 0.9; margin: 0;">이름과 이메일 주소를 입력하여 면접 일정을 확인하세요</p>
     </div>
     """, unsafe_allow_html=True)
     
