@@ -160,7 +160,7 @@ class EmailService:
     <body style="margin:0;padding:0;font-family: 'Apple SD Gothic Neo', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;background-color:#efeff1;">
         <div style="max-width:600px;margin:0 auto;background-color:#ffffff;">
             <!-- Header with AJ Logo -->
-            <div style="background-color: #efeff1;color:#ffffff;padding:30px;text-align:center;">
+            <div style="background:linear-gradient(135deg, #EF3340 0%, #e0752e 100%); color:#1A1A1A; padding:30px; text-align:center;">
                 <img src="{logo_url}" 
                     alt="AJ네트웍스 로고" 
                     style="max-width:180px;height:auto;margin-bottom:15px;"
@@ -179,7 +179,7 @@ class EmailService:
                 </p>
                 
                 <!-- 면접 정보 테이블 -->
-                <table style="width:100%; border-collapse:collapse; border:1px solid #e7e7e7; margin:20px 0; border-radius:8px; overflow:hidden; background-color:#ffffff;">
+                <table style="width:100%; border-collapse:collapse; border:2px solid #e7e7e7; margin:20px 0; border-radius:8px; overflow:hidden; background-color:#ffffff;">
                     <tr>
                         <td style="padding:14px; font-weight:bold; color:#1A1A1A; border:1px solid #e7e7e7; width:30%; text-align:center;">포지션</td>
                         <td style="padding:14px; color:#737272; border:1px solid #e7e7e7; text-align:center;">{content_data.get('position', '')}</td>
@@ -227,7 +227,7 @@ class EmailService:
             </div>
             
             <!-- Footer -->
-            <div style="background-color:#efeff1;padding:20px;text-align:center;border-top:2px solid #e7e7e7;">
+            <div style="background-color:#f9f9f9;padding:20px;text-align:center;border-top:2px solid #e7e7e7;">
                 <p style="margin:0;font-size:14px;color:#737272;">
                     본 메일은 <strong style="color:#EF3340;">{content_data.get('company_name', 'AJ네트웍스')}</strong> 인사팀에서 발송되었습니다.<br>
                     문의: <a href="mailto:{content_data.get('contact_email', 'hr@ajnet.co.kr')}" style="color:#EF3340;text-decoration:none;font-weight:bold;">{content_data.get('contact_email', 'hr@ajnet.co.kr')}</a>
@@ -488,9 +488,9 @@ class EmailService:
             # 면접 일정 테이블 HTML 생성
             slots_html = ""
             for i, slot in enumerate(request.available_slots, 1):
-                bg_color = "#efeff1" if i % 2 == 0 else "white"
+                bg_color = "#ffffff" if i % 2 == 0 else "white"
                 slots_html += f"""
-                <tr style="background-color: {bg_color};
+                <tr style="background-color: {bg_color};">
                     <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7;">{i}</td>
                     <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7;">{format_date_korean(slot.date)}</td>
                     <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7;">{slot.time}</td>
