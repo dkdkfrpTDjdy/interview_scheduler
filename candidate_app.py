@@ -269,6 +269,30 @@ def show_candidate_login():
     if not google_sheet:
         st.error("❌ 구글 시트에 연결할 수 없습니다. 관리자에게 문의해주세요.")
         return
+
+    # ✅ 스타일 선언을 form 전에 배치 (이게 핵심)
+    st.markdown(
+        """
+        <style>
+        /* form 내부의 submit 버튼 스타일 적용 */
+        div[data-testid="stFormSubmitButton"] button {
+            background-color: #EF3340 !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 8px !important;
+            font-weight: bold !important;
+            padding: 0.6em 1.5em !important;
+            transition: all 0.3s ease !important;
+        }
+
+        div[data-testid="stFormSubmitButton"] button:hover {
+            background-color: #d72d38 !important;
+            transform: scale(1.03);
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
     
     col1, col2, col3 = st.columns([1, 2, 1])
     
@@ -290,28 +314,6 @@ def show_candidate_login():
             btn_col1, btn_col2 = st.columns([5, 1])
             with btn_col2:
                 submitted = st.form_submit_button("면접 일정 확인")
-
-            # 버튼 색상 스타일 적용
-            st.markdown(
-                """
-                <style>
-                div.stButton > button:first-child {
-                    background-color: #d72d38;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    font-weight: bold;
-                    padding: 0.6em 1.5em;
-                    transition: all 0.3s ease;
-                }
-                div.stButton > button:first-child:hover {
-                    background-color: #EF3340;
-                    transform: scale(1.03);
-                }
-                </style>
-                """,
-                unsafe_allow_html=True
-            )
 
             if submitted:
                 if not candidate_name.strip():
