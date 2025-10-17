@@ -274,7 +274,6 @@ def show_candidate_login():
     
     with col2:
         with st.form("candidate_login"):
-            
             candidate_name = st.text_input(
                 "이름을 입력해주세요",
                 placeholder="홍길동",
@@ -286,9 +285,12 @@ def show_candidate_login():
                 placeholder="example@naver.com",
                 help="면접 신청 시 입력한 이메일 주소를 정확히 입력해주세요"
             )
-            
-            submitted = st.form_submit_button("🔍 면접 일정 확인", type="primary")
-            
+
+            # 내부에서 버튼을 오른쪽 정렬하기 위해 columns 사용
+            btn_col1, btn_col2 = st.columns([3, 1])
+            with btn_col2:
+                submitted = st.form_submit_button("면접 일정 확인", type="primary")
+
             if submitted:
                 if not candidate_name.strip():
                     st.error("❌ 이름을 입력해주세요.")
@@ -628,7 +630,7 @@ def main():
     <div style="text-align: center; margin: 30px 0;">
         <img src="https://i.imgur.com/JxtMWx3.png" 
              alt="면접 일정 선택"
-             style="max-width: 280px; height: auto; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
+             style="max-width: 280px; height: auto;">
     </div>
     """, unsafe_allow_html=True)
 
