@@ -272,6 +272,8 @@ class EmailService:
             # Gmail 수신자 감지
             has_gmail = self._has_gmail_recipients(validated_emails, cc_emails, bcc_emails)
             
+            optimized_subject = subject  # ✅ 기본값을 미리 세팅
+
             # 컨텐츠 최적화
             if has_gmail and is_html:
                 text_body = self._html_to_text(body)
