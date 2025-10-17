@@ -277,7 +277,7 @@ def show_candidate_login():
         /* Streamlit form submit 버튼 색상 커스터마이징 */
         div.stFormSubmitButton > button[kind="secondaryFormSubmit"],
         div[data-testid="stFormSubmitButton"] > button {
-            background-color: #EF3340 !important;
+            background-color: #1A1A1A !important;
             color: white !important;
             border: none !important;
             border-radius: 8px !important;
@@ -288,7 +288,7 @@ def show_candidate_login():
 
         div.stFormSubmitButton > button[kind="secondaryFormSubmit"]:hover,
         div[data-testid="stFormSubmitButton"] > button:hover {
-            background-color: #d72d38 !important;
+            background-color: #EF3340 !important;
             transform: scale(1.03);
         }
         </style>
@@ -303,25 +303,25 @@ def show_candidate_login():
             candidate_name = st.text_input(
                 "이름을 입력해주세요",
                 placeholder="홍길동",
-                help="면접 신청 시 입력한 이름을 정확히 입력해주세요"
+                help="지원 시 입력한 이름을 정확히 입력해주세요"
             )
             
             candidate_email = st.text_input(
                 "이메일 주소를 입력해주세요",
                 placeholder="example@naver.com",
-                help="면접 신청 시 입력한 이메일 주소를 정확히 입력해주세요"
+                help="지원 시 입력한 이메일 주소를 정확히 입력해주세요"
             )
 
             # 버튼 오른쪽 정렬
-            btn_col1, btn_col2 = st.columns([5, 1])
+            btn_col1, btn_col2 = st.columns([4, 1])
             with btn_col2:
                 submitted = st.form_submit_button("면접 일정 확인")
 
             if submitted:
                 if not candidate_name.strip():
-                    st.error("❌ 이름을 입력해주세요.")
+                    st.error("이름을 입력해주세요.")
                 elif not candidate_email.strip():
-                    st.error("❌ 이메일 주소를 입력해주세요.")
+                    st.error("이메일 주소를 입력해주세요.")
                 else:
                     with st.spinner("🔍 면접자 정보를 확인하고 있습니다..."):
                         matching_requests = find_candidate_requests(candidate_name.strip(), candidate_email.strip())
