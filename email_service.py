@@ -407,7 +407,7 @@ class EmailService:
                     <!-- Header -->
                     <tr>
                     <td align="center" style="background-color: #ffffff; color: #1A1A1A; padding: 20px;">
-                        <h2 style="margin: 10px 0 0; font-size: 20px;">{request.position_name} 포지션 면접 일정 입력 요청</h2>
+                        <h2 style="margin: 10px 0 0; font-size: 20px;">면접 일정 입력 요청</h2>
                     </td>
                     </tr>
 
@@ -438,18 +438,18 @@ class EmailService:
 
                         <!-- Button -->
                         <div style="text-align: center; margin: 30px 0;">
-                        <a href="{link}" style="display: inline-block; padding: 12px 24px; background-color: #EF3340; color: white; text-decoration: none; font-weight: bold;">
+                        <a href="{link}" style="display: inline-block; padding: 24px; background-color: #EF3340; color: white; text-decoration: none; font-weight: bold;">
                             👉 면접 가능 일정 입력하기
                         </a>
                         </div>
 
                         <!-- Contact -->
-                        <p style="background-color: #f5f5f5; font-size: 12px; color: #737272; text-align: center;">
+                        <p style="background-color: #f5f5f5; font-size: 12px; color: #737272; text-align: center; padding: 24px;">
                         본 메일은 AJ네트웍스 인사팀에서 발송되었습니다.<br>
                         문의: <a href="mailto:{Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'}" style="color: #e0752e;">{Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'}</a>
                         </p>
                     </td>
-                    </tr>ㅇ
+                    </tr>
 
                     <!-- Footer -->
                     <tr>
