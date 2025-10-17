@@ -160,7 +160,7 @@ class EmailService:
     <body style="margin:0;padding:0;font-family: 'Apple SD Gothic Neo', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;background-color:#ffffff;">
         <div style="max-width:600px;margin:0 auto;background-color:#ffffff;">
             <!-- Header with AJ Logo -->
-            <div style="background-color:#ffffff; color:#1A1A1A; padding:30px; text-align:center;">
+            <div style="background-color:#f9f9f9; color:#1A1A1A; padding:30px; text-align:center;">
                 <img src="{logo_url}" 
                     alt="AJ네트웍스 로고" 
                     style="max-width:180px;height:auto;margin-bottom:15px;"
@@ -178,17 +178,27 @@ class EmailService:
                     {content_data.get('main_message', '메시지 내용')}
                 </p>
                 
-                <!-- 면접 정보 테이블 -->
-                <table style="width:100%; border-collapse:collapse; border:2px solid #e7e7e7; margin:20px 0; border-radius:8px; overflow:hidden; background-color:#ffffff;">
-                    <tr>
-                        <td style="padding:14px; font-weight:bold; color:#1A1A1A; border:1px solid #e7e7e7; width:30%; text-align:center; font-size:14px;">포지션</td>
-                        <td style="padding:14px; color:#737272; border:1px solid #e7e7e7; text-align:center; font-size:14px;">{content_data.get('position', '')}</td>
-                    </tr>
-                    <tr>
-                        <td style="padding:14px; font-weight:bold; color:#1A1A1A; border:1px solid #e7e7e7; text-align:center; font-size:14px;">면접관</td>
-                        <td style="padding:14px; color:#737272; border:1px solid #e7e7e7; text-align:center; font-size:14px;">{content_data.get('interviewer', '')}</td>
-                    </tr>
-                </table>
+                <!-- 면접 정보 테이블 (외곽선 포함) -->
+                <div style="border: 2px solid #e7e7e7; border-radius: 8px; overflow: hidden; margin: 20px 0;">
+                    <table style="width:100%; border-collapse: collapse; background-color: #ffffff;">
+                        <tr>
+                            <td style="padding:14px; font-weight:bold; color:#1A1A1A; border:1px solid #e7e7e7; width:30%; text-align:center; font-size:14px;">
+                                포지션
+                            </td>
+                            <td style="padding:14px; color:#737272; border:1px solid #e7e7e7; text-align:center; font-size:14px;">
+                                {content_data.get('position', '')}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding:14px; font-weight:bold; color:#1A1A1A; border:1px solid #e7e7e7; text-align:center; font-size:14px;">
+                                면접관
+                            </td>
+                            <td style="padding:14px; color:#737272; border:1px solid #e7e7e7; text-align:center; font-size:14px;">
+                                {content_data.get('interviewer', '')}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
                 
                 <!-- 액션 버튼 -->
                 <div style="text-align:center;margin:30px 0;">
