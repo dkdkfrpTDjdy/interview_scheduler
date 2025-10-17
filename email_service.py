@@ -157,10 +157,10 @@ class EmailService:
         <meta charset="UTF-8">
         <title>{content_data.get('title', '이메일 알림')}</title>
     </head>
-    <body style="margin:0;padding:0;font-family: 'Apple SD Gothic Neo', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;background-color:#efeff1;">
+    <body style="margin:0;padding:0;font-family: 'Apple SD Gothic Neo', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;background-color:#ffffff;">
         <div style="max-width:600px;margin:0 auto;background-color:#ffffff;">
             <!-- Header with AJ Logo -->
-            <div style="background:linear-gradient(135deg, #EF3340 0%, #e0752e 100%); color:#1A1A1A; padding:30px; text-align:center;">
+            <div style="background-color:#ffffff; color:#1A1A1A; padding:30px; text-align:center;">
                 <img src="{logo_url}" 
                     alt="AJ네트웍스 로고" 
                     style="max-width:180px;height:auto;margin-bottom:15px;"
@@ -181,12 +181,12 @@ class EmailService:
                 <!-- 면접 정보 테이블 -->
                 <table style="width:100%; border-collapse:collapse; border:2px solid #e7e7e7; margin:20px 0; border-radius:8px; overflow:hidden; background-color:#ffffff;">
                     <tr>
-                        <td style="padding:14px; font-weight:bold; color:#1A1A1A; border:1px solid #e7e7e7; width:30%; text-align:center;">포지션</td>
-                        <td style="padding:14px; color:#737272; border:1px solid #e7e7e7; text-align:center;">{content_data.get('position', '')}</td>
+                        <td style="padding:14px; font-weight:bold; color:#1A1A1A; border:1px solid #e7e7e7; width:30%; text-align:center; font-size:14px;">포지션</td>
+                        <td style="padding:14px; color:#737272; border:1px solid #e7e7e7; text-align:center; font-size:14px;">{content_data.get('position', '')}</td>
                     </tr>
                     <tr>
-                        <td style="padding:14px; font-weight:bold; color:#1A1A1A; border:1px solid #e7e7e7; text-align:center;">면접관</td>
-                        <td style="padding:14px; color:#737272; border:1px solid #e7e7e7; text-align:center;">{content_data.get('interviewer', '')}</td>
+                        <td style="padding:14px; font-weight:bold; color:#1A1A1A; border:1px solid #e7e7e7; text-align:center; font-size:14px;">면접관</td>
+                        <td style="padding:14px; color:#737272; border:1px solid #e7e7e7; text-align:center; font-size:14px;">{content_data.get('interviewer', '')}</td>
                     </tr>
                 </table>
                 
@@ -201,7 +201,7 @@ class EmailService:
                 </div>
                 
                 <!-- 추가 컨텐츠 -->
-                <div style="background-color:#f9f9f9;padding:20px;border-radius:10px;border-left:5px solid #EF3340;margin:25px 0;">
+                <div style="background-color:#f9f9f9;padding:20px;border-radius:10px;border-left:5px solid #EF3340;margin:25px 0; ">
                     {content_data.get('additional_content', '')}
                 </div>
                 
@@ -493,10 +493,10 @@ class EmailService:
                 bg_color = "#ffffff" if i % 2 == 0 else "white"
                 slots_html += f"""
                 <tr style="background-color: {bg_color};">
-                    <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7;">{i}</td>
-                    <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7;">{format_date_korean(slot.date)}</td>
-                    <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7;">{slot.time}</td>
-                    <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7;">{slot.duration}분</td>
+                    <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{i}</td>
+                    <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{format_date_korean(slot.date)}</td>
+                    <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{slot.time}</td>
+                    <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{slot.duration}분</td>
                 </tr>
                 """
             
@@ -512,14 +512,14 @@ class EmailService:
                 'action_link': candidate_link,
                 'button_text': '✅ 면접 일정 선택하기',
                 'additional_content': f"""
-                <h4 style="color: #EF3340; margin: 0 0 20px 0;">🗓️ 제안된 면접 일정</h4>
+                <h4 style="color: #EF3340; margin: 0 0 20px 0; font-size:16px;">🗓️ 제안된 면접 일정</h4>
                 <table style="width: 100%; border-collapse: collapse; border: 2px solid #EF3340; border-radius: 8px; overflow: hidden;">
                     <thead>
                         <tr style="background: linear-gradient(135deg, #EF3340 0%, #e0752e 100%); color: white;">
-                            <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold;">번호</th>
-                            <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold;">날짜</th>
-                            <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold;">시간</th>
-                            <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold;">소요시간</th>
+                            <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">번호</th>
+                            <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">날짜</th>
+                            <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">시간</th>
+                            <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">소요시간</th>
                         </tr>
                     </thead>
                     <tbody>
