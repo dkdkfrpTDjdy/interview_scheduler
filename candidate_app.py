@@ -286,10 +286,32 @@ def show_candidate_login():
                 help="면접 신청 시 입력한 이메일 주소를 정확히 입력해주세요"
             )
 
-            # 내부에서 버튼을 오른쪽 정렬하기 위해 columns 사용
+            # 버튼 컬럼 정렬
             btn_col1, btn_col2 = st.columns([5, 1])
             with btn_col2:
-                submitted = st.form_submit_button("면접 일정 확인", type="primary")
+                submitted = st.form_submit_button("면접 일정 확인")
+
+            # 버튼 색상 스타일 적용
+            st.markdown(
+                """
+                <style>
+                div.stButton > button:first-child {
+                    background-color: #d72d38;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-weight: bold;
+                    padding: 0.6em 1.5em;
+                    transition: all 0.3s ease;
+                }
+                div.stButton > button:first-child:hover {
+                    background-color: #EF3340;
+                    transform: scale(1.03);
+                }
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
 
             if submitted:
                 if not candidate_name.strip():
@@ -323,7 +345,7 @@ def show_candidate_login():
                 <p style="margin: 8px 0; color: #6c757d;">• 면접관이 일정을 입력해야 <strong>선택 가능</strong>합니다</p>
             </div>
             <div style="background-color: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 15px;">
-                <p style="margin: 0; color: #1565c0;"><strong>📞 문의:</strong> <a href="mailto:hr@ajnet.co.kr">hr@ajnet.co.kr</a></p>
+                <p style="margin: 0; color: #1565c0;"><strong>문의:</strong> <a href="mailto:hr@ajnet.co.kr">hr@ajnet.co.kr</a></p>
             </div>
         </div>
         """, unsafe_allow_html=True)
