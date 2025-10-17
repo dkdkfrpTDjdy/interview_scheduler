@@ -266,10 +266,10 @@ def hide_pages():
 def show_candidate_login():
     """면접자 인증 페이지"""
     st.markdown("""
-    <div style="color: #1A1A1A; padding: 20px; border-radius: 15px; text-align: center; margin: 30px 0; box-shadow: 0 10px 30px rgba(40,167,69,0.3);">
+    <div style="color: #1A1A1A; padding: 20px; text-align: center; margin: 30px 0;">
         <img src="https://i.imgur.com/JxtMWx3.png" 
              alt="면접자 인증 이미지"
-             style="max-width: 180px; margin-bottom: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);" />
+             style="max-width: 180px; margin-bottom: 20px;" />
         <div style="font-size: 3rem; margin-bottom: 20px;">🔐</div>
         <p style="font-size: 1.1rem; opacity: 0.9; margin: 0;">이름과 이메일 주소를 입력하여 면접 일정을 확인하세요</p>
     </div>
