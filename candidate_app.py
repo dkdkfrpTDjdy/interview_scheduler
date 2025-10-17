@@ -265,16 +265,7 @@ def hide_pages():
 
 def show_candidate_login():
     """면접자 인증 페이지"""
-    st.markdown("""
-    <div style="color: #1A1A1A; padding: 20px; text-align: center; margin: 30px 0;">
-        <img src="https://i.imgur.com/JxtMWx3.png" 
-             alt="면접자 인증 이미지"
-             style="max-width: 180px; margin-bottom: 20px;" />
-        <div style="font-size: 14px; margin-bottom: 20px;">면접 조율</div>
-        <p style="font-size: 14px; opacity: 0.9; margin: 0;">이름과 이메일 주소를 입력하여 면접 일정을 확인하세요</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
+   
     if not google_sheet:
         st.error("❌ 구글 시트에 연결할 수 없습니다. 관리자에게 문의해주세요.")
         return
@@ -632,9 +623,16 @@ def show_confirmed_schedule(request):
 def main():
     hide_pages()
     
-    st.title("👤 면접 일정 선택")
-    st.caption("면접자 전용 독립 페이지")
-    
+    # 기존 타이틀 대신 이미지 헤더 추가
+    st.markdown("""
+    <div style="text-align: center; margin: 30px 0;">
+        <img src="https://i.imgur.com/JxtMWx3.png" 
+             alt="면접 일정 선택"
+             style="max-width: 280px; height: auto; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 이후 로직 동일
     if 'authenticated_candidate' not in st.session_state:
         show_candidate_login()
     else:
