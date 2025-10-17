@@ -163,9 +163,7 @@ class EmailService:
             <div style="background-color:#f9f9f9; color:#1A1A1A; padding:30px; text-align:center; border-bottom:2px solid #e7e7e7;">
                 <img src="{logo_url}" 
                     alt="AJ네트웍스 로고" 
-                    style="max-width:180px;height:auto;margin-bottom:15px;"
-                    onerror="this.style.display='none';">
-                <p style="margin:10px 0 0 0;font-size:16px;">{content_data.get('title', '면접 시스템 알림')}</p>
+                    style="max-width:180px;height:auto;margin-bottom:15px;display:block;margin-left:auto;margin-right:auto;">
             </div>
             
             <!-- Body -->
