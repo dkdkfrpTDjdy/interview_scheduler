@@ -451,11 +451,6 @@ def show_candidate_login():
     
     with col2:
         # 로그인 폼 컨테이너
-        st.markdown("""
-        <div style="background: white; padding: 40px; border-radius: 15px; box-shadow: 0 4px 20px rgba(26, 26, 26, 0.08); margin: 30px 0;">
-            <h2 style="color: #1A1A1A; text-align: center; margin-bottom: 30px; font-weight: 500;">면접자 정보 확인</h2>
-        </div>
-        """, unsafe_allow_html=True)
         
         with st.form("candidate_login"):
             st.markdown("""
@@ -528,19 +523,19 @@ def show_candidate_login():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("""
-        <div style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(26, 26, 26, 0.05); margin: 20px 0;">
+        <div style="background: white; padding: 30px; margin: 20px 0;">
             <h4 style="color: #1A1A1A; margin: 0 0 20px 0; font-weight: 500; text-align: center;">💡 이용 안내</h4>
             <div style="background-color: #efeff1; padding: 20px; border-radius: 8px; margin: 15px 0;">
                 <p style="margin: 10px 0; color: #1A1A1A; line-height: 1.6;">
-                    <span style="color: #EF3340;">•</span> 지원 시 입력한 <strong>정확한 이름과 이메일</strong>을 입력해주세요
+                    • 지원 시 입력한 <strong>정확한 이름과 이메일</strong>을 입력해주세요
                 </p>
                 <p style="margin: 10px 0; color: #1A1A1A; line-height: 1.6;">
-                    <span style="color: #EF3340;">•</span> 면접관이 일정을 입력해야 <strong>선택 가능</strong>합니다
+                    • 면접관이 일정을 입력해야 <strong>선택 가능</strong>합니다
                 </p>
             </div>
-            <div style="background-color: #f7ddd4; padding: 20px; border-radius: 8px; margin-top: 20px; text-align: center;">
+            <div style="background-color: white; padding: 10px; border-radius: 8px; margin-top: 20px; text-align: center;">
                 <p style="margin: 0; color: #1A1A1A;">
-                    <strong>문의:</strong> 
+                    <strong>기타 문의:</strong> 
                     <a href="mailto:hr@ajnet.co.kr" style="color: #EF3340; text-decoration: none; font-weight: 500;">
                         hr@ajnet.co.kr
                     </a>
