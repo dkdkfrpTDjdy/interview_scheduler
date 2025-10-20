@@ -357,37 +357,52 @@ def normalize_text(text: str) -> str:
     text = re.sub(r'[^a-z0-9가-힣@._-]', '', text)
     return text
 
+import re
+
 def parse_proposed_slots(raw_slots: str):
     """
-    구글 시트에 저장된 제안 일정 문자열을 파싱하여 구조화된 리스트로 변환합니다.
-    예: "2025-10-20 14:00(30분), 2025-10-21 10:00(60분)"
-        → [{'date': '2025-10-20', 'time': '14:00', 'duration': 30}, ...]
+    구글 시트의 제안 일정 문자열을 파싱하여 구조화된 리스트로 변환합니다.
+    예: 
+        "2025-11-03 14:00(30분) | 2025-11-03 14:30(30분)"
+        → [{'date': '2025-11-03', 'time': '14:00', 'duration': 30}, ...]
     """
     if not raw_slots:
         return []
-    
+
     slots = []
     try:
-        parts = re.split(r'[,;/\n]+', raw_slots)
+        # ✅ 파이프(|), 쉼표(,), 슬래시(/), 줄바꿈 등 모두 구분자로 인식
+        parts = re.split(r'[|,;/\n]+', raw_slots)
         for part in parts:
             part = part.strip()
             if not part:
                 continue
 
-            match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s*\(?(\d+)?', part)
+            # ✅ 예: 2025-11-03 14:00(30분)
+            match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s*\((\d+)\s*분?\)', part)
             if match:
                 date_str = match.group(1)
                 time_str = match.group(2)
-                duration = int(match.group(3)) if match.group(3) else 30
-                slots.append({
-                    "date": date_str,
-                    "time": time_str,
-                    "duration": duration
-                })
-    except Exception:
-        pass
+                duration = int(match.group(3))
+            else:
+                # 괄호 누락된 케이스: 2025-11-03 14:00
+                match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})', part)
+                if not match:
+                    continue
+                date_str = match.group(1)
+                time_str = match.group(2)
+                duration = 30  # 기본값
+
+            slots.append({
+                "date": date_str,
+                "time": time_str,
+                "duration": duration
+            })
+    except Exception as e:
+        print("parse_proposed_slots error:", e)
 
     return slots
+
         
 def normalize_request_id(request_id: str) -> str:
     """요청 ID 정규화 - 항상 8자리만 반환"""
