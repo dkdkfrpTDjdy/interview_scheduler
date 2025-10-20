@@ -438,44 +438,60 @@ def main():
                         # ✅ Step 3: 그룹별로 1회만 이메일 발송
                         success_count = 0
                         total_groups = len(grouped_requests)
+                        total_emails_sent = 0  # ✅ 실제 발송된 이메일 수
 
                         if total_groups == 0:
-                            st.warning("⚠️ 발송할 이메일이 없습니다.")
+                            st.warning("⚠️ 발송할 이메일 그룹이 없습니다.")
                         else:
                             progress_bar = st.progress(0)
                             status_text = st.empty()
                             
                             for i, (group_key, requests) in enumerate(grouped_requests.items()):
-                                status_text.text(f"이메일 발송 중... {i+1}/{total_groups} ({len(requests)}명)")
+                                # 면접관 수 계산
+                                interviewer_count = len(requests[0].interviewer_id.split(','))
                                 
-                                # ✅ 리팩토링된 함수 호출 (리스트 전달)
+                                status_text.text(f"📧 이메일 발송 중... {i+1}/{total_groups} ({len(requests)}명 면접자, {interviewer_count}명 면접관)")
+                                
                                 try:
                                     if email_service.send_interviewer_invitation(requests):
                                         success_count += 1
+                                        total_emails_sent += interviewer_count  # ✅ 실제 발송 수 누적
                                     else:
                                         st.warning(f"⚠️ 그룹 {i+1} 발송 실패")
                                 except Exception as e:
                                     st.error(f"❌ 그룹 {i+1} 발송 중 오류: {e}")
                                 
                                 progress_bar.progress((i + 1) / total_groups)
-                                time.sleep(0.5)  # API 부하 방지
+                                time.sleep(0.5)
                             
                             progress_bar.empty()
                             status_text.empty()
-                        
-                        if success_count > 0:
-                            st.session_state.submission_done = True
-                            st.success(f"""
-                            ✅ 면접 요청이 생성되었습니다!
                             
-                            📊 발송 통계:
-                            • 총 면접자: {len(all_requests)}명
-                            • 이메일 발송: {success_count}/{total_groups}회
-                            • 중복 방지: {len(all_requests) - total_groups}회 절약
-                            """)
-                            st.rerun()
-                        else:
-                            st.error("❌ 모든 이메일 발송에 실패했습니다.")
+                            # 결과 표시
+                            if success_count > 0:
+                                st.session_state.submission_done = True
+                                
+                                if success_count == total_groups:
+                                    st.success(f"""
+                                    ✅ 모든 면접 요청이 성공적으로 생성되었습니다!
+                                    
+                                    📊 발송 통계:
+                                    • 총 면접자: {len(all_requests)}명
+                                    • 그룹 수: {total_groups}개
+                                    • 실제 이메일 발송: {total_emails_sent}통
+                                    • 중복 방지: {len(all_requests) - total_groups}회 절약
+                                    """)
+                                else:
+                                    st.warning(f"""
+                                    ⚠️ 일부 면접 요청이 생성되었습니다.
+                                    
+                                    📊 발송 통계:
+                                    • 총 면접자: {len(all_requests)}명
+                                    • 성공한 그룹: {success_count}/{total_groups}개
+                                    • 실제 이메일 발송: {total_emails_sent}통
+                                    """)
+                                st.rerun()
+
     
     with tab2:
         st.subheader("📊 진행 현황")
