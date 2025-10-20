@@ -188,9 +188,15 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
     # ✅ 첫 번째 요청 가져오기
     first_request = requests[0]
     
+    # ✅ 현재 로그인한 면접관 ID
+    current_interviewer_id = st.session_state.authenticated_interviewer
+    
     # ✅ 복수 면접관 체크
     interviewer_ids = [id.strip() for id in first_request.interviewer_id.split(',')]
     is_multiple_interviewers = len(interviewer_ids) > 1
+    
+    # ✅ 현재 응답 현황 확인
+    all_responded, responded_count, total_count = db.check_all_interviewers_responded(first_request)
     
     # ✅ 면접자 목록 표시
     st.markdown(f"""
@@ -205,7 +211,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                 <td style="padding: 10px 0; font-weight: bold; color: #1A1A1A;">면접자 수</td>
                 <td style="padding: 10px 0; color: #333;">{len(requests)}명</td>
             </tr>
-            {'<tr><td style="padding: 10px 0; font-weight: bold; color: #1A1A1A;">면접관 수</td><td style="padding: 10px 0; color: #EF3340;">' + str(len(interviewer_ids)) + '명 (공동 면접)</td></tr>' if is_multiple_interviewers else ''}
+            {'<tr><td style="padding: 10px 0; font-weight: bold; color: #1A1A1A;">면접관 응답</td><td style="padding: 10px 0; color: #EF3340;">' + str(responded_count) + '/' + str(total_count) + '명 완료</td></tr>' if is_multiple_interviewers else ''}
         </table>
     </div>
     """, unsafe_allow_html=True)
@@ -215,9 +221,9 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
         st.info(f"""
         💡 **공동 면접 안내**
         
-        이 공고는 **{len(interviewer_ids)}명의 면접관**이 함께 진행합니다.
-        - 모든 면접관이 일정을 입력한 후, **공통으로 가능한 날짜**만 면접자에게 전송됩니다.
-        - 귀하의 일정을 먼저 입력하시면, 다른 면접관의 응답을 기다립니다.
+        이 공고는 **{total_count}명의 면접관**이 함께 진행합니다.
+        - 현재 **{responded_count}명**이 일정을 입력했습니다.
+        - 모든 면접관이 일정을 입력하면 **공통 일정**만 면접자에게 전송됩니다.
         """)
     
     # ✅ 면접자 목록 테이블
@@ -263,7 +269,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
             st.markdown("**✅ 가능한 날짜를 선택해주세요**")
             
             if is_multiple_interviewers:
-                st.warning(f"⚠️ 선택한 날짜는 다른 면접관들과 **교집합** 처리됩니다. (총 {len(interviewer_ids)}명)")
+                st.warning(f"⚠️ 선택한 날짜는 다른 면접관들과 **교집합** 처리됩니다. (현재 {responded_count}/{total_count}명 응답)")
             else:
                 st.info("💡 선택한 날짜는 이 공고의 모든 면접자에게 동일하게 적용됩니다.")
             
@@ -354,78 +360,60 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                             slots = time_range.generate_30min_slots()
                             all_slots.extend(slots)
                     
-                    # ✅ 이 공고의 모든 요청에 슬롯 저장
-                    for request in requests:
-                        request.available_slots = all_slots.copy()
-                        request.updated_at = datetime.now()
-                        
-                        db.save_interview_request(request)
-                        db.update_google_sheet(request)
+                    # ✅ Step 1: 현재 면접관의 응답 저장
+                    db.save_interviewer_response(
+                        request_id=first_request.id,
+                        interviewer_id=current_interviewer_id,
+                        slots=all_slots
+                    )
                     
-                    # ✅ 복수 면접관인 경우 공통 일정 체크
-                    if is_multiple_interviewers:
-                        # 모든 면접관이 응답했는지 확인
-                        all_responded = db.check_all_interviewers_responded(first_request)
+                    # ✅ Step 2: 모든 면접관이 응답했는지 확인
+                    all_responded, responded_count, total_count = db.check_all_interviewers_responded(first_request)
+                    
+                    if all_responded:
+                        # ✅ Step 3: 공통 일정 계산
+                        common_slots = db.get_common_available_slots(first_request)
                         
-                        if all_responded:
-                            # 공통 일정 계산
-                            common_slots = db.get_common_available_slots(first_request)
+                        if common_slots:
+                            # ✅ Step 4: 모든 요청에 공통 슬롯 저장 후 이메일 발송
+                            success_count = 0
                             
-                            if common_slots:
-                                # 공통 일정으로 업데이트 후 이메일 발송
-                                success_count = 0
+                            for request in requests:
+                                request.available_slots = common_slots.copy()
+                                request.status = Config.Status.PENDING_CANDIDATE
+                                request.updated_at = datetime.now()
                                 
-                                for request in requests:
-                                    request.available_slots = common_slots.copy()
-                                    request.status = Config.Status.PENDING_CANDIDATE
-                                    request.updated_at = datetime.now()
-                                    
-                                    db.save_interview_request(request)
-                                    db.update_google_sheet(request)
-                                    
-                                    if email_service.send_candidate_invitation(request):
-                                        success_count += 1
+                                db.save_interview_request(request)
+                                db.update_google_sheet(request)
                                 
-                                st.success(f"""
-                                ✅ 모든 면접관의 일정이 확정되었습니다!
-                                
-                                • 공고: {position_name}
-                                • 면접관 수: {len(interviewer_ids)}명
-                                • 공통 슬롯: {len(common_slots)}개 (30분 단위)
-                                • 이메일 발송: {success_count}/{len(requests)}명 성공
-                                """)
-                            else:
-                                st.warning(f"""
-                                ⚠️ 공통 가능 일정이 없습니다!
-                                
-                                • 면접관 {len(interviewer_ids)}명의 일정에 겹치는 시간이 없습니다.
-                                • 인사팀에 문의하여 일정을 재조율해주세요.
-                                """)
+                                if email_service.send_candidate_invitation(request):
+                                    success_count += 1
+                            
+                            st.success(f"""
+                            ✅ 모든 면접관의 일정이 확정되었습니다!
+                            
+                            • 공고: {position_name}
+                            • 면접관 수: {total_count}명 (모두 응답 완료)
+                            • 공통 슬롯: {len(common_slots)}개 (30분 단위)
+                            • 이메일 발송: {success_count}/{len(requests)}명 성공
+                            """)
+                            
+                            st.balloons()
                         else:
-                            st.info(f"""
-                            ✅ 귀하의 일정이 저장되었습니다!
+                            st.warning(f"""
+                            ⚠️ 공통 가능 일정이 없습니다!
                             
-                            • 다른 면접관들의 응답을 기다리고 있습니다.
-                            • 모든 면접관이 응답하면 자동으로 면접자에게 이메일이 발송됩니다.
+                            • 면접관 {total_count}명의 일정에 겹치는 시간이 없습니다.
+                            • 인사팀에 문의하여 일정을 재조율해주세요.
                             """)
                     else:
-                        # 단일 면접관인 경우 즉시 발송
-                        success_count = 0
+                        # ✅ 아직 다른 면접관의 응답 대기 중
+                        st.info(f"""
+                        ✅ 귀하의 일정이 저장되었습니다!
                         
-                        for request in requests:
-                            request.status = Config.Status.PENDING_CANDIDATE
-                            db.save_interview_request(request)
-                            db.update_google_sheet(request)
-                            
-                            if email_service.send_candidate_invitation(request):
-                                success_count += 1
-                        
-                        st.success(f"""
-                        ✅ 면접 일정이 확정되었습니다!
-                        
-                        • 공고: {position_name}
-                        • 생성된 슬롯: {len(all_slots)}개 (30분 단위)
-                        • 이메일 발송: {success_count}/{len(requests)}명 성공
+                        • 다른 면접관들의 응답을 기다리고 있습니다.
+                        • 현재 응답 현황: **{responded_count}/{total_count}명**
+                        • 모든 면접관이 응답하면 자동으로 면접자에게 이메일이 발송됩니다.
                         """)
                     
                     # 세션 상태에서 처리된 공고 제거
@@ -433,11 +421,30 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                         if position_name in st.session_state.grouped_requests:
                             del st.session_state.grouped_requests[position_name]
                     
-                    st.balloons()
                     st.rerun()
                         
                 except Exception as e:
                     st.error(f"❌ 처리 중 오류가 발생했습니다: {str(e)}")
+
+
+def parse_datetime_slot(datetime_slot: str) -> dict:
+    """datetime_slot 파싱"""
+    try:
+        parts = datetime_slot.split(' ')
+        date_part = parts[0]
+        time_range = parts[1] if len(parts) > 1 else None
+        
+        if time_range and '~' in time_range:
+            start_time, end_time = time_range.split('~')
+            return {
+                'date': date_part,
+                'start_time': start_time,
+                'end_time': end_time
+            }
+        else:
+            return None
+    except Exception as e:
+        return None
 
 if __name__ == "__main__":
     main()

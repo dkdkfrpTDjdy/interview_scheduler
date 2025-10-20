@@ -53,6 +53,7 @@ class DatabaseManager:
         """데이터베이스 초기화"""
         try:
             with sqlite3.connect(self.db_path) as conn:
+                # 기존 테이블
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS interview_requests (
                         id TEXT PRIMARY KEY,
@@ -69,11 +70,179 @@ class DatabaseManager:
                         candidate_note TEXT
                     )
                 """)
+                
+                # ✅ 면접관 응답 테이블 추가
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS interviewer_responses (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        request_id TEXT NOT NULL,
+                        interviewer_id TEXT NOT NULL,
+                        available_slots TEXT NOT NULL,
+                        responded_at TIMESTAMP,
+                        UNIQUE(request_id, interviewer_id)
+                    )
+                """)
+                
                 logger.info("데이터베이스 초기화 완료")
         except Exception as e:
             logger.error(f"데이터베이스 초기화 실패: {e}")
             raise
-    
+        
+    def save_interviewer_response(self, request_id: str, interviewer_id: str, slots: List[InterviewSlot]):
+        """
+        개별 면접관의 일정 응답 저장
+        
+        Args:
+            request_id: 요청 ID
+            interviewer_id: 면접관 ID (단일)
+            slots: 해당 면접관이 선택한 슬롯
+        """
+        try:
+            slots_json = json.dumps([
+                {"date": slot.date, "time": slot.time, "duration": slot.duration} 
+                for slot in slots
+            ])
+            
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO interviewer_responses 
+                    (request_id, interviewer_id, available_slots, responded_at)
+                    VALUES (?, ?, ?, ?)
+                """, (
+                    request_id,
+                    interviewer_id,
+                    slots_json,
+                    datetime.now().isoformat()
+                ))
+                
+            logger.info(f"면접관 {interviewer_id} 응답 저장 완료: {len(slots)}개 슬롯")
+            return True
+            
+        except Exception as e:
+            logger.error(f"면접관 응답 저장 실패: {e}")
+            return False
+
+
+    def get_interviewer_responses(self, request_id: str) -> dict:
+        """
+        특정 요청에 대한 모든 면접관의 응답 조회
+        
+        Returns:
+            {
+                '223286': [InterviewSlot, ...],
+                '223287': [InterviewSlot, ...],
+            }
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute(
+                    "SELECT interviewer_id, available_slots FROM interviewer_responses WHERE request_id = ?",
+                    (request_id,)
+                )
+                rows = cursor.fetchall()
+            
+            responses = {}
+            for row in rows:
+                interviewer_id = row[0]
+                slots_data = json.loads(row[1])
+                slots = [InterviewSlot(**slot) for slot in slots_data]
+                responses[interviewer_id] = slots
+            
+            return responses
+            
+        except Exception as e:
+            logger.error(f"면접관 응답 조회 실패: {e}")
+            return {}
+
+
+    def check_all_interviewers_responded(self, request: InterviewRequest) -> tuple[bool, int, int]:
+        """
+        모든 면접관이 일정을 입력했는지 확인
+        
+        Returns:
+            (전체 응답 여부, 응답한 면접관 수, 전체 면접관 수)
+        """
+        try:
+            interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
+            
+            # 단일 면접관인 경우
+            if len(interviewer_ids) == 1:
+                has_slots = request.available_slots and len(request.available_slots) > 0
+                return has_slots, (1 if has_slots else 0), 1
+            
+            # 복수 면접관인 경우 - interviewer_responses 테이블 확인
+            responses = self.get_interviewer_responses(request.id)
+            responded_count = len(responses)
+            total_count = len(interviewer_ids)
+            
+            all_responded = responded_count == total_count
+            
+            logger.info(f"면접관 응답 현황: {responded_count}/{total_count}")
+            
+            return all_responded, responded_count, total_count
+            
+        except Exception as e:
+            logger.error(f"면접관 응답 확인 실패: {e}")
+            return False, 0, len(request.interviewer_id.split(','))
+
+
+    def get_common_available_slots(self, request: InterviewRequest) -> List[InterviewSlot]:
+        """
+        모든 면접관이 공통으로 선택한 30분 단위 타임슬롯 반환
+        
+        Returns:
+            List[InterviewSlot]: 공통 타임슬롯
+        """
+        try:
+            interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
+            
+            # 단일 면접관인 경우
+            if len(interviewer_ids) == 1:
+                return request.available_slots
+            
+            # 복수 면접관인 경우
+            responses = self.get_interviewer_responses(request.id)
+            
+            if len(responses) < len(interviewer_ids):
+                logger.warning(f"일부 면접관이 아직 응답하지 않았습니다: {len(responses)}/{len(interviewer_ids)}")
+                return []
+            
+            # 각 면접관별 타임슬롯을 set으로 변환
+            slot_sets = []
+            for interviewer_id in interviewer_ids:
+                if interviewer_id in responses:
+                    slot_keys = set()
+                    for slot in responses[interviewer_id]:
+                        key = f"{slot.date}_{slot.time}"
+                        slot_keys.add(key)
+                    slot_sets.append(slot_keys)
+            
+            # 교집합 계산
+            if not slot_sets:
+                return []
+            
+            common_slot_keys = set.intersection(*slot_sets)
+            
+            # 키를 다시 InterviewSlot 객체로 변환
+            common_slots = []
+            for key in common_slot_keys:
+                date_part, time_part = key.split('_')
+                common_slots.append(InterviewSlot(
+                    date=date_part,
+                    time=time_part,
+                    duration=30
+                ))
+            
+            # 날짜/시간 순으로 정렬
+            common_slots.sort(key=lambda x: (x.date, x.time))
+            
+            logger.info(f"공통 타임슬롯 {len(common_slots)}개 발견: {request.position_name}")
+            return common_slots
+            
+        except Exception as e:
+            logger.error(f"공통 타임슬롯 찾기 실패: {e}")
+            return []
+        
     @retry_on_failure(max_retries=3, delay=2)
     def init_google_sheet(self):
         """구글 시트 초기화"""
