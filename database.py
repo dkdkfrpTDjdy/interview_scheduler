@@ -431,6 +431,117 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"타임슬롯 예약 실패: {e}")
             return False
+        
+    def check_all_interviewers_responded(self, request: InterviewRequest) -> bool:
+        """
+        모든 면접관이 일정을 입력했는지 확인
+        
+        Returns:
+            bool: 모든 면접관이 응답했으면 True
+        """
+        try:
+            interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
+            
+            # 단일 면접관인 경우
+            if len(interviewer_ids) == 1:
+                return request.available_slots and len(request.available_slots) > 0
+            
+            # 복수 면접관인 경우 - 동일 포지션의 모든 요청 확인
+            all_requests = self.get_all_requests()
+            same_position_requests = [
+                req for req in all_requests
+                if req.position_name == request.position_name
+                and req.interviewer_id == request.interviewer_id
+            ]
+            
+            # 각 면접관별 응답 여부 체크
+            responded_interviewers = set()
+            
+            for req in same_position_requests:
+                if req.available_slots and len(req.available_slots) > 0:
+                    # 이 요청을 처리한 면접관 ID 추출
+                    req_interviewer_ids = [id.strip() for id in req.interviewer_id.split(',')]
+                    for interviewer_id in req_interviewer_ids:
+                        responded_interviewers.add(interviewer_id)
+            
+            # 모든 면접관이 응답했는지 확인
+            all_responded = all(interviewer_id in responded_interviewers for interviewer_id in interviewer_ids)
+            
+            logger.info(f"면접관 응답 현황: {len(responded_interviewers)}/{len(interviewer_ids)} - {responded_interviewers}")
+            
+            return all_responded
+            
+        except Exception as e:
+            logger.error(f"면접관 응답 확인 실패: {e}")
+            return False
+
+
+    def get_common_available_slots(self, request: InterviewRequest) -> List[InterviewSlot]:
+        """
+        모든 면접관이 공통으로 선택한 30분 단위 타임슬롯 반환
+        
+        Returns:
+            List[InterviewSlot]: 공통 타임슬롯
+        """
+        try:
+            interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
+            
+            # 단일 면접관인 경우
+            if len(interviewer_ids) == 1:
+                return request.available_slots
+            
+            # 복수 면접관인 경우
+            all_requests = self.get_all_requests()
+            same_position_requests = [
+                req for req in all_requests
+                if req.position_name == request.position_name
+                and req.interviewer_id == request.interviewer_id
+            ]
+            
+            # 각 면접관별 타임슬롯 수집
+            interviewer_slot_sets = {}
+            
+            for req in same_position_requests:
+                if req.available_slots and len(req.available_slots) > 0:
+                    req_interviewer_ids = [id.strip() for id in req.interviewer_id.split(',')]
+                    
+                    for interviewer_id in req_interviewer_ids:
+                        if interviewer_id not in interviewer_slot_sets:
+                            interviewer_slot_sets[interviewer_id] = set()
+                        
+                        # 각 슬롯을 "날짜_시간" 키로 변환
+                        for slot in req.available_slots:
+                            key = f"{slot.date}_{slot.time}"
+                            interviewer_slot_sets[interviewer_id].add(key)
+            
+            # 모든 면접관이 공통으로 선택한 슬롯 찾기
+            if len(interviewer_slot_sets) < len(interviewer_ids):
+                logger.warning(f"일부 면접관이 아직 응답하지 않았습니다: {len(interviewer_slot_sets)}/{len(interviewer_ids)}")
+                return []
+            
+            # 교집합 계산
+            common_slot_keys = set.intersection(*interviewer_slot_sets.values())
+            
+            # 키를 다시 InterviewSlot 객체로 변환
+            common_slots = []
+            for key in common_slot_keys:
+                date_part, time_part = key.split('_')
+                common_slots.append(InterviewSlot(
+                    date=date_part,
+                    time=time_part,
+                    duration=30
+                ))
+            
+            # 날짜/시간 순으로 정렬
+            common_slots.sort(key=lambda x: (x.date, x.time))
+            
+            logger.info(f"공통 타임슬롯 {len(common_slots)}개 발견: {request.position_name}")
+            return common_slots
+            
+        except Exception as e:
+            logger.error(f"공통 타임슬롯 찾기 실패: {e}")
+            return []
+
     
     def get_interview_request(self, request_id: str) -> Optional[InterviewRequest]:
         """면접 요청 조회"""
