@@ -255,8 +255,13 @@ def find_candidate_requests(name: str, email: str):
                         value = row[col_idx] if col_idx < len(row) else ""
                         request_obj[header] = value
                     
+                    # ✅ 요청ID 정규화 (점 세개 제거)
+                    raw_id = request_obj.get('요청ID', '')
+                    clean_id = raw_id.replace('...', '').strip()
+                    
                     request_obj.update({
-                        'id': request_obj.get('요청ID', ''),
+                        'id': clean_id,  # ✅ 정규화된 ID 사용
+                        'raw_id': raw_id,  # ✅ 원본 ID 보관
                         'position_name': request_obj.get('포지션명', ''),
                         'candidate_name': request_obj.get('면접자명', ''),
                         'candidate_email': request_obj.get('면접자이메일', ''),
@@ -275,7 +280,7 @@ def find_candidate_requests(name: str, email: str):
             except Exception as e:
                 continue
         
-        # ✅ 실시간 선택 가능 일정 필터링 (개선된 버전)
+        # ✅ 실시간 선택 가능 일정 필터링
         try:
             from database import DatabaseManager
             from models import InterviewSlot
@@ -295,20 +300,21 @@ def find_candidate_requests(name: str, email: str):
                     logger.info(f"파싱된 슬롯 수: {len(proposed_slots)}")
                     
                     if proposed_slots:
-                        # ✅ 전체 요청 ID 찾기 (개선된 버전)
-                        full_request_id = None
-                        all_requests = db.get_all_requests()
+                        # ✅ 정규화된 ID로 DB 조회
+                        clean_id = request['id']  # 이미 정규화됨
+                        logger.info(f"검색할 정규화된 ID: '{clean_id}'")
                         
-                        short_id = request['id'].replace('...', '').strip()
-                        logger.info(f"검색할 짧은 ID: '{short_id}'")
+                        all_requests = db.get_all_requests()
                         logger.info(f"DB에 있는 전체 요청 수: {len(all_requests)}")
                         
-                        # ✅ DB에 있는 모든 요청 ID 로깅 (디버깅용)
+                        full_request_id = None
+                        
+                        # ✅ DB에 있는 모든 요청 ID와 비교
                         for req in all_requests:
-                            logger.info(f"  - DB 요청 ID: {req.id[:15]}... (상태: {req.status})")
+                            logger.info(f"  - DB 요청 ID: {req.id} (상태: {req.status})")
                             
-                            # ✅ 대소문자 구분 없이 비교
-                            if req.id.lower().startswith(short_id.lower()):
+                            # ✅ 완전 일치 또는 시작 일치
+                            if req.id == clean_id or req.id.startswith(clean_id):
                                 full_request_id = req.id
                                 logger.info(f"✅ 전체 요청 ID 찾음: {full_request_id}")
                                 break
@@ -340,10 +346,7 @@ def find_candidate_requests(name: str, email: str):
                                 request['available_slots_filtered'] = []
                         else:
                             logger.warning(f"⚠️ 전체 요청 ID를 찾을 수 없음: {request['id']}")
-                            logger.warning(f"⚠️ DB 동기화 필요 - 구글시트에만 존재하는 요청")
-                            
-                            # ✅ 폴백: 구글시트의 제안 슬롯을 그대로 사용
-                            logger.info("📌 폴백: 구글시트 데이터로 슬롯 생성")
+                            logger.warning(f"⚠️ 폴백: 구글시트 데이터로 슬롯 생성")
                             request['available_slots_filtered'] = proposed_slots
                     else:
                         logger.warning(f"파싱된 슬롯이 없음: {request['id']}")
@@ -750,7 +753,6 @@ def show_request_detail(request, index):
     st.markdown(f"""
     <div style="margin: 30px 0 15px 0;">
         <h4 style="color: #1A1A1A; margin: 0; font-weight: 500;">🗓️ 선택 가능한 면접 일정 ({len(available_slots)}개)</h4>
-        <p style="color: #EF3340; margin: 5px 0 15px 0; font-size: 0.95rem; font-weight: 500;">⚠️ 선착순으로 마감됩니다!</p>
     </div>
     """, unsafe_allow_html=True)
     
