@@ -738,9 +738,7 @@ def show_request_detail(request, index):
         </div>
         """, unsafe_allow_html=True)
     
-    # 다른 일정 요청 입력창
-    candidate_note = ""
-    if selected_option == len(slot_options) - 1:
+    if selected_label == alternative_label:
         st.markdown("""
         <label style="color: #1A1A1A; font-weight: 500; font-size: 1rem; margin: 20px 0 10px 0; display: block;">
             가능한 면접 일정이나 요청사항을 입력해주세요
@@ -754,6 +752,8 @@ def show_request_detail(request, index):
             key=f"candidate_note_{index}",
             label_visibility="collapsed"
         )
+    else:
+        candidate_note = ""  # 다른 일정 요청이 아닌 경우에는 빈 문자열
     
     # 제출 버튼
     st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
