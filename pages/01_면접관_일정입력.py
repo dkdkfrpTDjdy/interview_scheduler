@@ -347,25 +347,59 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                         common_slots = db.get_common_available_slots(first_request)
                         
                         if common_slots:
-                            # ✅ Step 4: 모든 요청에 공통 슬롯 저장 후 이메일 발송
+                            # ✅ Step 4: 모든 요청에 공통 슬롯 저장 + 구글시트 업데이트
                             success_count = 0
+                            email_success_count = 0
                             
                             for request in requests:
                                 request.available_slots = common_slots.copy()
                                 request.status = Config.Status.PENDING_CANDIDATE
                                 request.updated_at = datetime.now()
                                 
+                                # DB 저장
                                 db.save_interview_request(request)
+                                
+                                # ✅ 구글시트 업데이트 (K1 셀에 공통 일정 저장)
                                 db.update_google_sheet(request)
                                 
-                                if email_service.send_candidate_invitation(request):
-                                    success_count += 1
-
+                                success_count += 1
+                            
+                            # ✅ Step 5: 면접자에게 이메일 발송 (그룹별 1회만)
+                            try:
+                                # 첫 번째 요청으로 대표 발송
+                                if email_service.send_candidate_invitation(first_request):
+                                    email_success_count = len(requests)
+                                    st.success(f"""
+                                    ✅ 모든 면접관이 응답을 완료했습니다!
+                                    
+                                    📊 처리 결과:
+                                    • 공통 가능 일정: {len(common_slots)}개 슬롯
+                                    • 구글시트 업데이트: {success_count}/{len(requests)}건 완료
+                                    • 면접자 이메일 발송: {email_success_count}/{len(requests)}명 완료
+                                    
+                                    💡 면접자들이 이메일을 확인하고 일정을 선택하면 자동으로 확정됩니다.
+                                    """)
+                                else:
+                                    st.warning(f"""
+                                    ⚠️ 구글시트는 업데이트되었으나 이메일 발송에 실패했습니다.
+                                    
+                                    • 구글시트 업데이트: {success_count}/{len(requests)}건 완료
+                                    • 이메일 발송 실패: 관리자에게 문의하세요
+                                    """)
+                            except Exception as email_error:
+                                st.error(f"❌ 이메일 발송 중 오류: {email_error}")
+                        else:
+                            st.warning("""
+                            ⚠️ 공통 가능한 일정이 없습니다.
+                            
+                            • 모든 면접관이 응답했으나 겹치는 시간이 없습니다.
+                            • 인사팀에 문의하여 일정을 재조율해주세요.
+                            """)
                     else:
                         st.info(f"""
                         ✅ 귀하의 일정이 저장되었습니다!
                         
-                        • 다른 면접관들의 응답을 기다리고 있습니다.
+                        • 다른 면접관들의 응답을 기다리고 있습니다. ({responded_count}/{total_count}명 완료)
                         • 모든 면접관이 응답하면 자동으로 면접자에게 이메일이 발송됩니다.
                         """)
                     

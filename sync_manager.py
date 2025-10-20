@@ -3,6 +3,10 @@ import time
 from datetime import datetime, timedelta
 import logging
 
+# ✅ 로깅 설정 추가
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 class SyncManager:
     def __init__(self, db_manager, email_service):
         self.db = db_manager
@@ -25,6 +29,25 @@ class SyncManager:
         thread = threading.Thread(target=monitor_loop, daemon=True)
         thread.start()
         self.logger.info("구글시트 모니터링 시작")
+
+    # sync_manager.py에 추가
+    def check_for_pending_candidate_emails(self):
+        """K1 셀에 값이 있으나 이메일이 발송되지 않은 요청 확인"""
+        try:
+            requests = self.db.get_all_requests()
+            
+            for request in requests:
+                # K1 셀에 값이 있고, 상태가 "면접자_선택대기"인데 이메일 발송 기록이 없는 경우
+                if (request.status == Config.Status.PENDING_CANDIDATE and 
+                    request.available_slots and 
+                    len(request.available_slots) > 0):
+                    
+                    # 이메일 발송 시도
+                    logger.info(f"주기적 체크: {request.id} 이메일 발송 시도")
+                    self.email_service.send_candidate_invitation(request)
+                    
+        except Exception as e:
+            logger.error(f"주기적 이메일 체크 실패: {e}")
     
     def check_for_confirmations(self):
         """L열(확정일시) 변경 감지 및 이메일 발송"""
