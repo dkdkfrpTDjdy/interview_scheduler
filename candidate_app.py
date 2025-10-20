@@ -201,12 +201,10 @@ google_sheet = init_google_sheet()
 
 
 def find_candidate_requests(name: str, email: str):
-    """구글 시트에서 직접 면접자 요청 찾기 + 실시간 선택 가능 일정 필터링"""
-    from database import DatabaseManager
+    """구글 시트에서 직접 면접자 요청 찾기 + 제안 일정 파싱"""
     import logging
-
     logger = logging.getLogger(__name__)
-    
+
     try:
         if not google_sheet:
             return []
@@ -267,68 +265,22 @@ def find_candidate_requests(name: str, email: str):
                         'row_number': row_idx
                     })
 
+                    # ✅ 선택 가능한 슬롯 필터링
+                    if request_obj['status'] == '면접자_선택대기':
+                        request_obj['available_slots_filtered'] = parse_proposed_slots(request_obj.get('proposed_slots', ''))
+                    else:
+                        request_obj['available_slots_filtered'] = []
+
                     matching_requests.append(request_obj)
 
             except Exception:
                 continue
-
-        # ✅ 실시간 가능한 일정 필터링
-        try:
-            db = DatabaseManager()
-            all_requests = db.get_all_requests()
-            logger.info(f"DB 요청 수: {len(all_requests)}")
-
-            for request in matching_requests:
-                if request.get('status') != '면접자_선택대기':
-                    request['available_slots_filtered'] = []
-                    continue
-
-                short_id = request['id'].replace('...', '').strip()
-                proposed_slots = parse_proposed_slots(request.get('proposed_slots', ''))
-
-                full_request_id = None
-                for req in all_requests:
-                    if req.id.lower().startswith(short_id.lower()):
-                        full_request_id = req.id
-                        break
-
-                if full_request_id:
-                    req_obj = db.get_interview_request(full_request_id)
-                    if req_obj:
-                        available_slots = db.get_available_slots_for_candidate(req_obj)
-                        request['available_slots_filtered'] = [
-                            {'date': slot.date, 'time': slot.time, 'duration': slot.duration}
-                            for slot in available_slots
-                        ]
-                        continue
-                    else:
-                        logger.warning(f"요청 객체 없음: {full_request_id}")
-                else:
-                    logger.warning(f"전체 요청 ID 미매칭: {short_id}")
-
-                # fallback to google sheet proposed slots
-                request['available_slots_filtered'] = proposed_slots or []
-
-        except Exception as e:
-            import traceback
-            logger.error(f"실시간 슬롯 필터링 중 오류: {e}")
-            logger.error(traceback.format_exc())
-
-            # fallback 처리
-            for request in matching_requests:
-                if 'available_slots_filtered' not in request:
-                    if request.get('status') == '면접자_선택대기':
-                        request['available_slots_filtered'] = parse_proposed_slots(request.get('proposed_slots', ''))
-                    else:
-                        request['available_slots_filtered'] = []
 
         return matching_requests
 
     except Exception as e:
         st.error(f"❌ 데이터 조회 중 오류: {e}")
         return []
-
-    
 
 def format_date_korean(date_str: str) -> str:
     """날짜를 한국어 형식으로 변환"""
@@ -726,7 +678,9 @@ def show_request_detail(request, index):
     slot_options.append("💬 다른 일정 요청")
         
     select_key = f"select_selection_{index}"
-    selected_value = st.session_state.get(select_key)
+    selected_value = st.session_state.get(select_key, slot_options[0])
+    if selected_value not in slot_options:
+        selected_value = slot_options[0]
     index = slot_options.index(selected_value) if selected_value in slot_options else 0
 
     selected_option_text = st.selectbox(
