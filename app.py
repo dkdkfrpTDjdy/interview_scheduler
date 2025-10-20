@@ -279,9 +279,9 @@ def main():
             st.markdown("---")
             
             # ✅ 면접 희망일시 선택 섹션 (시간 범위 입력)
-            st.markdown("**📅 면접 희망 날짜 및 시간대 선택 (최대 3개)**")
+            st.markdown("**📅 면접 희망 날짜 및 시간대 선택 (최대 5개)**")
 
-            available_dates = get_next_weekdays(20)
+            available_dates = get_next_weekdays(30)
 
             col1, col2, col3, col4 = st.columns([2, 1.5, 1.5, 1])
 
@@ -336,11 +336,11 @@ def main():
                         time_range_str = f"{selected_date} {start_time}~{end_time}"
                         
                         if time_range_str not in st.session_state.selected_slots:
-                            if len(st.session_state.selected_slots) < 3:
+                            if len(st.session_state.selected_slots) < 5:
                                 st.session_state.selected_slots.append(time_range_str)
                                 st.rerun()
                             else:
-                                st.warning("⚠️ 최대 3개까지 선택 가능합니다.")
+                                st.warning("⚠️ 최대 5개까지 선택 가능합니다.")
                         else:
                             st.warning("⚠️ 이미 선택된 시간대입니다.")
 
