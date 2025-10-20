@@ -478,23 +478,22 @@ class DatabaseManager:
         """면접 요청 조회 - ID 정규화 적용"""
         from utils import normalize_request_id
         
-        # ✅ 입력된 ID 정규화
         clean_id = normalize_request_id(request_id)
         
         try:
             with sqlite3.connect(self.db_path) as conn:
-                # ✅ LIKE 패턴으로 유연한 검색
+                # ✅ 부분 일치 검색 (앞뒤 어디에 있든)
                 cursor = conn.execute(
                     "SELECT * FROM interview_requests WHERE id LIKE ?", 
-                    (f"{clean_id}%",)
+                    (f"%{clean_id}%",)
                 )
                 row = cursor.fetchone()
                 
                 if not row:
                     logger.warning(f"요청을 찾을 수 없음: {clean_id}")
                     return None
-                
-                # JSON 데이터 파싱
+
+                # 나머지 JSON 파싱 동일
                 available_slots = []
                 if row[8]:
                     try:
@@ -535,7 +534,7 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"면접 요청 조회 실패: {e}")
             return None
-    
+
     def get_all_requests(self) -> List[InterviewRequest]:
         """모든 면접 요청 조회"""
         try:
