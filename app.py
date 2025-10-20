@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime, date
 import sys
 import os
+import time  # ✅ time 모듈 추가
 
 # 현재 디렉토리를 Python 경로에 추가
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -11,6 +12,19 @@ from database import DatabaseManager
 from email_service import EmailService
 from models import InterviewRequest, InterviewSlot
 from config import Config
+
+# ✅ utils에서 필요한 함수들 import
+try:
+    from utils import (
+        load_employee_data, 
+        validate_email, 
+        get_next_weekdays, 
+        format_date_korean,
+        group_requests_by_interviewer_and_position
+    )
+except ImportError as e:
+    st.error(f"❌ utils.py에서 필요한 함수를 import할 수 없습니다: {e}")
+    st.stop()
 
 # 페이지 설정
 st.set_page_config(
@@ -46,8 +60,12 @@ def init_services():
 @st.cache_data
 def load_organization_data():
     """조직도 데이터 로드"""
-    return load_employee_data()
-
+    try:
+        return load_employee_data()
+    except Exception as e:
+        st.warning(f"⚠️ 조직도 데이터 로드 실패: {e}")
+        return []
+    
 # ✅ 세션 상태 초기화
 def init_session_state():
     """세션 상태 초기화"""
