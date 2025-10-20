@@ -278,17 +278,15 @@ def find_candidate_requests(name: str, email: str):
         # ✅ 실시간 선택 가능 일정 필터링 (개선된 버전)
         try:
             from database import DatabaseManager
-            from models import InterviewRequest, InterviewSlot
+            from models import InterviewSlot
             import logging
             
             logger = logging.getLogger(__name__)
             db = DatabaseManager()
             
             for request in matching_requests:
-                # ✅ 디버깅: 상태 확인
                 logger.info(f"요청 상태 확인: {request['status']}")
                 
-                # ✅ 상태가 "면접자_선택대기"인 경우만 처리
                 if request['status'] == '면접자_선택대기':
                     logger.info(f"'면접자_선택대기' 상태 확인됨: {request['id']}")
                     
@@ -297,15 +295,22 @@ def find_candidate_requests(name: str, email: str):
                     logger.info(f"파싱된 슬롯 수: {len(proposed_slots)}")
                     
                     if proposed_slots:
-                        # ✅ 전체 요청 ID 찾기
+                        # ✅ 전체 요청 ID 찾기 (개선된 버전)
                         full_request_id = None
                         all_requests = db.get_all_requests()
                         
+                        short_id = request['id'].replace('...', '').strip()
+                        logger.info(f"검색할 짧은 ID: '{short_id}'")
+                        logger.info(f"DB에 있는 전체 요청 수: {len(all_requests)}")
+                        
+                        # ✅ DB에 있는 모든 요청 ID 로깅 (디버깅용)
                         for req in all_requests:
-                            short_id = request['id'].replace('...', '')
-                            if req.id.startswith(short_id):
+                            logger.info(f"  - DB 요청 ID: {req.id[:15]}... (상태: {req.status})")
+                            
+                            # ✅ 대소문자 구분 없이 비교
+                            if req.id.lower().startswith(short_id.lower()):
                                 full_request_id = req.id
-                                logger.info(f"전체 요청 ID 찾음: {full_request_id}")
+                                logger.info(f"✅ 전체 요청 ID 찾음: {full_request_id}")
                                 break
                         
                         if full_request_id:
@@ -313,6 +318,7 @@ def find_candidate_requests(name: str, email: str):
                             
                             if req_obj:
                                 logger.info(f"요청 객체 조회 성공: {req_obj.id}")
+                                logger.info(f"요청 객체 available_slots: {len(req_obj.available_slots)}개")
                                 
                                 # ✅ 선택 가능한 일정만 가져오기
                                 available_slots = db.get_available_slots_for_candidate(req_obj)
@@ -331,36 +337,42 @@ def find_candidate_requests(name: str, email: str):
                                 logger.info(f"필터링된 슬롯 저장 완료: {len(request['available_slots_filtered'])}개")
                             else:
                                 logger.warning(f"요청 객체를 찾을 수 없음: {full_request_id}")
-                                # ✅ 빈 리스트 명시적 할당
                                 request['available_slots_filtered'] = []
                         else:
-                            logger.warning(f"전체 요청 ID를 찾을 수 없음: {request['id']}")
-                            # ✅ 빈 리스트 명시적 할당
-                            request['available_slots_filtered'] = []
+                            logger.warning(f"⚠️ 전체 요청 ID를 찾을 수 없음: {request['id']}")
+                            logger.warning(f"⚠️ DB 동기화 필요 - 구글시트에만 존재하는 요청")
+                            
+                            # ✅ 폴백: 구글시트의 제안 슬롯을 그대로 사용
+                            logger.info("📌 폴백: 구글시트 데이터로 슬롯 생성")
+                            request['available_slots_filtered'] = proposed_slots
                     else:
                         logger.warning(f"파싱된 슬롯이 없음: {request['id']}")
-                        # ✅ 빈 리스트 명시적 할당
                         request['available_slots_filtered'] = []
                 else:
-                    # ✅ "면접자_선택대기"가 아닌 경우 빈 리스트
                     request['available_slots_filtered'] = []
                     
         except Exception as e:
             import logging
+            import traceback
             logger = logging.getLogger(__name__)
-            logger.error(f"선택 가능 일정 필터링 실패: {e}", exc_info=True)
+            logger.error(f"선택 가능 일정 필터링 실패: {e}")
+            logger.error(traceback.format_exc())
             
-            # ✅ 예외 발생 시에도 빈 리스트 할당
+            # ✅ 예외 발생 시에도 폴백 처리
             for request in matching_requests:
                 if 'available_slots_filtered' not in request:
-                    request['available_slots_filtered'] = []
+                    if request.get('status') == '면접자_선택대기' and request.get('proposed_slots'):
+                        logger.info("📌 예외 처리 폴백: 구글시트 데이터 사용")
+                        request['available_slots_filtered'] = parse_proposed_slots(request['proposed_slots'])
+                    else:
+                        request['available_slots_filtered'] = []
         
         return matching_requests
         
     except Exception as e:
         st.error(f"❌ 데이터 조회 중 오류: {e}")
         return []
-
+    
 def parse_proposed_slots(slots_str: str):
     """제안일시목록 문자열을 파싱"""
     if not slots_str:
