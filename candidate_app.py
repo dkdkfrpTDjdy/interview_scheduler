@@ -6,6 +6,7 @@ from google.oauth2.service_account import Credentials
 import pandas as pd
 from datetime import datetime
 import time
+from utils import normalize_request_id, normalize_text, parse_proposed_slots
 
 # 🔧 면접자 앱임을 명시
 os.environ["APP_TYPE"] = "candidate"
@@ -196,15 +197,9 @@ def init_google_sheet():
 # 전역 변수
 google_sheet = init_google_sheet()
 
-def normalize_text(text: str) -> str:
-    """텍스트 정규화 - 공백, 대소문자, 특수문자 제거"""
-    if not text:
-        return ""
-    return str(text).strip().lower().replace(" ", "").replace("\n", "").replace("\t", "")
 
 def find_candidate_requests(name: str, email: str):
     """구글 시트에서 직접 면접자 요청 찾기 + 실시간 선택 가능 일정 필터링"""
-    from utils import normalize_request_id, normalize_text, parse_proposed_slots
     from database import DatabaseManager
     import logging
 
@@ -332,31 +327,6 @@ def find_candidate_requests(name: str, email: str):
         return []
 
     
-def parse_proposed_slots(slots_str: str):
-    """제안일시목록 문자열을 파싱"""
-    if not slots_str:
-        return []
-    
-    slots = []
-    parts = slots_str.split(' | ')
-    
-    for part in parts:
-        try:
-            if '(' in part and ')' in part:
-                datetime_part, duration_part = part.split('(')
-                duration = duration_part.replace('분)', '')
-                
-                date_part, time_part = datetime_part.strip().split(' ')
-                
-                slots.append({
-                    'date': date_part,
-                    'time': time_part,
-                    'duration': int(duration)
-                })
-        except:
-            continue
-    
-    return slots
 
 def format_date_korean(date_str: str) -> str:
     """날짜를 한국어 형식으로 변환"""
