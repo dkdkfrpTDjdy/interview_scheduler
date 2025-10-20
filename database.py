@@ -287,7 +287,12 @@ class DatabaseManager:
             return {}
     
     def check_all_interviewers_responded(self, request: InterviewRequest) -> Tuple[bool, int, int]:
-        """모든 면접관이 일정을 입력했는지 확인"""
+        """
+        모든 면접관이 일정을 입력했는지 확인
+        
+        Returns:
+            Tuple[bool, int, int]: (전체 응답 여부, 응답한 면접관 수, 전체 면접관 수)
+        """
         try:
             interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
             
@@ -296,7 +301,7 @@ class DatabaseManager:
                 has_slots = request.available_slots and len(request.available_slots) > 0
                 return (has_slots, (1 if has_slots else 0), 1)
             
-            # 복수 면접관인 경우
+            # 복수 면접관인 경우 - interviewer_responses 테이블 확인
             responses = self.get_interviewer_responses(request.id)
             responded_count = len(responses)
             total_count = len(interviewer_ids)
