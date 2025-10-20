@@ -7,6 +7,7 @@ import os
 from collections import defaultdict
 from typing import Dict, List
 from models import InterviewRequest
+import re
 
 def group_requests_by_interviewer_and_position(requests: List[InterviewRequest]) -> Dict[str, List[InterviewRequest]]:
     """
@@ -341,6 +342,52 @@ def format_duration_korean(minutes: int) -> str:
             return f"{hours}시간"
         else:
             return f"{hours}시간 {remaining_minutes}분"
+        
+def normalize_text(text: str) -> str:
+    """
+    문자열을 비교하기 쉽게 정규화합니다.
+    (공백 제거, 소문자 변환, 특수문자 제거)
+    예: '홍 길 동 ' → '홍길동'
+    """
+    if not text:
+        return ""
+    text = str(text).strip().lower()
+    # 한글 이름 등은 소문자 변환만 적용하고 특수문자 제거
+    text = re.sub(r'\s+', '', text)
+    text = re.sub(r'[^a-z0-9가-힣@._-]', '', text)
+    return text
+
+def parse_proposed_slots(raw_slots: str):
+    """
+    구글 시트에 저장된 제안 일정 문자열을 파싱하여 구조화된 리스트로 변환합니다.
+    예: "2025-10-20 14:00(30분), 2025-10-21 10:00(60분)"
+        → [{'date': '2025-10-20', 'time': '14:00', 'duration': 30}, ...]
+    """
+    if not raw_slots:
+        return []
+    
+    slots = []
+    try:
+        parts = re.split(r'[,;/\n]+', raw_slots)
+        for part in parts:
+            part = part.strip()
+            if not part:
+                continue
+
+            match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s*\(?(\d+)?', part)
+            if match:
+                date_str = match.group(1)
+                time_str = match.group(2)
+                duration = int(match.group(3)) if match.group(3) else 30
+                slots.append({
+                    "date": date_str,
+                    "time": time_str,
+                    "duration": duration
+                })
+    except Exception:
+        pass
+
+    return slots
         
 def normalize_request_id(request_id: str) -> str:
     """요청 ID 정규화 - 항상 8자리만 반환"""

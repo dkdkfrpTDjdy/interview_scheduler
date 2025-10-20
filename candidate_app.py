@@ -1,12 +1,14 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # ✅ 추가
 
 import streamlit as st
-import os
 import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 from datetime import datetime
 import time
-from utils import normalize_request_id, normalize_text, parse_proposed_slots
+from utils import normalize_request_id, normalize_text, parse_proposed_slots  # ✅ 그대로 유지
 
 # 🔧 면접자 앱임을 명시
 os.environ["APP_TYPE"] = "candidate"
