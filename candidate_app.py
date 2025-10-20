@@ -671,31 +671,62 @@ def show_request_detail(request, index):
         
         st.markdown(table_html, unsafe_allow_html=True)
     
-    # 슬롯 옵션 생성
-    slot_options = []
-    for i, slot in enumerate(available_slots):
-        slot_options.append(f"옵션 {i+1}: {format_date_korean(slot.date)} {slot.time} ({slot.duration}분)")
-    slot_options.append("💬 다른 일정 요청")
-        
-    select_key = f"select_selection_{index}"
-    selected_value = st.session_state.get(select_key, slot_options[0])
-    if selected_value not in slot_options:
-        selected_value = slot_options[0]
-    index = slot_options.index(selected_value) if selected_value in slot_options else 0
+    # ✅ 슬롯 라벨 매핑 생성
+    slot_label_to_obj = {
+        f"옵션 {i+1}: {format_date_korean(slot.date)} {slot.time} ({slot.duration}분)": slot
+        for i, slot in enumerate(available_slots)
+    }
+    # "다른 일정 요청" 항목 추가
+    alternative_label = "💬 다른 일정 요청"
+    slot_labels = list(slot_label_to_obj.keys()) + [alternative_label]
 
-    selected_option_text = st.selectbox(
+    # ✅ 세션 키
+    select_key = f"select_selection_{index}"
+
+    # ✅ 기본 선택값
+    selected_value = st.session_state.get(select_key, slot_labels[0])
+    if selected_value not in slot_labels:
+        selected_value = slot_labels[0]
+
+    # ✅ selectbox 표시
+    selected_label = st.selectbox(
         "일정 선택",
-        options=slot_options,
-        index=index,
+        options=slot_labels,
+        index=slot_labels.index(selected_value),
         key=select_key,
         label_visibility="collapsed"
     )
 
-    selected_option = slot_options.index(selected_option_text)
-    
-    # 선택 반응 표시
-    if selected_option < len(available_slots):
-        selected_slot_info = available_slots[selected_option]
+    # ✅ 선택된 항목 처리
+    if selected_label == alternative_label:
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #f7ddd4 0%, #f5cfc1 100%); border-left: 6px solid #e0752e; border-radius: 10px; padding: 20px; margin: 20px 0;">
+            <h4 style="color: #1A1A1A; margin: 0 0 8px 0; font-weight: 500;">⚠️ 다른 일정 요청</h4>
+            <p style="color: #737272; font-size: 1rem; margin: 0;">
+                아래 입력창에 가능한 일정을 구체적으로 작성해주세요.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("""
+        <label style="color: #1A1A1A; font-weight: 500; font-size: 1rem; margin: 20px 0 10px 0; display: block;">
+            가능한 면접 일정이나 요청사항을 입력해주세요
+        </label>
+        """, unsafe_allow_html=True)
+
+        candidate_note = st.text_area(
+            "요청사항",
+            placeholder="예시:\n• 월요일과 수요일은 전체 불가능합니다\n• 오전 시간대를 선호합니다\n• 온라인 면접을 희망합니다",
+            height=180,
+            key=f"candidate_note_{index}",
+            label_visibility="collapsed"
+        )
+
+    else:
+        # ✅ 실제 선택된 InterviewSlot 객체
+        selected_slot_info = slot_label_to_obj[selected_label]
+
+        # 시각적 선택 내용 표시
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border-left: 6px solid #4caf50; border-radius: 10px; padding: 20px; margin: 20px 0;">
             <h4 style="color: #2e7d32; margin: 0 0 8px 0; font-weight: 500;">✅ 선택하신 일정</h4>
@@ -703,16 +734,6 @@ def show_request_detail(request, index):
                 <strong>{format_date_korean(selected_slot_info.date)}</strong>
                 &nbsp;&nbsp;{selected_slot_info.time}
                 &nbsp;&nbsp;<span style="opacity: 0.8;">({selected_slot_info.duration}분)</span>
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    elif selected_option == len(slot_options) - 1:
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #f7ddd4 0%, #f5cfc1 100%); border-left: 6px solid #e0752e; border-radius: 10px; padding: 20px; margin: 20px 0;">
-            <h4 style="color: #1A1A1A; margin: 0 0 8px 0; font-weight: 500;">⚠️ 다른 일정 요청</h4>
-            <p style="color: #737272; font-size: 1rem; margin: 0;">
-                아래 입력창에 가능한 일정을 구체적으로 작성해주세요.
             </p>
         </div>
         """, unsafe_allow_html=True)
