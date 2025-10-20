@@ -4,11 +4,13 @@ import os
 from datetime import datetime
 import sys
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 부모 디렉토리를 Python 경로에 추가
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, parent_dir)
 
 from database import DatabaseManager
 from email_service import EmailService
-from models import InterviewSlot
+from models import InterviewSlot, TimeRange
 from config import Config
 from utils import format_date_korean, get_employee_info
 

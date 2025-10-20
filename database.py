@@ -4,6 +4,12 @@ import logging
 import streamlit as st
 from typing import List, Optional, Tuple
 from datetime import datetime
+import sys
+import os
+
+# 현재 디렉토리를 Python 경로에 추가
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from models import InterviewRequest, InterviewSlot
 from config import Config
 import gspread
@@ -12,7 +18,6 @@ import pandas as pd
 import time
 import random
 from functools import wraps
-import os
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)

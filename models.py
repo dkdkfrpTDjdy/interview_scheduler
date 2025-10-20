@@ -12,6 +12,14 @@ class InterviewSlot:
     def __str__(self):
         return f"{self.date} {self.time} ({self.duration}분)"
     
+    def to_dict(self):
+        """딕셔너리로 변환"""
+        return {
+            'date': self.date,
+            'time': self.time,
+            'duration': self.duration
+        }
+    
 @dataclass
 class TimeRange:
     """시간 범위 (예: 14:00~18:00)"""
@@ -23,21 +31,24 @@ class TimeRange:
         """30분 단위 타임슬롯 생성"""
         slots = []
         
-        # 시작/종료 시간 파싱
-        start_hour, start_min = map(int, self.start_time.split(':'))
-        end_hour, end_min = map(int, self.end_time.split(':'))
-        
-        current = datetime.strptime(self.start_time, '%H:%M')
-        end = datetime.strptime(self.end_time, '%H:%M')
-        
-        while current < end:
-            slot_time = current.strftime('%H:%M')
-            slots.append(InterviewSlot(
-                date=self.date,
-                time=slot_time,
-                duration=30  # 고정 30분
-            ))
-            current += timedelta(minutes=30)
+        try:
+            # 시작/종료 시간 파싱
+            start_hour, start_min = map(int, self.start_time.split(':'))
+            end_hour, end_min = map(int, self.end_time.split(':'))
+            
+            current = datetime.strptime(self.start_time, '%H:%M')
+            end = datetime.strptime(self.end_time, '%H:%M')
+            
+            while current < end:
+                slot_time = current.strftime('%H:%M')
+                slots.append(InterviewSlot(
+                    date=self.date,
+                    time=slot_time,
+                    duration=30  # 고정 30분
+                ))
+                current += timedelta(minutes=30)
+        except Exception as e:
+            print(f"슬롯 생성 실패: {e}")
         
         return slots
     
@@ -55,11 +66,37 @@ class InterviewRequest:
     created_at: datetime
     available_slots: List[InterviewSlot] = field(default_factory=list)
     preferred_dates: List[str] = field(default_factory=list)
-    preferred_datetime_slots: List[str] = field(default_factory=list)  # ✅ 추가
+    preferred_datetime_slots: List[str] = field(default_factory=list)
     preferred_time_ranges: List[TimeRange] = field(default_factory=list)
     selected_slot: Optional[InterviewSlot] = None
     candidate_note: str = ""
     updated_at: Optional[datetime] = None
+
+    def __post_init__(self):
+        """초기화 후 데이터 타입 변환"""
+        # datetime 변환
+        if isinstance(self.created_at, str):
+            self.created_at = datetime.fromisoformat(self.created_at)
+        if isinstance(self.updated_at, str):
+            self.updated_at = datetime.fromisoformat(self.updated_at)
+        
+        # available_slots 변환
+        if self.available_slots and isinstance(self.available_slots[0], dict):
+            self.available_slots = [
+                InterviewSlot(**slot) if isinstance(slot, dict) else slot
+                for slot in self.available_slots
+            ]
+        
+        # selected_slot 변환
+        if self.selected_slot and isinstance(self.selected_slot, dict):
+            self.selected_slot = InterviewSlot(**self.selected_slot)
+        
+        # preferred_time_ranges 변환
+        if self.preferred_time_ranges and isinstance(self.preferred_time_ranges[0], dict):
+            self.preferred_time_ranges = [
+                TimeRange(**tr) if isinstance(tr, dict) else tr
+                for tr in self.preferred_time_ranges
+            ]
 
     @classmethod
     def create_new(cls, interviewer_id: str, candidate_email: str, 

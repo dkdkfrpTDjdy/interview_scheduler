@@ -1,13 +1,16 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
+import sys
+import os
+
+# 현재 디렉토리를 Python 경로에 추가
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from database import DatabaseManager
 from email_service import EmailService
 from models import InterviewRequest, InterviewSlot
 from config import Config
-from utils import get_next_weekdays, format_date_korean, validate_email, load_employee_data, get_employee_email
-from sync_manager import SyncManager
-import time
 
 # 페이지 설정
 st.set_page_config(
