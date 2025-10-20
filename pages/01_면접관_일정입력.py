@@ -1,29 +1,9 @@
 import streamlit as st
-import pandas as pd  # ✅ 누락된 import 추가
+import pandas as pd
 import os
-
-# 앱 구분 로직
-def is_interviewer_app():
-    """현재 앱이 면접관용인지 확인"""
-    try:
-        # URL이나 환경변수로 앱 구분
-        if "candidate-app" in st.get_option("server.headless"):
-            return False
-        return True
-    except:
-        # 환경변수로 구분
-        return os.getenv("APP_TYPE", "interviewer") == "interviewer"
-
-# 페이지 접근 제어
-if not is_interviewer_app():
-    st.error("❌ 접근 권한이 없습니다.")
-    st.info("면접관 전용 페이지입니다. 면접자용 앱을 이용해주세요.")
-    st.stop()
-
 from datetime import datetime
 import sys
 
-# 상위 디렉터리의 모듈들을 import하기 위해 경로 추가
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import DatabaseManager
@@ -32,14 +12,12 @@ from models import InterviewSlot
 from config import Config
 from utils import format_date_korean, get_employee_info
 
-# 페이지 설정
 st.set_page_config(
     page_title="면접관 일정 입력 - AI 면접 시스템",
     page_icon="👨‍💼",
     layout="wide"
 )
 
-# 전역 객체 초기화
 @st.cache_resource
 def init_services():
     db = DatabaseManager()
@@ -50,24 +28,11 @@ db, email_service = init_services()
 
 def main():
     st.title("👨‍💼 면접관 일정 입력")
-    st.caption("면접관 전용 페이지")
     
-    # 🔧 수정: 사번 입력 방식으로 변경
     if 'authenticated_interviewer' not in st.session_state:
         show_login_form()
     else:
         show_interviewer_dashboard()
-
-# 중복 일정 감지 (예시)
-def find_overlapping_slots(all_requests):
-    slot_counts = {}
-    for req in all_requests:
-        for slot in req.available_slots:
-            key = f"{slot.date}_{slot.time}"
-            slot_counts[key] = slot_counts.get(key, 0) + 1
-    
-    # 2명 이상 선택한 일정만 반환
-    return [k for k, v in slot_counts.items() if v >= 2]
 
 def show_login_form():
     """면접관 사번 입력 폼"""
@@ -89,7 +54,6 @@ def show_login_form():
     
     with col2:
         with st.form("interviewer_login"):
-            
             employee_id = st.text_input(
                 label="사번 입력",
                 placeholder="예: 223286"
@@ -101,29 +65,24 @@ def show_login_form():
                 if not employee_id.strip():
                     st.error("사번을 입력해주세요.")
                 else:
-                    # ✅ 면접관 정보 확인 로직 개선
                     interviewer_info = get_employee_info(employee_id)
                     
-                    # 정확한 매칭 또는 부분 매칭 확인
-                    is_valid = (
-                        interviewer_info['employee_id'] == employee_id 
-                    )
+                    is_valid = (interviewer_info['employee_id'] == employee_id)
                     
                     if is_valid:
-                        # 해당 면접관의 대기 중인 요청 찾기
-                        pending_requests = find_pending_requests(employee_id)
+                        # ✅ 공고별로 그룹핑된 요청 가져오기
+                        grouped_requests = find_pending_requests_by_position(employee_id)
                         
-                        if pending_requests:
+                        if grouped_requests:
                             st.session_state.authenticated_interviewer = employee_id
                             st.session_state.interviewer_info = interviewer_info
-                            st.session_state.pending_requests = pending_requests
+                            st.session_state.grouped_requests = grouped_requests
                             st.rerun()
                         else:
                             st.warning("현재 처리할 면접 요청이 없습니다.")
                     else:
                         st.error("등록되지 않은 사번입니다. 인사팀에 문의해주세요.")
     
-    # 도움말
     st.markdown("---")
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -140,45 +99,47 @@ def show_login_form():
         </div>
         """, unsafe_allow_html=True)
 
-def find_pending_requests(employee_id: str):
-    """면접관의 대기 중인 요청 찾기 (복수 면접관 지원)"""
+def find_pending_requests_by_position(employee_id: str):
+    """
+    면접관의 대기 중인 요청을 공고별로 그룹핑
+    
+    Returns:
+        {
+            'IT혁신팀 데이터분석가': {
+                'requests': [request1, request2, request3],
+                'preferred_datetime_slots': ['2025-01-15 15:30~16:30', '2025-01-16 10:30~11:30']
+            }
+        }
+    """
     try:
         all_requests = db.get_all_requests()
-        pending_requests = []
+        grouped = {}
         
         for request in all_requests:
-            # ✅ 복수 면접관 ID 처리
             interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
             
-            # 현재 로그인한 면접관 ID가 포함되어 있는지 확인
-            if employee_id in interviewer_ids:
-                if request.status == Config.Status.PENDING_INTERVIEWER:
-                    pending_requests.append(request)
+            if employee_id in interviewer_ids and request.status == Config.Status.PENDING_INTERVIEWER:
+                position_name = request.position_name
+                
+                if position_name not in grouped:
+                    grouped[position_name] = {
+                        'requests': [],
+                        'preferred_datetime_slots': request.preferred_datetime_slots
+                    }
+                
+                grouped[position_name]['requests'].append(request)
         
-        return pending_requests
+        return grouped
     except Exception as e:
         st.error(f"요청 조회 중 오류가 발생했습니다: {e}")
-        return []
+        return {}
 
 def show_interviewer_dashboard():
-    """면접관 대시보드"""
+    """면접관 대시보드 - 공고별 통합 표시"""
     interviewer_info = st.session_state.interviewer_info
-    pending_requests = st.session_state.pending_requests
+    grouped_requests = st.session_state.grouped_requests
 
-    # 헤더
-    # col1, _ = st.columns([3, 1])  # col2 제거
-
-    # with col1:
-    #     st.markdown(f"""
-    #     <div style="margin: 20px 0;">
-    #         <h2 style="color: #1A1A1A; margin: 0; display: flex; align-items: center;">
-    #             <span style="margin-right: 10px;">👋</span> 안녕하세요, {interviewer_info['name']}님!
-    #         </h2>
-    #     </div>
-    #     """, unsafe_allow_html=True)
-
-    # 대기 중인 요청 표시
-    if not pending_requests:
+    if not grouped_requests:
         st.markdown("""
         <div style="text-align: center; margin: 30px 0;">
             <h3 style="color: #1A1A1A; margin: 0 0 15px 0;">모든 면접 일정을 처리하였습니다</h3>
@@ -186,110 +147,148 @@ def show_interviewer_dashboard():
         """, unsafe_allow_html=True)
         return
 
-    st.subheader(f"📋 {interviewer_info['name']} ({interviewer_info['department']}) 님의 대기 중인 면접 요청 ({len(pending_requests)}건)")
+    st.subheader(f"📋 {interviewer_info['name']} ({interviewer_info['department']}) 님의 대기 중인 면접 공고 ({len(grouped_requests)}건)")
 
-    # 각 요청에 대해 처리
-    for i, request in enumerate(pending_requests):
-        with st.expander(f"📅 {request.position_name} - {request.candidate_name}", expanded=len(pending_requests) == 1):
-            show_request_detail(request, i)
+    # 공고별로 처리
+    for i, (position_name, group_data) in enumerate(grouped_requests.items()):
+        requests = group_data['requests']
+        candidate_count = len(requests)
+        
+        with st.expander(
+            f"📅 {position_name} - {candidate_count}명의 면접자", 
+            expanded=len(grouped_requests) == 1
+        ):
+            show_position_detail(position_name, group_data, i)
 
-def show_request_detail(request, index):
-    """개별 면접 요청 상세 정보 및 처리 - 시간 범위 입력"""
+def parse_datetime_slot(datetime_slot: str) -> dict:
+    """datetime_slot 파싱"""
+    try:
+        parts = datetime_slot.split(' ')
+        date_part = parts[0]
+        time_range = parts[1] if len(parts) > 1 else None
+        
+        if time_range and '~' in time_range:
+            start_time, end_time = time_range.split('~')
+            return {
+                'date': date_part,
+                'start_time': start_time,
+                'end_time': end_time
+            }
+        else:
+            return None
+    except Exception as e:
+        return None
+
+def show_position_detail(position_name: str, group_data: dict, index: int):
+    """공고별 상세 정보 및 통합 일정 선택"""
     
-    # 면접 정보 표시
+    requests = group_data['requests']
+    preferred_datetime_slots = group_data['preferred_datetime_slots']
+    
+    # ✅ 면접자 목록 표시
     st.markdown(f"""
     <div style="background-color: white; padding: 25px; border-radius: 10px; border-left: 5px solid #0078d4; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,120,212,0.1);">
+        <h4 style="color: #1A1A1A; margin: 0 0 15px 0;">📋 공고 정보</h4>
         <table style="width: 100%; border-collapse: collapse; text-align: center;">
             <tr>
                 <td style="padding: 10px 0; font-weight: bold; color: #1A1A1A; width: 120px;">공고명</td>
-                <td style="padding: 10px 0; color: #333;">{request.position_name}</td>
+                <td style="padding: 10px 0; color: #333;">{position_name}</td>
             </tr>
             <tr>
-                <td style="padding: 10px 0; font-weight: bold; color: #1A1A1A;">면접자</td>
-                <td style="padding: 10px 0; color: #333;">{request.candidate_name}</td>
-            </tr>
-            <tr>
-                <td style="padding: 10px 0; font-weight: bold; color: #1A1A1A;">이메일</td>
-                <td style="padding: 10px 0; color: #333;">{request.candidate_email}</td>
-            </tr>
-            <tr>
-                <td style="padding: 10px 0; font-weight: bold; color: #1A1A1A;">요청일</td>
-                <td style="padding: 10px 0; color: #333;">{request.created_at.strftime('%Y년 %m월 %d일 %H:%M')}</td>
+                <td style="padding: 10px 0; font-weight: bold; color: #1A1A1A;">면접자 수</td>
+                <td style="padding: 10px 0; color: #333;">{len(requests)}명</td>
             </tr>
         </table>
     </div>
     """, unsafe_allow_html=True)
-
-    st.write("**아래에서 면접 가능한 시간대를 입력해 주세요 (30분 단위로 자동 분할됩니다)**")
     
-    # 폼과 일정 선택을 함께 처리
+    # ✅ 면접자 목록 테이블
+    st.markdown("**👥 면접자 목록**")
+    candidate_data = []
+    for i, req in enumerate(requests, 1):
+        candidate_data.append({
+            "번호": i,
+            "이름": req.candidate_name,
+            "이메일": req.candidate_email,
+            "신청일": req.created_at.strftime('%Y-%m-%d')
+        })
+    
+    st.dataframe(pd.DataFrame(candidate_data), use_container_width=True, hide_index=True)
+    
+    st.markdown("---")
+    
+    # ✅ 통합 일정 선택
+    st.write("**아래에서 이 공고의 면접 가능한 날짜를 선택해 주세요 (모든 면접자에게 동일하게 적용됩니다)**")
+    
     with st.form(f"interviewer_schedule_{index}"):
-        selected_time_ranges = []
+        selected_datetime_slots = []
         
-        if hasattr(request, 'preferred_datetime_slots') and request.preferred_datetime_slots:
-            for i, datetime_slot in enumerate(request.preferred_datetime_slots):
-                st.markdown(f"**📅 희망 날짜 {i+1}**")
+        if preferred_datetime_slots:
+            st.markdown("**📅 인사팀이 지정한 면접 희망 일정**")
+            
+            # 날짜/시간 정보 테이블 표시
+            schedule_data = []
+            for i, datetime_slot in enumerate(preferred_datetime_slots, 1):
+                parsed = parse_datetime_slot(datetime_slot)
+                if parsed:
+                    schedule_data.append({
+                        "번호": i,
+                        "날짜": format_date_korean(parsed['date']),
+                        "시간": f"{parsed['start_time']} ~ {parsed['end_time']}"
+                    })
+            
+            if schedule_data:
+                df = pd.DataFrame(schedule_data)
+                st.dataframe(df, use_container_width=True, hide_index=True)
+            
+            st.markdown("---")
+            st.markdown("**✅ 가능한 날짜를 선택해주세요**")
+            st.info("💡 선택한 날짜는 이 공고의 모든 면접자에게 동일하게 적용됩니다.")
+            
+            # 날짜별 체크박스
+            for i, datetime_slot in enumerate(preferred_datetime_slots):
+                parsed = parse_datetime_slot(datetime_slot)
                 
-                # 시간 범위 입력
-                date_part = datetime_slot.split(' ')[0]
-                
-                col1, col2, col3, col4 = st.columns([2, 1.5, 1.5, 1])
-                
-                with col1:
-                    is_selected = st.checkbox(
-                        f"{format_date_korean(date_part)}",
-                        key=f"date_check_{index}_{i}",
-                        help="해당 날짜가 가능하면 선택해주세요"
-                    )
-                
-                with col2:
-                    start_time = st.selectbox(
-                        "시작 시간",
-                        options=["선택안함"] + Config.TIME_SLOTS,
-                        key=f"start_time_{index}_{i}",
-                        help="면접 가능 시작 시간"
-                    )
-                
-                with col3:
-                    end_time = st.selectbox(
-                        "종료 시간",
-                        options=["선택안함"] + Config.TIME_SLOTS,
-                        key=f"end_time_{index}_{i}",
-                        help="면접 가능 종료 시간"
-                    )
-                
-                with col4:
-                    if is_selected and start_time != "선택안함" and end_time != "선택안함":
-                        # 슬롯 개수 계산
-                        start_hour = int(start_time.split(':')[0])
-                        end_hour = int(end_time.split(':')[0])
-                        slot_count = (end_hour - start_hour) * 2
-                        st.markdown(f"<div style='margin-top:32px;color:#4caf50;font-weight:bold;'>{slot_count}개 슬롯</div>", unsafe_allow_html=True)
-                
-                # 선택된 시간 범위 추가
-                if is_selected and start_time != "선택안함" and end_time != "선택안함":
-                    # 시간 유효성 검사
-                    start_hour = int(start_time.split(':')[0])
-                    end_hour = int(end_time.split(':')[0])
+                if parsed:
+                    col1, col2 = st.columns([3, 1])
                     
-                    if start_hour < end_hour:
-                        from models import TimeRange
-                        time_range = TimeRange(
-                            date=date_part,
-                            start_time=start_time,
-                            end_time=end_time
+                    with col1:
+                        is_selected = st.checkbox(
+                            f"📅 {format_date_korean(parsed['date'])} - {parsed['start_time']} ~ {parsed['end_time']}",
+                            key=f"date_check_{index}_{i}",
+                            help="해당 날짜/시간이 가능하면 선택해주세요"
                         )
-                        selected_time_ranges.append(time_range)
+                    
+                    with col2:
+                        if is_selected:
+                            # 30분 단위 슬롯 개수 계산
+                            start_hour, start_min = map(int, parsed['start_time'].split(':'))
+                            end_hour, end_min = map(int, parsed['end_time'].split(':'))
+                            total_minutes = (end_hour * 60 + end_min) - (start_hour * 60 + start_min)
+                            slot_count = total_minutes // 30
+                            st.markdown(f"<div style='margin-top:8px;color:#4caf50;font-weight:bold;'>{slot_count}개 슬롯</div>", unsafe_allow_html=True)
+                    
+                    if is_selected:
+                        selected_datetime_slots.append(datetime_slot)
         
         # 선택된 시간대 미리보기
-        if selected_time_ranges:
-            st.write("**선택된 시간대:**")
+        if selected_datetime_slots:
+            st.markdown("---")
+            st.write("**✅ 선택된 시간대:**")
             
             # 30분 단위로 분할된 슬롯 생성
             all_generated_slots = []
-            for time_range in selected_time_ranges:
-                slots = time_range.generate_30min_slots()
-                all_generated_slots.extend(slots)
+            for datetime_slot in selected_datetime_slots:
+                parsed = parse_datetime_slot(datetime_slot)
+                if parsed:
+                    from models import TimeRange
+                    time_range = TimeRange(
+                        date=parsed['date'],
+                        start_time=parsed['start_time'],
+                        end_time=parsed['end_time']
+                    )
+                    slots = time_range.generate_30min_slots()
+                    all_generated_slots.extend(slots)
             
             preview_data = []
             for i, slot in enumerate(all_generated_slots, 1):
@@ -301,9 +300,9 @@ def show_request_detail(request, index):
                 })
             
             st.dataframe(pd.DataFrame(preview_data), use_container_width=True, hide_index=True)
-            st.info(f"💡 총 {len(all_generated_slots)}개의 30분 단위 면접 슬롯이 생성됩니다.")
+            st.success(f"💡 총 {len(all_generated_slots)}개의 30분 단위 면접 슬롯이 생성됩니다. (모든 면접자에게 동일하게 전송)")
         else:
-            st.info("💡 위에서 가능한 시간대를 선택해주세요.")
+            st.info("💡 위에서 가능한 날짜를 선택해주세요.")
 
         # 버튼
         col1, col2, col3 = st.columns([6, 1, 1])
@@ -313,34 +312,52 @@ def show_request_detail(request, index):
 
         # 폼 제출 처리
         if submitted:
-            if not selected_time_ranges:
-                st.error("최소 1개 이상의 시간대를 선택해주세요.")
+            if not selected_datetime_slots:
+                st.error("최소 1개 이상의 날짜를 선택해주세요.")
             else:
                 try:
                     # 30분 단위 슬롯 생성
                     all_slots = []
-                    for time_range in selected_time_ranges:
-                        slots = time_range.generate_30min_slots()
-                        all_slots.extend(slots)
+                    for datetime_slot in selected_datetime_slots:
+                        parsed = parse_datetime_slot(datetime_slot)
+                        if parsed:
+                            from models import TimeRange
+                            time_range = TimeRange(
+                                date=parsed['date'],
+                                start_time=parsed['start_time'],
+                                end_time=parsed['end_time']
+                            )
+                            slots = time_range.generate_30min_slots()
+                            all_slots.extend(slots)
                     
-                    # 요청 업데이트
-                    request.available_slots = all_slots
-                    request.status = Config.Status.PENDING_CANDIDATE
-                    request.updated_at = datetime.now()
+                    # ✅ 이 공고의 모든 요청에 동일한 슬롯 적용
+                    success_count = 0
                     
-                    db.save_interview_request(request)
-                    db.update_google_sheet(request)
-                    
-                    # 면접자에게 이메일 발송
-                    if email_service.send_candidate_invitation(request):
-                        st.success(f"✅ {len(all_slots)}개의 30분 단위 면접 슬롯이 면접자에게 전송되었습니다!")
+                    for request in requests:
+                        request.available_slots = all_slots.copy()
+                        request.status = Config.Status.PENDING_CANDIDATE
+                        request.updated_at = datetime.now()
                         
-                        # 세션 상태에서 처리된 요청 제거
-                        if 'pending_requests' in st.session_state:
-                            st.session_state.pending_requests = [
-                                r for r in st.session_state.pending_requests 
-                                if r.id != request.id
-                            ]
+                        db.save_interview_request(request)
+                        db.update_google_sheet(request)
+                        
+                        # 각 면접자에게 이메일 발송
+                        if email_service.send_candidate_invitation(request):
+                            success_count += 1
+                    
+                    if success_count > 0:
+                        st.success(f"""
+                        ✅ 면접 일정이 확정되었습니다!
+                        
+                        • 공고: {position_name}
+                        • 생성된 슬롯: {len(all_slots)}개 (30분 단위)
+                        • 이메일 발송: {success_count}/{len(requests)}명 성공
+                        """)
+                        
+                        # 세션 상태에서 처리된 공고 제거
+                        if 'grouped_requests' in st.session_state:
+                            if position_name in st.session_state.grouped_requests:
+                                del st.session_state.grouped_requests[position_name]
                         
                         st.balloons()
                         st.rerun()

@@ -388,6 +388,50 @@ class EmailService:
             """,
             'contact_email': Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'
         })
+    
+    def _generate_interview_schedule_table(self, datetime_slots: List[str]) -> str:
+        """
+        면접 일정 HTML 테이블 생성 (번호/날짜/시간)
+        
+        Args:
+            datetime_slots: ["2025-01-15 15:30~16:30", "2025-01-16 10:30~11:30"]
+        
+        Returns:
+            str: HTML 테이블
+        """
+        rows_html = ""
+        for i, datetime_slot in enumerate(datetime_slots, 1):
+            try:
+                parts = datetime_slot.split(' ')
+                date_part = parts[0]
+                time_range = parts[1] if len(parts) > 1 else "시간 미정"
+                
+                bg_color = "#ffffff" if i % 2 == 0 else "#f9f9f9"
+                rows_html += f"""
+                <tr style="background-color: {bg_color};">
+                    <td style="padding: 12px; border: 1px solid #e7e7e7; text-align: center; width: 10%;">{i}</td>
+                    <td style="padding: 12px; border: 1px solid #e7e7e7; text-align: center;">{format_date_korean(date_part)}</td>
+                    <td style="padding: 12px; border: 1px solid #e7e7e7; text-align: center; font-weight: bold; color: #EF3340;">{time_range}</td>
+                </tr>
+                """
+            except Exception as e:
+                logger.error(f"일정 파싱 오류: {e}")
+                continue
+        
+        return f"""
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; margin-bottom: 20px; border: 2px solid #e7e7e7; border-radius: 8px; overflow: hidden;">
+            <thead>
+                <tr style="background-color: #efeff1;">
+                    <th style="padding: 14px; border: 1px solid #e7e7e7; font-weight: bold; width: 10%;">번호</th>
+                    <th style="padding: 14px; border: 1px solid #e7e7e7; font-weight: bold;">날짜</th>
+                    <th style="padding: 14px; border: 1px solid #e7e7e7; font-weight: bold;">시간</th>
+                </tr>
+            </thead>
+            <tbody>
+                {rows_html}
+            </tbody>
+        </table>
+        """
 
     def send_interviewer_invitation(self, requests: List[InterviewRequest]):
         """
@@ -429,6 +473,12 @@ class EmailService:
                     })
                     seen_emails.add(request.candidate_email)
             
+            # ✅ 면접 일정 테이블 생성 (번호/날짜/시간)
+            schedule_html = self._generate_interview_schedule_table(first_request.preferred_datetime_slots)
+            
+            # ✅ 면접자 목록 테이블 생성 (번호/이름/이메일)
+            candidates_html = self._generate_candidates_table(candidates)
+            
             # ✅ 각 면접관에게 개별 발송
             success_count = 0
             
@@ -440,24 +490,21 @@ class EmailService:
                     
                     logger.info(f"📧 면접관 {interviewer_info['name']}({interviewer_id})에게 메일 발송 중...")
                     
-                    # ✅ 면접자 정보 HTML 테이블 생성
-                    candidates_html = self._generate_candidates_table(candidates)
-                    
                     # ✅ 제목 생성
                     candidate_count_text = f"{len(candidates)}명" if len(candidates) > 1 else candidates[0]['name']
-                    subject = f"[인사팀] 면접 일정 입력 요청드립니다 - {position_name})"
+                    subject = f"[인사팀] 면접 일정 입력 요청드립니다 - {position_name} ({candidate_count_text})"
                     
                     # ✅ 본문 생성 (개별 면접관 정보 사용)
                     if len(candidates) == 1:
-                        intro_message = f"""
+                        intro_message = """
                         귀하께서 참여 예정이신 <strong style="color: #1A1A1A;">면접 일정 조율</strong>을 위해 협조를 부탁드립니다.<br>
-                        아래 지원자 정보를 확인하신 후, <strong style="color: #1A1A1A;">면접 가능 일정을 입력</strong>해 주시면 감사하겠습니다.
+                        아래 면접 일정 중 <strong style="color: #EF3340;">가능한 날짜를 선택</strong>해 주시면 감사하겠습니다.
                         """
                         candidate_section_title = "👤 면접자 정보"
                     else:
                         intro_message = f"""
                         귀하께서 참여 예정이신 <strong style="color: #1A1A1A;">{len(candidates)}명의 면접 일정 조율</strong>을 위해 협조를 부탁드립니다.<br>
-                        아래 지원자 정보를 확인하신 후, <strong style="color: #1A1A1A;">면접 가능 일정을 입력</strong>해 주시면 감사하겠습니다.
+                        아래 면접 일정 중 <strong style="color: #EF3340;">가능한 날짜를 선택</strong>해 주시면 감사하겠습니다.
                         """
                         candidate_section_title = f"👥 면접자 목록 ({len(candidates)}명)"
                     
@@ -493,22 +540,31 @@ class EmailService:
                                             <td style="width: 30%; font-weight: bold; text-align: center; border: 1px solid #e7e7e7;">포지션</td>
                                             <td style="text-align: center; border: 1px solid #e7e7e7;">{position_name}</td>
                                         </tr>
-                                        <tr>
-                                            <td style="font-weight: bold; text-align: center; border: 1px solid #e7e7e7;">담당 면접관</td>
-                                            <td style="text-align: center; border: 1px solid #e7e7e7;">{interviewer_info['name']} ({interviewer_info['department']})</td>
-                                        </tr>
                                     </table>
 
-                                    <!-- Candidates Section -->
-                                    <h3 style="color: #1A1A1A; margin: 24px 0 12px 0;">{candidate_section_title}</h3>
-                                    {candidates_html}
+
+                                    <!-- Schedule Section -->
+                                    <h3 style="color: #1A1A1A; margin: 24px 0 12px 0;">📅 인사팀이 지정한 면접 희망 일정</h3>
+                                    <p style="font-size: 14px; color: #737272; margin: 0 0 15px 0;">
+                                        아래 일정 중 <strong style="color: #EF3340;">가능한 날짜만 선택</strong>해주세요. 시간은 이미 지정되어 있습니다.
+                                    </p>
+                                    {schedule_html}
+
+                                    <!-- Info Box -->
+                                    <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; border-left: 5px solid #ffc107; margin: 20px 0;">
+                                        <p style="margin: 0; color: #856404; font-weight: bold;">💡 안내사항</p>
+                                        <p style="margin: 5px 0 0 0; color: #856404; font-size: 14px;">
+                                            • 시간은 자동으로 <strong>30분 단위</strong>로 분할됩니다<br>
+                                            • 정해진 일자 참석이 어려우실 시 인사팀으로 문의 부탁드립니다
+                                        </p>
+                                    </div>
 
                                     <!-- Button -->
                                     <div style="text-align: center; margin: 36px 0;">
                                         <a href="{link}" 
                                             style="display: inline-block; padding: 18px 36px; background-color: #EF3340; color: #ffffff; text-decoration: none;
                                                 font-weight: bold; border-radius: 6px; font-size: 15px;">
-                                            👉 면접 가능 일정 입력하기
+                                            👉 가능한 날짜 선택하기
                                         </a>
                                     </div>
 
@@ -573,7 +629,6 @@ class EmailService:
         except Exception as e:
             logger.error(f"❌ 면접관 초대 메일 발송 실패: {e}")
             return False
-
 
     def _generate_candidates_table(self, candidates: List[dict]) -> str:
         """
