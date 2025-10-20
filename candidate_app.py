@@ -275,36 +275,50 @@ def find_candidate_requests(name: str, email: str):
             except Exception as e:
                 continue
         
-        # ✅ 실시간 선택 가능 일정 필터링
+        # ✅ 실시간 선택 가능 일정 필터링 (개선된 버전)
         try:
             from database import DatabaseManager
             from models import InterviewRequest, InterviewSlot
+            import logging
             
+            logger = logging.getLogger(__name__)
             db = DatabaseManager()
             
             for request in matching_requests:
+                # ✅ 디버깅: 상태 확인
+                logger.info(f"요청 상태 확인: {request['status']}")
+                
+                # ✅ 상태가 "면접자_선택대기"인 경우만 처리
                 if request['status'] == '면접자_선택대기':
-                    # 제안된 슬롯 파싱
+                    logger.info(f"'면접자_선택대기' 상태 확인됨: {request['id']}")
+                    
+                    # ✅ 제안된 슬롯 파싱
                     proposed_slots = parse_proposed_slots(request['proposed_slots'])
+                    logger.info(f"파싱된 슬롯 수: {len(proposed_slots)}")
                     
                     if proposed_slots:
-                        # InterviewRequest 객체로 변환
+                        # ✅ 전체 요청 ID 찾기
                         full_request_id = None
                         all_requests = db.get_all_requests()
                         
                         for req in all_requests:
-                            if req.id.startswith(request['id'].replace('...', '')):
+                            short_id = request['id'].replace('...', '')
+                            if req.id.startswith(short_id):
                                 full_request_id = req.id
+                                logger.info(f"전체 요청 ID 찾음: {full_request_id}")
                                 break
                         
                         if full_request_id:
                             req_obj = db.get_interview_request(full_request_id)
                             
                             if req_obj:
-                                # 선택 가능한 일정만 가져오기
-                                available_slots = db.get_available_slots_for_candidate(req_obj)
+                                logger.info(f"요청 객체 조회 성공: {req_obj.id}")
                                 
-                                # dict 형식으로 변환하여 저장
+                                # ✅ 선택 가능한 일정만 가져오기
+                                available_slots = db.get_available_slots_for_candidate(req_obj)
+                                logger.info(f"선택 가능한 슬롯 수: {len(available_slots)}")
+                                
+                                # ✅ dict 형식으로 변환하여 저장
                                 request['available_slots_filtered'] = [
                                     {
                                         'date': slot.date,
@@ -313,8 +327,33 @@ def find_candidate_requests(name: str, email: str):
                                     }
                                     for slot in available_slots
                                 ]
+                                
+                                logger.info(f"필터링된 슬롯 저장 완료: {len(request['available_slots_filtered'])}개")
+                            else:
+                                logger.warning(f"요청 객체를 찾을 수 없음: {full_request_id}")
+                                # ✅ 빈 리스트 명시적 할당
+                                request['available_slots_filtered'] = []
+                        else:
+                            logger.warning(f"전체 요청 ID를 찾을 수 없음: {request['id']}")
+                            # ✅ 빈 리스트 명시적 할당
+                            request['available_slots_filtered'] = []
+                    else:
+                        logger.warning(f"파싱된 슬롯이 없음: {request['id']}")
+                        # ✅ 빈 리스트 명시적 할당
+                        request['available_slots_filtered'] = []
+                else:
+                    # ✅ "면접자_선택대기"가 아닌 경우 빈 리스트
+                    request['available_slots_filtered'] = []
+                    
         except Exception as e:
-            logger.error(f"선택 가능 일정 필터링 실패: {e}")
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"선택 가능 일정 필터링 실패: {e}", exc_info=True)
+            
+            # ✅ 예외 발생 시에도 빈 리스트 할당
+            for request in matching_requests:
+                if 'available_slots_filtered' not in request:
+                    request['available_slots_filtered'] = []
         
         return matching_requests
         
