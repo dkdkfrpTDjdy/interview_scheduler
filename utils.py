@@ -341,6 +341,23 @@ def format_duration_korean(minutes: int) -> str:
             return f"{hours}시간"
         else:
             return f"{hours}시간 {remaining_minutes}분"
+        
+def normalize_request_id(request_id: str) -> str:
+    """요청 ID 정규화 - 항상 8자리만 반환"""
+    if not request_id:
+        return ""
+    
+    # "..." 제거
+    clean_id = request_id.replace('...', '').strip()
+    
+    # 8자리만 추출
+    return clean_id[:8] if len(clean_id) >= 8 else clean_id
+
+def generate_request_id() -> str:
+    """8자리 요청 ID 생성"""
+    import uuid
+    return str(uuid.uuid4()).replace('-', '')[:8]
+
 
 def get_business_days_between(start_date: str, end_date: str) -> int:
     """두 날짜 사이의 영업일 수 계산"""

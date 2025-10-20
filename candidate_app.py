@@ -204,64 +204,59 @@ def normalize_text(text: str) -> str:
 
 def find_candidate_requests(name: str, email: str):
     """구글 시트에서 직접 면접자 요청 찾기 + 실시간 선택 가능 일정 필터링"""
+    from utils import normalize_request_id, normalize_text, parse_proposed_slots
+    from database import DatabaseManager
+    import logging
+
+    logger = logging.getLogger(__name__)
+    
     try:
         if not google_sheet:
             return []
-        
+
         all_values = google_sheet.get_all_values()
         if not all_values or len(all_values) < 2:
             return []
-        
+
         headers = all_values[0]
-        
-        try:
-            name_col_idx = None
-            email_col_idx = None
-            
-            for i, header in enumerate(headers):
-                header_normalized = normalize_text(header)
-                if header_normalized in ['면접자명', '면접자이름', '이름', 'name', 'candidate_name']:
-                    name_col_idx = i
-                elif header_normalized in ['면접자이메일', '면접자메일', '이메일', 'email', 'candidate_email']:
-                    email_col_idx = i
-            
-            if name_col_idx is None or email_col_idx is None:
-                st.error("❌ 필요한 컬럼을 찾을 수 없습니다.")
-                return []
-                
-        except Exception as e:
-            st.error(f"❌ 헤더 분석 실패: {e}")
+        name_col_idx = email_col_idx = None
+
+        # ✅ 이름/이메일 컬럼 인덱스 찾기
+        for i, header in enumerate(headers):
+            header_normalized = normalize_text(header)
+            if header_normalized in ['면접자명', '면접자이름', '이름', 'name', 'candidate_name']:
+                name_col_idx = i
+            elif header_normalized in ['면접자이메일', '면접자메일', '이메일', 'email', 'candidate_email']:
+                email_col_idx = i
+
+        if name_col_idx is None or email_col_idx is None:
+            st.error("❌ 필요한 컬럼을 찾을 수 없습니다.")
             return []
-        
+
         normalized_search_name = normalize_text(name)
         normalized_search_email = normalize_text(email)
-        
+
         matching_requests = []
-        
+
+        # ✅ 조건에 맞는 요청만 필터링
         for row_idx, row in enumerate(all_values[1:], start=2):
             try:
                 row_name = row[name_col_idx] if name_col_idx < len(row) else ""
                 row_email = row[email_col_idx] if email_col_idx < len(row) else ""
-                
-                normalized_row_name = normalize_text(row_name)
-                normalized_row_email = normalize_text(row_email)
-                
-                if (normalized_row_name == normalized_search_name and 
-                    normalized_row_email == normalized_search_email):
-                    
+
+                if normalize_text(row_name) == normalized_search_name and normalize_text(row_email) == normalized_search_email:
                     request_obj = {'_row_number': row_idx}
-                    
+
                     for col_idx, header in enumerate(headers):
-                        value = row[col_idx] if col_idx < len(row) else ""
-                        request_obj[header] = value
-                    
-                    # ✅ 요청ID 정규화 (점 세개 제거)
+                        request_obj[header] = row[col_idx] if col_idx < len(row) else ""
+
+                    # 요청 정보 정규화
                     raw_id = request_obj.get('요청ID', '')
-                    clean_id = raw_id.replace('...', '').strip()
-                    
+                    clean_id = normalize_request_id(raw_id)
+
                     request_obj.update({
-                        'id': clean_id,  # ✅ 정규화된 ID 사용
-                        'raw_id': raw_id,  # ✅ 원본 ID 보관
+                        'id': clean_id,
+                        'raw_id': raw_id,
                         'position_name': request_obj.get('포지션명', ''),
                         'candidate_name': request_obj.get('면접자명', ''),
                         'candidate_email': request_obj.get('면접자이메일', ''),
@@ -274,107 +269,68 @@ def find_candidate_requests(name: str, email: str):
                         'candidate_note': request_obj.get('면접자요청사항', ''),
                         'row_number': row_idx
                     })
-                    
+
                     matching_requests.append(request_obj)
-                    
-            except Exception as e:
+
+            except Exception:
                 continue
-        
-        # ✅ 실시간 선택 가능 일정 필터링
+
+        # ✅ 실시간 가능한 일정 필터링
         try:
-            from database import DatabaseManager
-            from models import InterviewSlot
-            import logging
-            
-            logger = logging.getLogger(__name__)
             db = DatabaseManager()
-            
+            all_requests = db.get_all_requests()
+            logger.info(f"DB 요청 수: {len(all_requests)}")
+
             for request in matching_requests:
-                logger.info(f"요청 상태 확인: {request['status']}")
-                
-                if request['status'] == '면접자_선택대기':
-                    logger.info(f"'면접자_선택대기' 상태 확인됨: {request['id']}")
-                    
-                    # ✅ 제안된 슬롯 파싱
-                    proposed_slots = parse_proposed_slots(request['proposed_slots'])
-                    logger.info(f"파싱된 슬롯 수: {len(proposed_slots)}")
-                    
-                    if proposed_slots:
-                        # ✅ 정규화된 ID로 DB 조회
-                        clean_id = request['id']  # 이미 정규화됨
-                        logger.info(f"검색할 정규화된 ID: '{clean_id}'")
-                        
-                        all_requests = db.get_all_requests()
-                        logger.info(f"DB에 있는 전체 요청 수: {len(all_requests)}")
-                        
-                        full_request_id = None
-                        
-                        # ✅ DB에 있는 모든 요청 ID와 비교
-                        for req in all_requests:
-                            logger.info(f"  - DB 요청 ID: {req.id} (상태: {req.status})")
-                            
-                            # ✅ 완전 일치 또는 시작 일치
-                            if req.id == clean_id or req.id.startswith(clean_id):
-                                full_request_id = req.id
-                                logger.info(f"✅ 전체 요청 ID 찾음: {full_request_id}")
-                                break
-                        
-                        if full_request_id:
-                            req_obj = db.get_interview_request(full_request_id)
-                            
-                            if req_obj:
-                                logger.info(f"요청 객체 조회 성공: {req_obj.id}")
-                                logger.info(f"요청 객체 available_slots: {len(req_obj.available_slots)}개")
-                                
-                                # ✅ 선택 가능한 일정만 가져오기
-                                available_slots = db.get_available_slots_for_candidate(req_obj)
-                                logger.info(f"선택 가능한 슬롯 수: {len(available_slots)}")
-                                
-                                # ✅ dict 형식으로 변환하여 저장
-                                request['available_slots_filtered'] = [
-                                    {
-                                        'date': slot.date,
-                                        'time': slot.time,
-                                        'duration': slot.duration
-                                    }
-                                    for slot in available_slots
-                                ]
-                                
-                                logger.info(f"필터링된 슬롯 저장 완료: {len(request['available_slots_filtered'])}개")
-                            else:
-                                logger.warning(f"요청 객체를 찾을 수 없음: {full_request_id}")
-                                request['available_slots_filtered'] = []
-                        else:
-                            logger.warning(f"⚠️ 전체 요청 ID를 찾을 수 없음: {request['id']}")
-                            logger.warning(f"⚠️ 폴백: 구글시트 데이터로 슬롯 생성")
-                            request['available_slots_filtered'] = proposed_slots
-                    else:
-                        logger.warning(f"파싱된 슬롯이 없음: {request['id']}")
-                        request['available_slots_filtered'] = []
-                else:
+                if request.get('status') != '면접자_선택대기':
                     request['available_slots_filtered'] = []
-                    
+                    continue
+
+                short_id = request['id'].replace('...', '').strip()
+                proposed_slots = parse_proposed_slots(request.get('proposed_slots', ''))
+
+                full_request_id = None
+                for req in all_requests:
+                    if req.id.lower().startswith(short_id.lower()):
+                        full_request_id = req.id
+                        break
+
+                if full_request_id:
+                    req_obj = db.get_interview_request(full_request_id)
+                    if req_obj:
+                        available_slots = db.get_available_slots_for_candidate(req_obj)
+                        request['available_slots_filtered'] = [
+                            {'date': slot.date, 'time': slot.time, 'duration': slot.duration}
+                            for slot in available_slots
+                        ]
+                        continue
+                    else:
+                        logger.warning(f"요청 객체 없음: {full_request_id}")
+                else:
+                    logger.warning(f"전체 요청 ID 미매칭: {short_id}")
+
+                # fallback to google sheet proposed slots
+                request['available_slots_filtered'] = proposed_slots or []
+
         except Exception as e:
-            import logging
             import traceback
-            logger = logging.getLogger(__name__)
-            logger.error(f"선택 가능 일정 필터링 실패: {e}")
+            logger.error(f"실시간 슬롯 필터링 중 오류: {e}")
             logger.error(traceback.format_exc())
-            
-            # ✅ 예외 발생 시에도 폴백 처리
+
+            # fallback 처리
             for request in matching_requests:
                 if 'available_slots_filtered' not in request:
-                    if request.get('status') == '면접자_선택대기' and request.get('proposed_slots'):
-                        logger.info("📌 예외 처리 폴백: 구글시트 데이터 사용")
-                        request['available_slots_filtered'] = parse_proposed_slots(request['proposed_slots'])
+                    if request.get('status') == '면접자_선택대기':
+                        request['available_slots_filtered'] = parse_proposed_slots(request.get('proposed_slots', ''))
                     else:
                         request['available_slots_filtered'] = []
-        
+
         return matching_requests
-        
+
     except Exception as e:
         st.error(f"❌ 데이터 조회 중 오류: {e}")
         return []
+
     
 def parse_proposed_slots(slots_str: str):
     """제안일시목록 문자열을 파싱"""

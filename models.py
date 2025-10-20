@@ -104,8 +104,10 @@ class InterviewRequest:
                    preferred_dates: List[str] = None,
                    preferred_datetime_slots: List[str] = None,
                    preferred_time_ranges: List[TimeRange] = None):
+        from utils import generate_request_id
+        
         return cls(
-            id=str(uuid.uuid4()),
+            id=generate_request_id(),  # ✅ 8자리 ID 생성
             interviewer_id=interviewer_id,
             candidate_email=candidate_email,
             candidate_name=candidate_name,

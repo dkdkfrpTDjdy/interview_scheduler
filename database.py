@@ -475,15 +475,23 @@ class DatabaseManager:
             return False
     
     def get_interview_request(self, request_id: str) -> Optional[InterviewRequest]:
-        """면접 요청 조회"""
+        """면접 요청 조회 - ID 정규화 적용"""
+        from utils import normalize_request_id
+        
+        # ✅ 입력된 ID 정규화
+        clean_id = normalize_request_id(request_id)
+        
         try:
             with sqlite3.connect(self.db_path) as conn:
+                # ✅ LIKE 패턴으로 유연한 검색
                 cursor = conn.execute(
-                    "SELECT * FROM interview_requests WHERE id = ?", (request_id,)
+                    "SELECT * FROM interview_requests WHERE id LIKE ?", 
+                    (f"{clean_id}%",)
                 )
                 row = cursor.fetchone()
                 
                 if not row:
+                    logger.warning(f"요청을 찾을 수 없음: {clean_id}")
                     return None
                 
                 # JSON 데이터 파싱
@@ -597,13 +605,16 @@ class DatabaseManager:
             return False
     
     def _find_request_row(self, request_id: str) -> Optional[int]:
-        """요청 ID로 행 번호 찾기"""
+        """요청 ID로 행 번호 찾기 - 정규화 적용"""
+        from utils import normalize_request_id
+        
         try:
-            short_id = request_id[:8] + "..."
+            clean_id = normalize_request_id(request_id)
             all_records = self.sheet.get_all_records()
             
             for i, record in enumerate(all_records):
-                if record.get('요청ID') == short_id:
+                sheet_id = normalize_request_id(record.get('요청ID', ''))
+                if sheet_id == clean_id:
                     return i + 2
             return None
         except Exception as e:
@@ -612,6 +623,7 @@ class DatabaseManager:
     
     def _prepare_sheet_row_data(self, request: InterviewRequest, interviewer_info: dict = None) -> list:
         """시트 행 데이터 준비"""
+        from utils import normalize_request_id
         from utils import get_employee_info
         
         interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
@@ -653,7 +665,7 @@ class DatabaseManager:
         remarks = f"담당부서: {interviewer_dept_str}" if len(interviewer_ids) > 1 else ""
         
         return [
-            request.id[:8] + "...",
+            normalize_request_id(request.id),  # ✅ 8자리만 저장
             request.created_at.strftime('%Y-%m-%d %H:%M'),
             request.position_name,
             interviewer_id_str,
