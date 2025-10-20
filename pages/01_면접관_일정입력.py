@@ -70,7 +70,6 @@ def show_login_form():
                     is_valid = (interviewer_info['employee_id'] == employee_id)
                     
                     if is_valid:
-                        # ✅ 공고별로 그룹핑된 요청 가져오기
                         grouped_requests = find_pending_requests_by_position(employee_id)
                         
                         if grouped_requests:
@@ -100,17 +99,7 @@ def show_login_form():
         """, unsafe_allow_html=True)
 
 def find_pending_requests_by_position(employee_id: str):
-    """
-    면접관의 대기 중인 요청을 공고별로 그룹핑
-    
-    Returns:
-        {
-            'IT혁신팀 데이터분석가': {
-                'requests': [request1, request2, request3],
-                'preferred_datetime_slots': ['2025-01-15 15:30~16:30', '2025-01-16 10:30~11:30']
-            }
-        }
-    """
+    """면접관의 대기 중인 요청을 공고별로 그룹핑"""
     try:
         all_requests = db.get_all_requests()
         grouped = {}
@@ -135,7 +124,7 @@ def find_pending_requests_by_position(employee_id: str):
         return {}
 
 def show_interviewer_dashboard():
-    """면접관 대시보드 - 공고별 통합 표시"""
+    """면접관 대시보드"""
     interviewer_info = st.session_state.interviewer_info
     grouped_requests = st.session_state.grouped_requests
 
@@ -149,7 +138,6 @@ def show_interviewer_dashboard():
 
     st.subheader(f"📋 {interviewer_info['name']} ({interviewer_info['department']}) 님의 대기 중인 면접 공고 ({len(grouped_requests)}건)")
 
-    # 공고별로 처리
     for i, (position_name, group_data) in enumerate(grouped_requests.items()):
         requests = group_data['requests']
         candidate_count = len(requests)
@@ -185,20 +173,15 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
     requests = group_data['requests']
     preferred_datetime_slots = group_data['preferred_datetime_slots']
     
-    # ✅ 첫 번째 요청 가져오기
     first_request = requests[0]
-    
-    # ✅ 현재 로그인한 면접관 ID
     current_interviewer_id = st.session_state.authenticated_interviewer
     
-    # ✅ 복수 면접관 체크
     interviewer_ids = [id.strip() for id in first_request.interviewer_id.split(',')]
     is_multiple_interviewers = len(interviewer_ids) > 1
     
     # ✅ 현재 응답 현황 확인
     all_responded, responded_count, total_count = db.check_all_interviewers_responded(first_request)
     
-    # ✅ 면접자 목록 표시
     st.markdown(f"""
     <div style="background-color: white; padding: 25px; border-radius: 10px; border-left: 5px solid #0078d4; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,120,212,0.1);">
         <h4 style="color: #1A1A1A; margin: 0 0 15px 0;">📋 공고 정보</h4>
@@ -216,7 +199,6 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
     </div>
     """, unsafe_allow_html=True)
     
-    # ✅ 복수 면접관인 경우 안내 메시지
     if is_multiple_interviewers:
         st.info(f"""
         💡 **공동 면접 안내**
@@ -226,7 +208,6 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
         - 모든 면접관이 일정을 입력하면 **공통 일정**만 면접자에게 전송됩니다.
         """)
     
-    # ✅ 면접자 목록 테이블
     st.markdown("**👥 면접자 목록**")
     candidate_data = []
     for i, req in enumerate(requests, 1):
@@ -241,7 +222,6 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
     
     st.markdown("---")
     
-    # ✅ 통합 일정 선택
     st.write("**아래에서 이 공고의 면접 가능한 날짜를 선택해 주세요**")
     
     with st.form(f"interviewer_schedule_{index}"):
@@ -250,7 +230,6 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
         if preferred_datetime_slots:
             st.markdown("**📅 인사팀이 지정한 면접 희망 일정**")
             
-            # 날짜/시간 정보 테이블 표시
             schedule_data = []
             for i, datetime_slot in enumerate(preferred_datetime_slots, 1):
                 parsed = parse_datetime_slot(datetime_slot)
@@ -268,12 +247,6 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
             st.markdown("---")
             st.markdown("**✅ 가능한 날짜를 선택해주세요**")
             
-            if is_multiple_interviewers:
-                st.warning(f"⚠️ 선택한 날짜는 다른 면접관들과 **교집합** 처리됩니다. (현재 {responded_count}/{total_count}명 응답)")
-            else:
-                st.info("💡 선택한 날짜는 이 공고의 모든 면접자에게 동일하게 적용됩니다.")
-            
-            # 날짜별 체크박스
             for i, datetime_slot in enumerate(preferred_datetime_slots):
                 parsed = parse_datetime_slot(datetime_slot)
                 
@@ -298,7 +271,6 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                     if is_selected:
                         selected_datetime_slots.append(datetime_slot)
         
-        # 선택된 시간대 미리보기
         if selected_datetime_slots:
             st.markdown("---")
             st.write("**✅ 선택된 시간대:**")
@@ -327,20 +299,12 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
             
             st.dataframe(pd.DataFrame(preview_data), use_container_width=True, hide_index=True)
             
-            if is_multiple_interviewers:
-                st.warning(f"💡 총 {len(all_generated_slots)}개 슬롯 선택됨. 다른 면접관과 공통 일정만 최종 전송됩니다.")
-            else:
-                st.success(f"💡 총 {len(all_generated_slots)}개의 30분 단위 면접 슬롯이 생성됩니다.")
-        else:
-            st.info("💡 위에서 가능한 날짜를 선택해주세요.")
 
-        # 버튼
         col1, col2, col3 = st.columns([6, 1, 1])
         
         with col3:
             submitted = st.form_submit_button("일정 확정", use_container_width=True)
 
-        # 폼 제출 처리
         if submitted:
             if not selected_datetime_slots:
                 st.error("최소 1개 이상의 날짜를 선택해주세요.")
@@ -388,35 +352,15 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                                 
                                 if email_service.send_candidate_invitation(request):
                                     success_count += 1
-                            
-                            st.success(f"""
-                            ✅ 모든 면접관의 일정이 확정되었습니다!
-                            
-                            • 공고: {position_name}
-                            • 면접관 수: {total_count}명 (모두 응답 완료)
-                            • 공통 슬롯: {len(common_slots)}개 (30분 단위)
-                            • 이메일 발송: {success_count}/{len(requests)}명 성공
-                            """)
-                            
-                            st.balloons()
-                        else:
-                            st.warning(f"""
-                            ⚠️ 공통 가능 일정이 없습니다!
-                            
-                            • 면접관 {total_count}명의 일정에 겹치는 시간이 없습니다.
-                            • 인사팀에 문의하여 일정을 재조율해주세요.
-                            """)
+
                     else:
-                        # ✅ 아직 다른 면접관의 응답 대기 중
                         st.info(f"""
                         ✅ 귀하의 일정이 저장되었습니다!
                         
                         • 다른 면접관들의 응답을 기다리고 있습니다.
-                        • 현재 응답 현황: **{responded_count}/{total_count}명**
                         • 모든 면접관이 응답하면 자동으로 면접자에게 이메일이 발송됩니다.
                         """)
                     
-                    # 세션 상태에서 처리된 공고 제거
                     if 'grouped_requests' in st.session_state:
                         if position_name in st.session_state.grouped_requests:
                             del st.session_state.grouped_requests[position_name]
@@ -425,26 +369,6 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                         
                 except Exception as e:
                     st.error(f"❌ 처리 중 오류가 발생했습니다: {str(e)}")
-
-
-def parse_datetime_slot(datetime_slot: str) -> dict:
-    """datetime_slot 파싱"""
-    try:
-        parts = datetime_slot.split(' ')
-        date_part = parts[0]
-        time_range = parts[1] if len(parts) > 1 else None
-        
-        if time_range and '~' in time_range:
-            start_time, end_time = time_range.split('~')
-            return {
-                'date': date_part,
-                'start_time': start_time,
-                'end_time': end_time
-            }
-        else:
-            return None
-    except Exception as e:
-        return None
 
 if __name__ == "__main__":
     main()
