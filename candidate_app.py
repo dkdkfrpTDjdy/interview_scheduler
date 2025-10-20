@@ -722,15 +722,11 @@ def show_request_detail(request, index):
     # 슬롯 옵션 생성
     slot_options = []
     for i, slot in enumerate(available_slots):
-        slot_text = f"옵션 {i+1}: {format_date_korean(slot.date)} {slot.time} ({slot.duration}분)"
-        slot_options.append(slot_text)
-    
+        slot_options.append(f"옵션 {i+1}: {format_date_korean(slot.date)} {slot.time} ({slot.duration}분)")
     slot_options.append("💬 다른 일정 요청")
-    
+        
     # 셀렉트박스
     select_key = f"select_selection_{index}"
-    if select_key not in st.session_state:
-        st.session_state[select_key] = slot_options[0]
     
     st.markdown("""
     <label style="color: #1A1A1A; font-weight: 500; font-size: 1rem; margin-bottom: 10px; display: block;">
