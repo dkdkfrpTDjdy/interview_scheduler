@@ -725,23 +725,18 @@ def show_request_detail(request, index):
         slot_options.append(f"옵션 {i+1}: {format_date_korean(slot.date)} {slot.time} ({slot.duration}분)")
     slot_options.append("💬 다른 일정 요청")
         
-    # 셀렉트박스
     select_key = f"select_selection_{index}"
-    
-    st.markdown("""
-    <label style="color: #1A1A1A; font-weight: 500; font-size: 1rem; margin-bottom: 10px; display: block;">
-        원하는 면접 일정을 선택해주세요
-    </label>
-    """, unsafe_allow_html=True)
-    
+    selected_value = st.session_state.get(select_key)
+    index = slot_options.index(selected_value) if selected_value in slot_options else 0
+
     selected_option_text = st.selectbox(
         "일정 선택",
         options=slot_options,
-        index=slot_options.index(st.session_state[select_key]) if st.session_state[select_key] in slot_options else 0,
+        index=index,
         key=select_key,
         label_visibility="collapsed"
     )
-    
+
     selected_option = slot_options.index(selected_option_text)
     
     # 선택 반응 표시
