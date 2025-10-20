@@ -267,7 +267,7 @@ class DatabaseManager:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.execute(
-                    "SELECT interviewer_id, available_slots FROM interviewer_responses WHERE request_id = ?",
+                    "SELECT interviewer_id, available_slots, responded_at FROM interviewer_responses WHERE request_id = ?",
                     (request_id,)
                 )
                 rows = cursor.fetchall()
@@ -275,11 +275,16 @@ class DatabaseManager:
             responses = {}
             for row in rows:
                 interviewer_id = row[0]
-                slots_data = json.loads(row[1])
-                slots = [InterviewSlot(**slot) for slot in slots_data]
-                responses[interviewer_id] = slots
+                try:
+                    slots_data = json.loads(row[1])
+                    slots = [InterviewSlot(**slot) for slot in slots_data]
+                    responses[interviewer_id] = slots
+                    logger.info(f"면접관 {interviewer_id} 응답 로드: {len(slots)}개 슬롯")
+                except json.JSONDecodeError as e:
+                    logger.warning(f"면접관 {interviewer_id} 슬롯 파싱 실패: {e}")
+                    continue
             
-            logger.info(f"면접관 응답 조회: {len(responses)}명")
+            logger.info(f"총 {len(responses)}명의 면접관 응답 조회 완료 (request_id: {request_id[:8]}...)")
             return responses
             
         except Exception as e:
@@ -295,26 +300,37 @@ class DatabaseManager:
         """
         try:
             interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
-            
-            # 단일 면접관인 경우
-            if len(interviewer_ids) == 1:
-                has_slots = request.available_slots and len(request.available_slots) > 0
-                return (has_slots, (1 if has_slots else 0), 1)
-            
-            # 복수 면접관인 경우 - interviewer_responses 테이블 확인
-            responses = self.get_interviewer_responses(request.id)
-            responded_count = len(responses)
             total_count = len(interviewer_ids)
             
-            all_responded = responded_count == total_count
+            # 단일 면접관인 경우
+            if total_count == 1:
+                has_slots = request.available_slots and len(request.available_slots) > 0
+                responded_count = 1 if has_slots else 0
+                logger.info(f"단일 면접관 응답 확인: {responded_count}/{total_count}")
+                return (has_slots, responded_count, total_count)
             
-            logger.info(f"면접관 응답 현황: {responded_count}/{total_count}")
+            # 복수 면접관인 경우 - interviewer_responses 테이블 확인
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute(
+                    "SELECT COUNT(DISTINCT interviewer_id) FROM interviewer_responses WHERE request_id = ?",
+                    (request.id,)
+                )
+                result = cursor.fetchone()
+                responded_count = result[0] if result else 0
+            
+            all_responded = (responded_count == total_count)
+            
+            logger.info(f"면접관 응답 현황: {responded_count}/{total_count} (request_id: {request.id[:8]}...)")
             
             return (all_responded, responded_count, total_count)
             
         except Exception as e:
             logger.error(f"면접관 응답 확인 실패: {e}")
-            interviewer_count = len(request.interviewer_id.split(','))
+            # 에러 발생 시에도 안전한 기본값 반환
+            try:
+                interviewer_count = len(request.interviewer_id.split(','))
+            except:
+                interviewer_count = 1
             return (False, 0, interviewer_count)
     
     def get_common_available_slots(self, request: InterviewRequest) -> List[InterviewSlot]:

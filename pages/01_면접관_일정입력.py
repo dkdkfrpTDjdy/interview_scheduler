@@ -179,8 +179,14 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
     interviewer_ids = [id.strip() for id in first_request.interviewer_id.split(',')]
     is_multiple_interviewers = len(interviewer_ids) > 1
     
-    # ✅ 현재 응답 현황 확인
-    all_responded, responded_count, total_count = db.check_all_interviewers_responded(first_request)
+    # ✅ 현재 응답 현황 확인 (에러 처리 강화)
+    try:
+        all_responded, responded_count, total_count = db.check_all_interviewers_responded(first_request)
+    except Exception as e:
+        st.error(f"응답 현황 확인 중 오류: {e}")
+        all_responded = False
+        responded_count = 0
+        total_count = len(interviewer_ids)
     
     st.markdown(f"""
     <div style="background-color: white; padding: 25px; border-radius: 10px; border-left: 5px solid #0078d4; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,120,212,0.1);">
