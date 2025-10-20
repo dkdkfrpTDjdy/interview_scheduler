@@ -7,6 +7,7 @@ from models import InterviewRequest, InterviewSlot
 from config import Config
 from utils import get_next_weekdays, format_date_korean, validate_email, load_employee_data, get_employee_email
 from sync_manager import SyncManager
+import time
 
 # 페이지 설정
 st.set_page_config(
@@ -390,10 +391,10 @@ def main():
                     elif not st.session_state.selected_slots:
                         st.error("1개 이상의 면접 희망 시간대를 선택해주세요.")
                     else:
-                        # ✅ 다중 면접자에 대해 각각 면접 요청 생성
-                        success_count = 0
-                        total_requests = len(st.session_state.selected_candidates)
-                        
+                        # ✅ Step 1: 모든 면접 요청 생성 (DB 저장)
+                        all_requests = []
+                        failed_candidates = []
+
                         for candidate in st.session_state.selected_candidates:
                             try:
                                 request = InterviewRequest.create_new(
@@ -405,21 +406,76 @@ def main():
                                 )
                                 
                                 db.save_interview_request(request)
-                                
-                                if email_service.send_interviewer_invitation(request):
-                                    success_count += 1
+                                all_requests.append(request)
                                 
                             except Exception as e:
                                 st.error(f"❌ {candidate['name']} 면접 요청 생성 실패: {e}")
+                                failed_candidates.append(candidate['name'])
+
+                        # ✅ 실패한 면접자가 있으면 경고 표시
+                        if failed_candidates:
+                            st.warning(f"""
+                            ⚠️ 일부 면접자의 요청 생성 실패:
+                            {', '.join(failed_candidates)}
+                            """)
+
+                        # ✅ 성공한 요청이 없으면 중단
+                        if not all_requests:
+                            st.error("❌ 모든 면접 요청 생성에 실패했습니다. 다시 시도해주세요.")
+                            st.stop()
+                        
+                        # ✅ Step 2: 면접관 + 포지션 조합으로 그룹핑
+                        try:
+                            from utils import group_requests_by_interviewer_and_position
+                            grouped_requests = group_requests_by_interviewer_and_position(all_requests)
+                        except ImportError:
+                            st.error("❌ utils.py에 group_requests_by_interviewer_and_position 함수가 없습니다.")
+                            st.stop()
+                        except Exception as e:
+                            st.error(f"❌ 그룹핑 중 오류 발생: {e}")
+                            st.stop()
+                        
+                        # ✅ Step 3: 그룹별로 1회만 이메일 발송
+                        success_count = 0
+                        total_groups = len(grouped_requests)
+
+                        if total_groups == 0:
+                            st.warning("⚠️ 발송할 이메일이 없습니다.")
+                        else:
+                            progress_bar = st.progress(0)
+                            status_text = st.empty()
+                            
+                            for i, (group_key, requests) in enumerate(grouped_requests.items()):
+                                status_text.text(f"이메일 발송 중... {i+1}/{total_groups} ({len(requests)}명)")
+                                
+                                # ✅ 리팩토링된 함수 호출 (리스트 전달)
+                                try:
+                                    if email_service.send_interviewer_invitation(requests):
+                                        success_count += 1
+                                    else:
+                                        st.warning(f"⚠️ 그룹 {i+1} 발송 실패")
+                                except Exception as e:
+                                    st.error(f"❌ 그룹 {i+1} 발송 중 오류: {e}")
+                                
+                                progress_bar.progress((i + 1) / total_groups)
+                                time.sleep(0.5)  # API 부하 방지
+                            
+                            progress_bar.empty()
+                            status_text.empty()
                         
                         if success_count > 0:
                             st.session_state.submission_done = True
-                            st.success(f"✅ {success_count}/{total_requests}개의 면접 요청이 생성되었습니다!")
+                            st.success(f"""
+                            ✅ 면접 요청이 생성되었습니다!
+                            
+                            📊 발송 통계:
+                            • 총 면접자: {len(all_requests)}명
+                            • 이메일 발송: {success_count}/{total_groups}회
+                            • 중복 방지: {len(all_requests) - total_groups}회 절약
+                            """)
                             st.rerun()
                         else:
-                            st.error("❌ 모든 면접 요청 생성에 실패했습니다.")
-        else:
-            st.info("👆 먼저 위에서 기본 정보를 입력하고 저장해주세요.")
+                            st.error("❌ 모든 이메일 발송에 실패했습니다.")
     
     with tab2:
         st.subheader("📊 진행 현황")

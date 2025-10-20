@@ -4,6 +4,36 @@ import calendar
 import pandas as pd
 from config import Config
 import os
+from collections import defaultdict
+from typing import Dict, List
+from models import InterviewRequest
+
+def group_requests_by_interviewer_and_position(requests: List[InterviewRequest]) -> Dict[str, List[InterviewRequest]]:
+    """
+    면접관 + 포지션 조합으로 면접 요청 그룹핑
+    
+    Args:
+        requests: 면접 요청 리스트
+    
+    Returns:
+        {
+            "면접관1,면접관2_IT혁신팀": [request1, request2, request3],
+            "면접관1_데이터분석가": [request4],
+        }
+    """
+    groups = defaultdict(list)
+    
+    for request in requests:
+        # 면접관 ID 정규화 (정렬하여 일관성 유지)
+        interviewer_ids = sorted([id.strip() for id in request.interviewer_id.split(',')])
+        interviewer_key = ",".join(interviewer_ids)
+        
+        # 그룹 키 생성: "면접관ID들_포지션명"
+        group_key = f"{interviewer_key}_{request.position_name}"
+        groups[group_key].append(request)
+    
+    return groups
+
 
 def get_next_weekdays(days: int = 14) -> List[str]:
     """향후 N일간의 평일 날짜 반환"""
@@ -146,6 +176,79 @@ def search_employee(keyword: str) -> List[dict]:
             results.append(emp)
     
     return results
+
+from collections import defaultdict
+from typing import Dict, List
+from models import InterviewRequest, InterviewSlot
+
+def group_requests_by_slot(requests: List[InterviewRequest]) -> Dict[str, List[InterviewRequest]]:
+    """
+    슬롯별로 면접 요청 그룹핑
+    
+    Returns:
+        {
+            "2025-01-15_14:00_면접관1,면접관2": [request1, request2, ...],
+            "2025-01-15_15:00_면접관1,면접관2": [request3, ...],
+        }
+    """
+    slot_groups = defaultdict(list)
+    
+    for request in requests:
+        # 면접관 ID 정규화 (쉼표 구분 → 정렬하여 일관성 유지)
+        interviewer_ids = sorted([id.strip() for id in request.interviewer_id.split(',')])
+        interviewer_key = ",".join(interviewer_ids)
+        
+        # 슬롯별 키 생성
+        if request.available_slots:
+            for slot in request.available_slots:
+                slot_key = f"{slot.date}_{slot.time}_{interviewer_key}"
+                slot_groups[slot_key].append(request)
+    
+    return slot_groups
+
+
+def prepare_slot_email_data(slot_key: str, requests: List[InterviewRequest]) -> dict:
+    """
+    슬롯별 이메일 발송 데이터 준비
+    
+    Returns:
+        {
+            'date': '2025-01-15',
+            'time': '14:00',
+            'interviewer_ids': ['223286', '223287'],
+            'position_name': 'IT혁신팀 데이터분석가',
+            'candidates': [
+                {'name': '홍길동', 'email': 'hong@example.com'},
+                {'name': '김철수', 'email': 'kim@example.com'}
+            ]
+        }
+    """
+    # 슬롯 키 파싱
+    parts = slot_key.split('_')
+    date = parts[0]
+    time = parts[1]
+    interviewer_ids = parts[2].split(',')
+    
+    # 면접자 정보 수집 (중복 제거)
+    candidates = []
+    seen_emails = set()
+    position_name = requests[0].position_name if requests else ""
+    
+    for request in requests:
+        if request.candidate_email not in seen_emails:
+            candidates.append({
+                'name': request.candidate_name,
+                'email': request.candidate_email
+            })
+            seen_emails.add(request.candidate_email)
+    
+    return {
+        'date': date,
+        'time': time,
+        'interviewer_ids': interviewer_ids,
+        'position_name': position_name,
+        'candidates': candidates
+    }
 
 def create_calendar_invite(request) -> str:
     """🔧 개선된 캘린더 초대장 생성 (ICS 형식)"""
