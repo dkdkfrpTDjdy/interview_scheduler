@@ -390,142 +390,192 @@ class EmailService:
         })
 
     def send_interviewer_invitation(self, request: InterviewRequest):
-        """면접관에게 일정 입력 요청 메일 발송"""
+        """면접관에게 일정 입력 요청 메일 발송 (복수 면접관 지원)"""
         try:
-            interviewer_email = get_employee_email(request.interviewer_id)
-            interviewer_info = get_employee_info(request.interviewer_id)
+            # ✅ 복수 면접관 처리
+            interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
+            
+            logger.info(f"📧 면접관 초대 메일 준비 - 면접관 수: {len(interviewer_ids)}")
+            
+            success_count = 0
+            
+            for interviewer_id in interviewer_ids:
+                try:
+                    interviewer_email = get_employee_email(interviewer_id)
+                    interviewer_info = get_employee_info(interviewer_id)
 
-            logger.info(f"📧 면접관 초대 메일 준비 - 면접관: {interviewer_email}")
+                    logger.info(f"📧 면접관 초대 메일 발송 중 - 면접관: {interviewer_email}")
 
-            link = "https://interview-scheduler-ajnetworks.streamlit.app/면접관_일정입력"
+                    link = "https://interview-scheduler-ajnetworks.streamlit.app/면접관_일정입력"
 
-            subject = f"[인사팀] 면접 일정 입력 요청드립니다"
-            body = f"""
-            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #ffffff; font-family: 'Apple SD Gothic Neo', Arial, sans-serif; color: #1A1A1A;">
-            <tr>
-                <td align="center">
-                <table width="640" cellpadding="0" cellspacing="0" style="background-color: #ffffff;">
-                    <!-- Header -->
+                    subject = f"[인사팀] 면접 일정 입력 요청드립니다"
+                    body = f"""
+                    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #ffffff; font-family: 'Apple SD Gothic Neo', Arial, sans-serif; color: #1A1A1A;">
                     <tr>
-                        <td align="center" style="background-color: #f5f5f5; color: #1A1A1A; padding: 24px;">
-                            <h2 style="margin: 10px 0 0; font-size: 20px;">면접 일정 입력 요청</h2>
+                        <td align="center">
+                        <table width="640" cellpadding="0" cellspacing="0" style="background-color: #ffffff;">
+                            <!-- Header -->
+                            <tr>
+                                <td align="center" style="background-color: #f5f5f5; color: #1A1A1A; padding: 24px;">
+                                    <h2 style="margin: 10px 0 0; font-size: 20px;">면접 일정 입력 요청</h2>
+                                </td>
+                            </tr>
+
+                            <!-- Body -->
+                            <tr>
+                                <td style="padding: 32px;">
+                                    <p style="font-size: 15px; margin: 0 0 12px;">
+                                        안녕하세요, <strong>{interviewer_info['name']} ({interviewer_info['employee_id']})</strong>님.
+                                    </p>
+                                    
+                                    <p style="font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
+                                        인사팀입니다.<br>
+                                        귀하께서 참여 예정이신 <strong style="color: #1A1A1A;">면접 일정 조율</strong>을 위해 협조를 부탁드립니다.<br>
+                                        아래 지원자 정보를 확인하신 후, <strong style="color: #1A1A1A;">면접 가능 일정을 입력</strong>해 주시면 감사하겠습니다.
+                                    </p>
+
+                                    <!-- Interview Info Table -->
+                                    <table width="100%" cellpadding="10" cellspacing="0" style="border-collapse: collapse; background-color: #ffffff; font-size: 14px;">
+                                        <tr>
+                                            <td style="width: 30%; font-weight: bold; text-align: center; border: 1px solid #e7e7e7;">포지션</td>
+                                            <td style="text-align: center; border: 1px solid #e7e7e7;">{request.position_name}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="font-weight: bold; text-align: center; border: 1px solid #e7e7e7;">면접자</td>
+                                            <td style="text-align: center; border: 1px solid #e7e7e7;">{request.candidate_name}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="font-weight: bold; text-align: center; border: 1px solid #e7e7e7;">이메일</td>
+                                            <td style="text-align: center; border: 1px solid #e7e7e7;">{request.candidate_email}</td>
+                                        </tr>
+                                    </table>
+
+                                    <!-- Button -->
+                                    <div style="text-align: center; margin: 36px 0;">
+                                        <a href="{link}" 
+                                            style="display: inline-block; padding: 18px 36px; background-color: #EF3340; color: #ffffff; text-decoration: none;
+                                                font-weight: bold; border-radius: 6px; font-size: 15px;">
+                                            👉 면접 가능 일정 입력하기
+                                        </a>
+                                    </div>
+
+                                    <p style="font-size: 14px; color: #737272; line-height: 1.6; margin: 0 0 10px;">
+                                        ※ 링크가 열리지 않을 경우, 아래 주소를 복사하여 브라우저 주소창에 붙여 넣어주세요.
+                                    </p>
+                                    <div style="background-color:#f9f9f9;padding:12px;border-radius:6px;font-family:'Courier New',monospace;
+                                                word-break:break-all;margin:10px 0;border:1px solid #e7e7e7;color:#1A1A1A;font-size:13px;">
+                                        {link}
+                                    </div>
+
+                                    <!-- Contact -->
+                                    <div style="background-color: #f5f5f5; font-size: 12px; color: #737272; text-align: center; padding: 24px; border-radius: 6px; margin-top: 40px;">
+                                        본 메일은 <strong style="color:#EF3340;">AJ네트웍스 인사팀</strong>에서 발송되었습니다.<br>
+                                        문의사항이 있으신 경우 인사팀으로 연락 부탁드립니다.<br>
+                                        📧 <a href="mailto:{Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'}" 
+                                            style="color: #e0752e; text-decoration: none;">{Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'}</a>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- Footer -->
+                            <tr>
+                                <td align="center" style="background-color: #ffffff; padding: 10px; font-size: 12px; color: #737272;">
+                                    © 2025 AJ네트웍스. All rights reserved.
+                                </td>
+                            </tr>
+                        </table>
                         </td>
                     </tr>
+                    </table>
+                    """
+                    
+                    result = self.send_email(
+                        to_emails=[interviewer_email],
+                        cc_emails=Config.HR_EMAILS,
+                        subject=subject,
+                        body=body
+                    )
 
-                    <!-- Body -->
-                    <tr>
-                        <td style="padding: 32px;">
-                            <p style="font-size: 15px; margin: 0 0 12px;">
-                                안녕하세요, <strong>{interviewer_info['name']} ({interviewer_info['employee_id']})</strong>님.
-                            </p>
-                            
-                            <p style="font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
-                                인사팀입니다.<br>
-                                귀하께서 참여 예정이신 <strong style="color: #1A1A1A;">면접 일정 조율</strong>을 위해 협조를 부탁드립니다.<br>
-                                아래 지원자 정보를 확인하신 후, <strong style="color: #1A1A1A;">면접 가능 일정을 입력</strong>해 주시면 감사하겠습니다.
-                            </p>
-
-                            <!-- Interview Info Table -->
-                            <table width="100%" cellpadding="10" cellspacing="0" style="border-collapse: collapse; background-color: #ffffff; font-size: 14px;">
-                                <tr>
-                                    <td style="width: 30%; font-weight: bold; text-align: center; border: 1px solid #e7e7e7;">포지션</td>
-                                    <td style="text-align: center; border: 1px solid #e7e7e7;">{request.position_name}</td>
-                                </tr>
-                                <tr>
-                                    <td style="font-weight: bold; text-align: center; border: 1px solid #e7e7e7;">면접자</td>
-                                    <td style="text-align: center; border: 1px solid #e7e7e7;">{request.candidate_name}</td>
-                                </tr>
-                                <tr>
-                                    <td style="font-weight: bold; text-align: center; border: 1px solid #e7e7e7;">이메일</td>
-                                    <td style="text-align: center; border: 1px solid #e7e7e7;">{request.candidate_email}</td>
-                                </tr>
-                            </table>
-
-                            <!-- Button -->
-                            <div style="text-align: center; margin: 36px 0;">
-                                <a href="{link}" 
-                                    style="display: inline-block; padding: 18px 36px; background-color: #EF3340; color: #ffffff; text-decoration: none;
-                                        font-weight: bold; border-radius: 6px; font-size: 15px;">
-                                    👉 면접 가능 일정 입력하기
-                                </a>
-                            </div>
-
-                            <p style="font-size: 14px; color: #737272; line-height: 1.6; margin: 0 0 10px;">
-                                ※ 링크가 열리지 않을 경우, 아래 주소를 복사하여 브라우저 주소창에 붙여 넣어주세요.
-                            </p>
-                            <div style="background-color:#f9f9f9;padding:12px;border-radius:6px;font-family:'Courier New',monospace;
-                                        word-break:break-all;margin:10px 0;border:1px solid #e7e7e7;color:#1A1A1A;font-size:13px;">
-                                {link}
-                            </div>
-
-                            <!-- Contact -->
-                            <div style="background-color: #f5f5f5; font-size: 12px; color: #737272; text-align: center; padding: 24px; border-radius: 6px; margin-top: 40px;">
-                                본 메일은 <strong style="color:#EF3340;">AJ네트웍스 인사팀</strong>에서 발송되었습니다.<br>
-                                문의사항이 있으신 경우 인사팀으로 연락 부탁드립니다.<br>
-                                📧 <a href="mailto:{Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'}" 
-                                    style="color: #e0752e; text-decoration: none;">{Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'}</a>
-                            </div>
-                        </td>
-                    </tr>
-
-                    <!-- Footer -->
-                    <tr>
-                        <td align="center" style="background-color: #ffffff; padding: 10px; font-size: 12px; color: #737272;">
-                            © 2025 AJ네트웍스. All rights reserved.
-                        </td>
-                    </tr>
-                </table>
-                </td>
-            </tr>
-            </table>
-            """
-            result = self.send_email(
-                to_emails=[interviewer_email],
-                cc_emails=Config.HR_EMAILS,
-                subject=subject,
-                body=body
-            )
-
-            logger.info(f"📧 면접관 초대 메일 발송 결과: {result}")
-            return result
+                    if result:
+                        success_count += 1
+                        logger.info(f"✅ 면접관 {interviewer_info['name']} 메일 발송 성공")
+                    else:
+                        logger.error(f"❌ 면접관 {interviewer_info['name']} 메일 발송 실패")
+                        
+                except Exception as e:
+                    logger.error(f"❌ 면접관 {interviewer_id} 메일 발송 중 오류: {e}")
+                    continue
+            
+            # ✅ 최종 결과 판단
+            logger.info(f"📧 면접관 초대 메일 발송 완료: {success_count}/{len(interviewer_ids)}")
+            
+            # 1명이라도 성공하면 True 반환
+            return success_count > 0
 
         except Exception as e:
             logger.error(f"❌ 면접관 초대 메일 발송 실패: {e}")
             return False
 
     def send_candidate_invitation(self, request: InterviewRequest):
-        """면접자에게 일정 선택 요청 메일 발송"""
+        """면접자에게 일정 선택 요청 메일 발송 (30분 단위 타임슬롯)"""
         try:
-            interviewer_info = get_employee_info(request.interviewer_id)
+            from database import DatabaseManager
+            db = DatabaseManager()
+            
+            # ✅ 중복 30분 단위 타임슬롯만 가져오기
+            overlapping_slots = db.find_overlapping_time_slots(request)
+            
+            if not overlapping_slots:
+                logger.warning(f"중복 타임슬롯이 없어 메일 발송 불가: {request.id}")
+                return False
+            
+            # 면접관 정보 처리
+            interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
+            interviewer_names = []
+            
+            for interviewer_id in interviewer_ids:
+                info = get_employee_info(interviewer_id)
+                interviewer_names.append(info.get('name', interviewer_id))
+            
+            interviewer_display = ", ".join(interviewer_names)
+            
             candidate_link = f"https://candidate-app.streamlit.app/"
             
-            logger.info(f"📧 면접자 초대 메일 준비 - 면접자: {request.candidate_email}")
+            logger.info(f"📧 면접자 초대 메일 준비 - {len(overlapping_slots)}개 타임슬롯")
             
-            # 면접 일정 테이블 HTML 생성
+            # 면접 일정 테이블 HTML 생성 (날짜별 그룹화)
+            slots_by_date = {}
+            for slot in overlapping_slots:
+                if slot.date not in slots_by_date:
+                    slots_by_date[slot.date] = []
+                slots_by_date[slot.date].append(slot)
+            
             slots_html = ""
-            for i, slot in enumerate(request.available_slots, 1):
-                bg_color = "#ffffff" if i % 2 == 0 else "white"
-                slots_html += f"""
-                <tr style="background-color: {bg_color};">
-                    <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{i}</td>
-                    <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{format_date_korean(slot.date)}</td>
-                    <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{slot.time}</td>
-                    <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{slot.duration}분</td>
-                </tr>
-                """
+            slot_number = 1
+            for date, slots in sorted(slots_by_date.items()):
+                for slot in slots:
+                    bg_color = "#ffffff" if slot_number % 2 == 0 else "white"
+                    slots_html += f"""
+                    <tr style="background-color: {bg_color};">
+                        <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{slot_number}</td>
+                        <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{format_date_korean(slot.date)}</td>
+                        <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px; font-weight:bold; color:#EF3340;">{slot.time}</td>
+                        <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">30분</td>
+                    </tr>
+                    """
+                    slot_number += 1
             
-            # 통합 템플릿 사용
             subject = f"[AJ네트웍스] 면접 일정을 선택해주세요 - {request.position_name}"
             body = self._create_gmail_safe_html({
                 'company_name': 'AJ네트웍스',
                 'recipient_name': request.candidate_name,
-                'main_message': f'{request.position_name} 포지션 지원에 감사드립니다.<br>면접관이 제안한 일정 중에서 원하시는 시간을 선택해주세요.',
+                'main_message': f'{request.position_name} 포지션 지원에 감사드립니다.<br>면접관들이 공통으로 가능한 시간 중에서 원하시는 <strong style="color:#EF3340;">30분 슬롯</strong>을 선택해주세요.<br><strong style="color:#EF3340;">⚠️ 선착순으로 마감됩니다!</strong>',
                 'position': request.position_name,
-                'interviewer': f"{interviewer_info['name']} ({interviewer_info['department']})",
+                'interviewer': interviewer_display,
                 'action_link': candidate_link,
                 'button_text': '✅ 면접 일정 선택하기',
                 'additional_content': f"""
-                <h4 style="color: #EF3340; margin: 0 0 20px 0; font-size:16px;">🗓️ 제안된 면접 일정</h4>
+                <h4 style="color: #EF3340; margin: 0 0 20px 0; font-size:16px;">🗓️ 선택 가능한 면접 시간 ({len(overlapping_slots)}개 슬롯)</h4>
                 <table style="width: 100%; border-collapse: collapse; border: 2px solid #EF3340; border-radius: 8px; overflow: hidden;">
                     <thead>
                         <tr style="background: linear-gradient(135deg, #EF3340 0%, #e0752e 100%); color: white;">
@@ -539,6 +589,10 @@ class EmailService:
                         {slots_html}
                     </tbody>
                 </table>
+                <div style="background-color:#fff3cd;padding:15px;border-radius:8px;margin-top:20px;border-left:5px solid #ffc107;">
+                    <p style="margin:0;color:#856404;font-weight:bold;">⚠️ 선착순 마감 안내</p>
+                    <p style="margin:5px 0 0 0;color:#856404;">• 각 면접은 <strong>30분</strong>으로 진행됩니다<br>• 다른 면접자가 먼저 선택한 시간은 자동으로 제외됩니다<br>• 빠른 선택을 권장합니다</p>
+                </div>
                 """,
                 'contact_email': Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'
             })

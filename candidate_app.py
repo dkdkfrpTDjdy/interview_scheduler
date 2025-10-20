@@ -203,7 +203,7 @@ def normalize_text(text: str) -> str:
     return str(text).strip().lower().replace(" ", "").replace("\n", "").replace("\t", "")
 
 def find_candidate_requests(name: str, email: str):
-    """구글 시트에서 직접 면접자 요청 찾기 - 개선된 버전"""
+    """구글 시트에서 직접 면접자 요청 찾기 + 실시간 선택 가능 일정 필터링"""
     try:
         if not google_sheet:
             return []
@@ -226,19 +226,11 @@ def find_candidate_requests(name: str, email: str):
                     email_col_idx = i
             
             if name_col_idx is None or email_col_idx is None:
-                st.markdown(f"""
-                <div style="background-color: #f7ddd4; border-left: 5px solid #e0752e; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                    <p style="color: #1A1A1A; margin: 0;">❌ 필요한 컬럼을 찾을 수 없습니다. 현재 컬럼: {headers}</p>
-                </div>
-                """, unsafe_allow_html=True)
+                st.error("❌ 필요한 컬럼을 찾을 수 없습니다.")
                 return []
                 
         except Exception as e:
-            st.markdown(f"""
-            <div style="background-color: #f7ddd4; border-left: 5px solid #e0752e; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <p style="color: #1A1A1A; margin: 0;">❌ 헤더 분석 실패: {e}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.error(f"❌ 헤더 분석 실패: {e}")
             return []
         
         normalized_search_name = normalize_text(name)
@@ -283,14 +275,51 @@ def find_candidate_requests(name: str, email: str):
             except Exception as e:
                 continue
         
+        # ✅ 실시간 선택 가능 일정 필터링
+        try:
+            from database import DatabaseManager
+            from models import InterviewRequest, InterviewSlot
+            
+            db = DatabaseManager()
+            
+            for request in matching_requests:
+                if request['status'] == '면접자_선택대기':
+                    # 제안된 슬롯 파싱
+                    proposed_slots = parse_proposed_slots(request['proposed_slots'])
+                    
+                    if proposed_slots:
+                        # InterviewRequest 객체로 변환
+                        full_request_id = None
+                        all_requests = db.get_all_requests()
+                        
+                        for req in all_requests:
+                            if req.id.startswith(request['id'].replace('...', '')):
+                                full_request_id = req.id
+                                break
+                        
+                        if full_request_id:
+                            req_obj = db.get_interview_request(full_request_id)
+                            
+                            if req_obj:
+                                # 선택 가능한 일정만 가져오기
+                                available_slots = db.get_available_slots_for_candidate(req_obj)
+                                
+                                # dict 형식으로 변환하여 저장
+                                request['available_slots_filtered'] = [
+                                    {
+                                        'date': slot.date,
+                                        'time': slot.time,
+                                        'duration': slot.duration
+                                    }
+                                    for slot in available_slots
+                                ]
+        except Exception as e:
+            logger.error(f"선택 가능 일정 필터링 실패: {e}")
+        
         return matching_requests
         
     except Exception as e:
-        st.markdown(f"""
-        <div style="background-color: #f7ddd4; border-left: 5px solid #e0752e; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <p style="color: #1A1A1A; margin: 0;">❌ 데이터 조회 중 오류: {e}</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.error(f"❌ 데이터 조회 중 오류: {e}")
         return []
 
 def parse_proposed_slots(slots_str: str):
@@ -610,7 +639,7 @@ def show_alternative_request_success(candidate_note: str):
     st.rerun()
 
 def show_request_detail(request, index):
-    """요청 상세 정보 및 일정 선택 폼 - HTML 커스텀"""
+    """요청 상세 정보 및 일정 선택 폼 - 실시간 선택 가능 일정만 표시"""
     
     # 면접 정보 표시
     st.markdown(f"""
@@ -622,7 +651,7 @@ def show_request_detail(request, index):
             </tr>
             <tr style="border-top: 1px solid #efeff1;">
                 <td style="padding: 12px 0; font-weight: 500; color: #737272;">면접관</td>
-                <td style="padding: 12px 0; color: #1A1A1A;">{request['interviewer_name']} <span style="color: #737272; font-size: 0.9rem;">(ID: {request['interviewer_id']})</span></td>
+                <td style="padding: 12px 0; color: #1A1A1A;">{request['interviewer_name']}</td>
             </tr>
             <tr style="border-top: 1px solid #efeff1;">
                 <td style="padding: 12px 0; font-weight: 500; color: #737272;">신청일</td>
@@ -637,14 +666,25 @@ def show_request_detail(request, index):
         show_confirmed_schedule(request)
         return
     
-    # 제안된 일정 파싱
-    proposed_slots = parse_proposed_slots(request['proposed_slots'])
+    # ✅ 실시간 선택 가능 일정 가져오기
+    available_slots_data = request.get('available_slots_filtered', [])
     
-    if not proposed_slots:
-        st.markdown("""
+    # dict를 InterviewSlot 객체로 변환
+    from models import InterviewSlot
+    available_slots = [
+        InterviewSlot(
+            date=slot['date'],
+            time=slot['time'],
+            duration=slot['duration']
+        )
+        for slot in available_slots_data
+    ]
+    
+    if not available_slots:
+        st.markdown(f"""
         <div style="background-color: #f7ddd4; border-left: 5px solid #e0752e; padding: 25px; border-radius: 10px; margin: 25px 0;">
-            <h4 style="color: #1A1A1A; margin: 0 0 10px 0;">⚠️ 제안된 일정 없음</h4>
-            <p style="color: #737272; margin: 0;">면접관이 아직 가능한 일정을 입력하지 않았습니다.</p>
+            <h4 style="color: #1A1A1A; margin: 0 0 10px 0;">⚠️ 선택 가능한 일정 없음</h4>
+            <p style="color: #737272; margin: 0;">모든 일정이 다른 면접자에게 선택되었거나, 면접관이 일정을 입력하지 않았습니다.</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -656,15 +696,15 @@ def show_request_detail(request, index):
         return
     
     # 제안된 일정 섹션
-    st.markdown("""
+    st.markdown(f"""
     <div style="margin: 30px 0 15px 0;">
-        <h4 style="color: #1A1A1A; margin: 0; font-weight: 500;">🗓️ 제안된 면접 일정</h4>
-        <p style="color: #737272; margin: 5px 0 15px 0; font-size: 0.95rem;">아래 일정 중 하나를 선택해주세요</p>
+        <h4 style="color: #1A1A1A; margin: 0; font-weight: 500;">🗓️ 선택 가능한 면접 일정 ({len(available_slots)}개)</h4>
+        <p style="color: #EF3340; margin: 5px 0 15px 0; font-size: 0.95rem; font-weight: 500;">⚠️ 선착순으로 마감됩니다!</p>
     </div>
     """, unsafe_allow_html=True)
     
     # 제안된 일정 테이블
-    if proposed_slots:
+    if available_slots:
         table_html = """
         <div style="background: white; border-radius: 10px; overflow: hidden; border: 2px solid #efeff1; margin-bottom: 25px;">
             <table style="width: 100%; border-collapse: collapse;">
@@ -679,14 +719,14 @@ def show_request_detail(request, index):
                 <tbody>
         """
         
-        for i, slot in enumerate(proposed_slots, 1):
+        for i, slot in enumerate(available_slots, 1):
             row_bg = "#fafafa" if i % 2 == 0 else "white"
             table_html += f"""
                 <tr style="background-color: {row_bg};">
                     <td style="padding: 15px; color: #1A1A1A; border-bottom: 1px solid #efeff1;">옵션 {i}</td>
-                    <td style="padding: 15px; color: #1A1A1A; border-bottom: 1px solid #efeff1; font-weight: 500;">{format_date_korean(slot['date'])}</td>
-                    <td style="padding: 15px; color: #1A1A1A; border-bottom: 1px solid #efeff1;">{slot['time']}</td>
-                    <td style="padding: 15px; color: #1A1A1A; border-bottom: 1px solid #efeff1;">{slot['duration']}분</td>
+                    <td style="padding: 15px; color: #1A1A1A; border-bottom: 1px solid #efeff1; font-weight: 500;">{format_date_korean(slot.date)}</td>
+                    <td style="padding: 15px; color: #EF3340; border-bottom: 1px solid #efeff1; font-weight: bold;">{slot.time}</td>
+                    <td style="padding: 15px; color: #1A1A1A; border-bottom: 1px solid #efeff1;">{slot.duration}분</td>
                 </tr>
             """
         
@@ -700,8 +740,8 @@ def show_request_detail(request, index):
     
     # 슬롯 옵션 생성
     slot_options = []
-    for i, slot in enumerate(proposed_slots):
-        slot_text = f"옵션 {i+1}: {format_date_korean(slot['date'])} {slot['time']} ({slot['duration']}분)"
+    for i, slot in enumerate(available_slots):
+        slot_text = f"옵션 {i+1}: {format_date_korean(slot.date)} {slot.time} ({slot.duration}분)"
         slot_options.append(slot_text)
     
     slot_options.append("💬 다른 일정 요청")
@@ -728,15 +768,15 @@ def show_request_detail(request, index):
     selected_option = slot_options.index(selected_option_text)
     
     # 선택 반응 표시
-    if selected_option < len(proposed_slots):
-        selected_slot_info = proposed_slots[selected_option]
+    if selected_option < len(available_slots):
+        selected_slot_info = available_slots[selected_option]
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border-left: 6px solid #4caf50; border-radius: 10px; padding: 20px; margin: 20px 0;">
             <h4 style="color: #2e7d32; margin: 0 0 8px 0; font-weight: 500;">✅ 선택하신 일정</h4>
             <p style="color: #1b5e20; font-size: 1.1rem; margin: 0;">
-                <strong>{format_date_korean(selected_slot_info['date'])}</strong>
-                &nbsp;&nbsp;{selected_slot_info['time']}
-                &nbsp;&nbsp;<span style="opacity: 0.8;">({selected_slot_info['duration']}분)</span>
+                <strong>{format_date_korean(selected_slot_info.date)}</strong>
+                &nbsp;&nbsp;{selected_slot_info.time}
+                &nbsp;&nbsp;<span style="opacity: 0.8;">({selected_slot_info.duration}분)</span>
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -774,54 +814,63 @@ def show_request_detail(request, index):
     submit_key = f"submit_{index}"
     if st.button("✅ 면접 일정 선택 완료", key=submit_key, use_container_width=True, type="primary"):
         if 'row_number' not in request:
-            st.markdown("""
-            <div style="background-color: #f7ddd4; border-left: 5px solid #EF3340; padding: 20px; border-radius: 8px; margin-top: 15px;">
-                <p style="color: #1A1A1A; margin: 0;">❌ 요청 데이터에 문제가 있습니다. 페이지를 새로고침해주세요.</p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.error("❌ 요청 데이터에 문제가 있습니다. 페이지를 새로고침해주세요.")
             return
         
-        if selected_option < len(proposed_slots):
-            selected_slot = proposed_slots[selected_option]
+        if selected_option < len(available_slots):
+            selected_slot = available_slots[selected_option]
             
             with st.spinner("📝 일정을 확정하고 있습니다..."):
-                success = update_sheet_selection(
-                    request, 
-                    selected_slot=selected_slot, 
-                    candidate_note=candidate_note, 
-                    is_alternative_request=False
-                )
+                # ✅ 중복 예약 방지 처리
+                from database import DatabaseManager
+                from models import InterviewRequest
                 
-                if success:
-                    st.markdown(f"""
-                    <div style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); padding: 30px; border-radius: 12px; margin: 25px 0; text-align: center; border-left: 6px solid #4caf50;">
-                        <h3 style="color: #2e7d32; margin: 0 0 15px 0;">🎉 일정이 확정되었습니다!</h3>
-                        <p style="color: #1b5e20; font-size: 1.2rem; font-weight: 500; margin: 0;">
-                            {format_date_korean(selected_slot['date'])} {selected_slot['time']} ({selected_slot['duration']}분)
-                        </p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                db = DatabaseManager()
+                
+                # 전체 요청 ID 찾기
+                full_request_id = None
+                all_requests = db.get_all_requests()
+                
+                for req in all_requests:
+                    if req.id.startswith(request['id'].replace('...', '')):
+                        full_request_id = req.id
+                        break
+                
+                if full_request_id:
+                    req_obj = db.get_interview_request(full_request_id)
                     
-                    time.sleep(2)
-                    candidate_info = st.session_state.authenticated_candidate
-                    updated_requests = force_refresh_candidate_data(candidate_info['name'], candidate_info['email'])
-                    if updated_requests:
-                        st.session_state.candidate_requests = updated_requests
-                    
-                    st.rerun()
+                    if req_obj:
+                        # 예약 시도
+                        if db.reserve_slot_for_candidate(req_obj, selected_slot):
+                            st.success("🎉 일정이 확정되었습니다!")
+                            time.sleep(2)
+                            
+                            # 새로고침
+                            candidate_info = st.session_state.authenticated_candidate
+                            updated_requests = force_refresh_candidate_data(candidate_info['name'], candidate_info['email'])
+                            if updated_requests:
+                                st.session_state.candidate_requests = updated_requests
+                            
+                            st.rerun()
+                        else:
+                            st.error("❌ 해당 일정이 이미 다른 면접자에게 선택되었습니다. 다른 일정을 선택해주세요.")
+                            time.sleep(2)
+                            
+                            # 강제 새로고침
+                            candidate_info = st.session_state.authenticated_candidate
+                            updated_requests = force_refresh_candidate_data(candidate_info['name'], candidate_info['email'])
+                            if updated_requests:
+                                st.session_state.candidate_requests = updated_requests
+                            
+                            st.rerun()
+                    else:
+                        st.error("❌ 요청 정보를 찾을 수 없습니다.")
                 else:
-                    st.markdown("""
-                    <div style="background-color: #f7ddd4; border-left: 5px solid #EF3340; padding: 20px; border-radius: 8px; margin-top: 15px;">
-                        <p style="color: #1A1A1A; margin: 0;">❌ 일정 확정 중 오류가 발생했습니다.</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.error("❌ 요청 ID를 찾을 수 없습니다.")
         else:
+            # 다른 일정 요청 처리
             if not candidate_note.strip():
-                st.markdown("""
-                <div style="background-color: #f7ddd4; border-left: 5px solid #EF3340; padding: 20px; border-radius: 8px; margin-top: 15px;">
-                    <p style="color: #1A1A1A; margin: 0;">❌ 가능한 일정을 구체적으로 입력해주세요.</p>
-                </div>
-                """, unsafe_allow_html=True)
+                st.error("❌ 가능한 일정을 구체적으로 입력해주세요.")
             else:
                 with st.spinner("📝 일정 재조율 요청을 전송하고 있습니다..."):
                     success = update_sheet_selection(
@@ -834,11 +883,7 @@ def show_request_detail(request, index):
                     if success:
                         show_alternative_request_success(candidate_note)
                     else:
-                        st.markdown("""
-                        <div style="background-color: #f7ddd4; border-left: 5px solid #EF3340; padding: 20px; border-radius: 8px; margin-top: 15px;">
-                            <p style="color: #1A1A1A; margin: 0;">❌ 일정 재조율 요청 전송 중 오류가 발생했습니다.</p>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        st.error("❌ 일정 재조율 요청 전송 중 오류가 발생했습니다.")
 
 def show_confirmed_schedule(request):
     """확정된 일정 표시 - HTML 커스텀"""

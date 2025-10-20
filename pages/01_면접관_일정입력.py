@@ -58,6 +58,17 @@ def main():
     else:
         show_interviewer_dashboard()
 
+# 중복 일정 감지 (예시)
+def find_overlapping_slots(all_requests):
+    slot_counts = {}
+    for req in all_requests:
+        for slot in req.available_slots:
+            key = f"{slot.date}_{slot.time}"
+            slot_counts[key] = slot_counts.get(key, 0) + 1
+    
+    # 2명 이상 선택한 일정만 반환
+    return [k for k, v in slot_counts.items() if v >= 2]
+
 def show_login_form():
     """면접관 사번 입력 폼"""
     st.markdown("""
@@ -130,24 +141,19 @@ def show_login_form():
         """, unsafe_allow_html=True)
 
 def find_pending_requests(employee_id: str):
-    """면접관의 대기 중인 요청 찾기"""
+    """면접관의 대기 중인 요청 찾기 (복수 면접관 지원)"""
     try:
-        # 정확한 사번 매칭 또는 이름/부서로 검색
         all_requests = db.get_all_requests()
         pending_requests = []
         
         for request in all_requests:
-            # 직접 매칭
-            if request.interviewer_id == employee_id:
+            # ✅ 복수 면접관 ID 처리
+            interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
+            
+            # 현재 로그인한 면접관 ID가 포함되어 있는지 확인
+            if employee_id in interviewer_ids:
                 if request.status == Config.Status.PENDING_INTERVIEWER:
                     pending_requests.append(request)
-            else:
-                # 이름이나 부서로 검색한 경우
-                interviewer_info = get_employee_info(request.interviewer_id)
-                if (employee_id.lower() in interviewer_info['name'].lower() or 
-                    employee_id.lower() in interviewer_info['department'].lower()):
-                    if request.status == Config.Status.PENDING_INTERVIEWER:
-                        pending_requests.append(request)
         
         return pending_requests
     except Exception as e:
@@ -188,9 +194,9 @@ def show_interviewer_dashboard():
             show_request_detail(request, i)
 
 def show_request_detail(request, index):
-    """개별 면접 요청 상세 정보 및 처리"""
+    """개별 면접 요청 상세 정보 및 처리 - 시간 범위 입력"""
     
-    # ✅ 면접 정보 표시
+    # 면접 정보 표시
     st.markdown(f"""
     <div style="background-color: white; padding: 25px; border-radius: 10px; border-left: 5px solid #0078d4; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,120,212,0.1);">
         <table style="width: 100%; border-collapse: collapse; text-align: center;">
@@ -214,128 +220,111 @@ def show_request_detail(request, index):
     </div>
     """, unsafe_allow_html=True)
 
-    st.write("**아래에서 가능한 면접 일정을 모두 선택해 주세요**")
+    st.write("**아래에서 면접 가능한 시간대를 입력해 주세요 (30분 단위로 자동 분할됩니다)**")
     
-    # 🔧 폼과 일정 선택을 함께 처리
+    # 폼과 일정 선택을 함께 처리
     with st.form(f"interviewer_schedule_{index}"):
-        selected_slots = []
+        selected_time_ranges = []
         
         if hasattr(request, 'preferred_datetime_slots') and request.preferred_datetime_slots:
             for i, datetime_slot in enumerate(request.preferred_datetime_slots):
-                st.markdown(f"**📅 면접 일시 {i+1}**")
+                st.markdown(f"**📅 희망 날짜 {i+1}**")
                 
-                if "면접관 선택" in datetime_slot:
-                    # 면접관이 시간을 직접 선택해야 하는 경우
-                    date_part = datetime_slot.split(' ')[0]
+                # 시간 범위 입력
+                date_part = datetime_slot.split(' ')[0]
+                
+                col1, col2, col3, col4 = st.columns([2, 1.5, 1.5, 1])
+                
+                with col1:
+                    is_selected = st.checkbox(
+                        f"{format_date_korean(date_part)}",
+                        key=f"date_check_{index}_{i}",
+                        help="해당 날짜가 가능하면 선택해주세요"
+                    )
+                
+                with col2:
+                    start_time = st.selectbox(
+                        "시작 시간",
+                        options=["선택안함"] + Config.TIME_SLOTS,
+                        key=f"start_time_{index}_{i}",
+                        help="면접 가능 시작 시간"
+                    )
+                
+                with col3:
+                    end_time = st.selectbox(
+                        "종료 시간",
+                        options=["선택안함"] + Config.TIME_SLOTS,
+                        key=f"end_time_{index}_{i}",
+                        help="면접 가능 종료 시간"
+                    )
+                
+                with col4:
+                    if is_selected and start_time != "선택안함" and end_time != "선택안함":
+                        # 슬롯 개수 계산
+                        start_hour = int(start_time.split(':')[0])
+                        end_hour = int(end_time.split(':')[0])
+                        slot_count = (end_hour - start_hour) * 2
+                        st.markdown(f"<div style='margin-top:32px;color:#4caf50;font-weight:bold;'>{slot_count}개 슬롯</div>", unsafe_allow_html=True)
+                
+                # 선택된 시간 범위 추가
+                if is_selected and start_time != "선택안함" and end_time != "선택안함":
+                    # 시간 유효성 검사
+                    start_hour = int(start_time.split(':')[0])
+                    end_hour = int(end_time.split(':')[0])
                     
-                    col1, col2, col3 = st.columns([3, 2, 1])
-                    
-                    with col1:
-                        is_selected = st.checkbox(
-                            f"{format_date_korean(date_part)} (시간 선택)",
-                            key=f"slot_{index}_{i}",
-                            help="시간을 지정해주세요"
+                    if start_hour < end_hour:
+                        from models import TimeRange
+                        time_range = TimeRange(
+                            date=date_part,
+                            start_time=start_time,
+                            end_time=end_time
                         )
-                    
-                    with col2:
-                        selected_time = st.selectbox(
-                            "시간 선택",
-                            options=["선택안함"] + Config.TIME_SLOTS,
-                            key=f"time_select_{index}_{i}",
-                            help="면접 시작 시간을 선택해주세요"
-                        )
-                    
-                    with col3:
-                        duration = st.selectbox(
-                            "소요시간",
-                            options=[30, 60, 90, 120],
-                            index=1,
-                            format_func=lambda x: f"{x}분",
-                            key=f"duration_{index}_{i}",
-                            help="예상 면접 소요 시간"
-                        )
-                    
-                    # 선택된 슬롯 추가
-                    if is_selected and selected_time != "선택안함":
-                        selected_slots.append(InterviewSlot(date_part, selected_time, duration))
-                        
-                else:
-                    # 시간이 고정된 경우
-                    date_part, time_part = datetime_slot.split(' ')
-                    
-                    col1, col2, col3 = st.columns([3, 2, 1])
-                    
-                    with col1:
-                        is_selected = st.checkbox(
-                            f"{format_date_korean(date_part)} {time_part}",
-                            key=f"slot_{index}_{i}_fixed",
-                            help="해당 일정이 가능하면 선택해주세요"
-                        )
-                    
-                    with col2:
-                        st.markdown(f"**{time_part}** (고정)")
-                    
-                    with col3:
-                        duration = st.selectbox(
-                            "소요시간",
-                            options=[30, 60, 90, 120],
-                            index=1,
-                            format_func=lambda x: f"{x}분",
-                            key=f"duration_{index}_{i}_fixed"
-                        )
-                    
-                    # 선택된 슬롯 추가
-                    if is_selected:
-                        selected_slots.append(InterviewSlot(date_part, time_part, duration))
+                        selected_time_ranges.append(time_range)
         
-        # 선택된 일정 미리보기
-        if selected_slots:
-            st.write("**선택된 일정:**")
+        # 선택된 시간대 미리보기
+        if selected_time_ranges:
+            st.write("**선택된 시간대:**")
+            
+            # 30분 단위로 분할된 슬롯 생성
+            all_generated_slots = []
+            for time_range in selected_time_ranges:
+                slots = time_range.generate_30min_slots()
+                all_generated_slots.extend(slots)
+            
             preview_data = []
-            for i, slot in enumerate(selected_slots, 1):
+            for i, slot in enumerate(all_generated_slots, 1):
                 preview_data.append({
                     "번호": i,
                     "날짜": format_date_korean(slot.date),
                     "시간": slot.time,
-                    "소요시간": f"{slot.duration}분"
+                    "소요시간": "30분"
                 })
+            
             st.dataframe(pd.DataFrame(preview_data), use_container_width=True, hide_index=True)
+            st.info(f"💡 총 {len(all_generated_slots)}개의 30분 단위 면접 슬롯이 생성됩니다.")
         else:
-            st.info("💡 위에서 가능한 일정을 선택해주세요.")
+            st.info("💡 위에서 가능한 시간대를 선택해주세요.")
 
-        # ✅ 버튼을 col로 감싸서 오른쪽 정렬
+        # 버튼
         col1, col2, col3 = st.columns([6, 1, 1])
         
         with col3:
             submitted = st.form_submit_button("일정 확정", use_container_width=True)
 
-        # 버튼 스타일
-        st.markdown("""
-            <style>
-            div[data-testid="stFormSubmitButton"] > button {
-                background-color: #2C2C2C;
-                color: white;
-                font-weight: 600;
-                font-size: 14px;
-                border: none;
-                border-radius: 8px;
-                padding: 10px 20px;
-            }
-            div[data-testid="stFormSubmitButton"] > button:hover {
-                background-color: #EF3340;
-                transform: scale(1.01);
-            }
-            </style>
-        """, unsafe_allow_html=True)
-
         # 폼 제출 처리
         if submitted:
-            if not selected_slots:
-                st.error("최소 1개 이상의 면접 일정을 선택해주세요.")
+            if not selected_time_ranges:
+                st.error("최소 1개 이상의 시간대를 선택해주세요.")
             else:
                 try:
+                    # 30분 단위 슬롯 생성
+                    all_slots = []
+                    for time_range in selected_time_ranges:
+                        slots = time_range.generate_30min_slots()
+                        all_slots.extend(slots)
+                    
                     # 요청 업데이트
-                    request.available_slots = selected_slots
+                    request.available_slots = all_slots
                     request.status = Config.Status.PENDING_CANDIDATE
                     request.updated_at = datetime.now()
                     
@@ -344,7 +333,7 @@ def show_request_detail(request, index):
                     
                     # 면접자에게 이메일 발송
                     if email_service.send_candidate_invitation(request):
-                        st.success("✅ 면접 일정이 면접자에게 전송되었습니다!")
+                        st.success(f"✅ {len(all_slots)}개의 30분 단위 면접 슬롯이 면접자에게 전송되었습니다!")
                         
                         # 세션 상태에서 처리된 요청 제거
                         if 'pending_requests' in st.session_state:
@@ -353,7 +342,6 @@ def show_request_detail(request, index):
                                 if r.id != request.id
                             ]
                         
-                        # 페이지 새로고침을 위한 시간 지연
                         st.balloons()
                         st.rerun()
                     else:
