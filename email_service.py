@@ -25,6 +25,17 @@ class EmailService:
     def __init__(self):
         self.email_config = Config.EmailConfig
         self.company_domain = Config.COMPANY_DOMAIN
+        self.sent_emails_log = set()  # ✅ 중복 발송 방지용 로그
+
+    def _generate_email_hash(self, to_emails: List[str], subject: str, request_id: str = None) -> str:
+        """
+        🔧 이메일 중복 발송 방지용 해시 생성
+        
+        문제점: 동일한 그룹에 대해 여러 번 이메일 발송
+        해결책: 수신자+제목+요청ID 조합으로 고유 해시 생성하여 중복 체크
+        """
+        content = f"{sorted(to_emails)}_{subject}_{request_id or ''}"
+        return hashlib.md5(content.encode()).hexdigest()
 
     def validate_and_correct_email(self, email: str) -> Tuple[str, bool]:
         """이메일 주소 검증 및 오타 교정"""
@@ -249,9 +260,21 @@ class EmailService:
                    is_html: bool = True,
                    attachment_data: Optional[bytes] = None,
                    attachment_name: Optional[str] = None,
-                   attachment_mime_type: Optional[str] = None):
-        """이메일 발송"""
+                   attachment_mime_type: Optional[str] = None,
+                   request_id: str = None):
+        """
+        🔧 개선된 이메일 발송 (중복 방지 기능 추가)
+        
+        문제점: 동일한 내용의 이메일이 중복 발송됨
+        해결책: 해시 기반 중복 체크로 동일한 이메일 재발송 방지
+        """
         try:
+            # ✅ 중복 발송 체크
+            email_hash = self._generate_email_hash(to_emails, subject, request_id)
+            if email_hash in self.sent_emails_log:
+                logger.warning(f"⚠️ 중복 이메일 발송 차단: {subject} -> {to_emails}")
+                return True  # 이미 발송했으므로 성공으로 처리
+            
             # 이메일 주소 검증
             validated_emails = []
             for email in (to_emails if isinstance(to_emails, list) else [to_emails]):
@@ -266,20 +289,19 @@ class EmailService:
             if not validated_emails:
                 logger.error("전송 가능한 이메일이 없습니다.")
                 return False
-    
+
             logger.info(f"📧 이메일 발송 시작 - TO: {validated_emails}")
             
             # Gmail 수신자 감지
             has_gmail = self._has_gmail_recipients(validated_emails, cc_emails, bcc_emails)
             
-            optimized_subject = subject  # ✅ 기본값을 미리 세팅
+            optimized_subject = subject
 
             # 컨텐츠 최적화
             if has_gmail and is_html:
                 text_body = self._html_to_text(body)
                 html_body = body
             else:
-                optimized_subject = subject
                 text_body = self._html_to_text(body) if is_html else body
                 html_body = body if is_html else f"<pre>{body}</pre>"
             
@@ -328,6 +350,9 @@ class EmailService:
                     text = msg.as_string()
                     server.sendmail(self.email_config.EMAIL_USER, all_recipients, text)
                     server.quit()
+                    
+                    # ✅ 발송 성공 시 로그에 추가
+                    self.sent_emails_log.add(email_hash)
                     
                     logger.info(f"✅ 이메일 발송 성공: {', '.join(validated_emails)}")
                     return True
@@ -667,12 +692,17 @@ class EmailService:
         """
 
     def send_candidate_invitation(self, request: InterviewRequest):
-        """면접자에게 일정 선택 요청 메일 발송 (30분 단위 타임슬롯)"""
+        """
+        🔧 개선된 면접자 초대 메일 발송 (30분 단위 타임슬롯)
+        
+        문제점: 공통 일정이 없거나 슬롯 생성 오류
+        해결책: 안전한 슬롯 생성 및 오류 처리 강화
+        """
         try:
             from database import DatabaseManager
             db = DatabaseManager()
             
-            # ✅ 중복 30분 단위 타임슬롯만 가져오기
+            # 중복 30분 단위 타임슬롯만 가져오기
             overlapping_slots = db.find_overlapping_time_slots(request)
             
             if not overlapping_slots:
@@ -747,12 +777,14 @@ class EmailService:
                 'contact_email': Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'
             })
             
+            # ✅ 중복 방지를 위한 요청 ID 전달
             result = self.send_email(
                 to_emails=[request.candidate_email],
                 cc_emails=Config.HR_EMAILS,
                 subject=subject,
                 body=body,
-                is_html=True
+                is_html=True,
+                request_id=f"candidate_{request.id}"  # 고유 식별자
             )
             
             logger.info(f"📧 면접자 초대 메일 발송 결과: {result}")
@@ -1036,3 +1068,4 @@ class EmailService:
         except Exception as e:
             logger.error(f"❌ HTML 테스트 메일 발송 실패: {e}")
             return False
+
