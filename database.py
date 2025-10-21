@@ -475,25 +475,44 @@ class DatabaseManager:
             return False
     
     def get_interview_request(self, request_id: str) -> Optional[InterviewRequest]:
-        """면접 요청 조회 - ID 정규화 적용"""
+        """면접 요청 조회 - ID 정규화 및 부분 매칭 강화"""
         from utils import normalize_request_id
         
         clean_id = normalize_request_id(request_id)
         
         try:
             with sqlite3.connect(self.db_path) as conn:
-                # ✅ 부분 일치 검색 (앞뒤 어디에 있든)
+                # ✅ 1차: 정확한 매칭 시도
                 cursor = conn.execute(
-                    "SELECT * FROM interview_requests WHERE id LIKE ?", 
-                    (f"%{clean_id}%",)
+                    "SELECT * FROM interview_requests WHERE id = ?", 
+                    (clean_id,)
                 )
                 row = cursor.fetchone()
                 
+                # ✅ 2차: 부분 매칭 시도 (앞부분 일치)
                 if not row:
-                    logger.warning(f"요청을 찾을 수 없음: {clean_id}")
+                    cursor = conn.execute(
+                        "SELECT * FROM interview_requests WHERE id LIKE ? OR id LIKE ?", 
+                        (f"{clean_id}%", f"%{clean_id}%")
+                    )
+                    row = cursor.fetchone()
+                
+                # ✅ 3차: 정규화된 ID로 다시 검색
+                if not row:
+                    cursor = conn.execute("SELECT * FROM interview_requests")
+                    all_rows = cursor.fetchall()
+                    
+                    for r in all_rows:
+                        stored_id = normalize_request_id(r[0])  # r[0]은 id 컬럼
+                        if stored_id == clean_id:
+                            row = r
+                            break
+                    
+                if not row:
+                    logger.warning(f"요청을 찾을 수 없음: {clean_id} (원본: {request_id})")
                     return None
-
-                # 나머지 JSON 파싱 동일
+    
+                # 나머지 JSON 파싱 로직은 동일
                 available_slots = []
                 if row[8]:
                     try:
@@ -531,9 +550,10 @@ class DatabaseManager:
                     selected_slot=selected_slot,
                     candidate_note=row[11] or ""
                 )
-        except Exception as e:
-            logger.error(f"면접 요청 조회 실패: {e}")
-            return None
+            except Exception as e:
+                logger.error(f"면접 요청 조회 실패: {e}")
+                return None
+
 
     def get_all_requests(self) -> List[InterviewRequest]:
         """모든 면접 요청 조회"""
@@ -840,4 +860,5 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"구글 시트 체크 실패: {e}")
         
+
         return status
