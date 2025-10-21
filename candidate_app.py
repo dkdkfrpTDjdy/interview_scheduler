@@ -612,11 +612,10 @@ def prepare_slot_selectbox(available_slots, index):
 
     return selected_label, slot_label_to_obj, alternative_label
 
-
 def show_request_detail(request, index):
     from models import InterviewSlot
 
-    # 면접 정보 표시
+    # 면접 정보 표시 (기존 코드 동일)
     st.markdown(f"""
     <div style="background: white; padding: 30px; border-radius: 12px; border-left: 5px solid #EF3340; margin: 25px 0; box-shadow: 0 2px 10px rgba(239, 51, 64, 0.08);">
         <table style="width: 100%; border-collapse: collapse;">
@@ -691,18 +690,41 @@ def show_request_detail(request, index):
             from database import DatabaseManager
             db = DatabaseManager()
 
-            all_requests = db.get_all_requests()
-            full_id = next((r.id for r in all_requests if r.id.startswith(request['id'].replace('...', ''))), None)
-
-            if not full_id:
-                st.error("❌ 요청 ID를 찾을 수 없습니다.")
-                return
-
-            req_obj = db.get_interview_request(full_id)
+            # ✅ 개선된 요청 ID 매칭 로직
+            search_id = request.get('id', '').replace('...', '')
+            
+            # 1차: 정확한 ID로 검색
+            req_obj = db.get_interview_request(search_id)
+            
+            # 2차: 모든 요청에서 부분 매칭 검색
             if not req_obj:
-                st.error("❌ 요청 정보를 찾을 수 없습니다.")
+                all_requests = db.get_all_requests()
+                for r in all_requests:
+                    # 정규화된 ID 비교
+                    from utils import normalize_request_id
+                    if normalize_request_id(r.id) == normalize_request_id(search_id):
+                        req_obj = r
+                        break
+                    # 부분 매칭도 시도
+                    if search_id in r.id or r.id.startswith(search_id):
+                        req_obj = r
+                        break
+
+            if not req_obj:
+                st.error(f"❌ 요청 ID를 찾을 수 없습니다. (검색한 ID: {search_id})")
+                
+                # 🔧 디버깅 정보 표시 (개발 중에만 사용)
+                with st.expander("🔍 디버깅 정보"):
+                    st.write(f"**구글시트 ID:** {request.get('id', 'N/A')}")
+                    st.write(f"**정규화된 검색 ID:** {search_id}")
+                    
+                    all_requests = db.get_all_requests()
+                    st.write(f"**DB의 모든 요청 ID ({len(all_requests)}개):**")
+                    for r in all_requests[:5]:  # 처음 5개만 표시
+                        st.write(f"  - {r.id}")
                 return
 
+            # 슬롯 예약 시도
             if db.reserve_slot_for_candidate(req_obj, selected_slot_info):
                 update_sheet_selection(request, selected_slot_info.to_dict(), "")
                 st.success("🎉 일정이 확정되었습니다!")
@@ -768,4 +790,5 @@ def main():
         show_candidate_dashboard()
 
 if __name__ == "__main__":
+
     main()
