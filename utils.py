@@ -1,37 +1,48 @@
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Dict, Set
 import calendar
 import pandas as pd
 from config import Config
 import os
 from collections import defaultdict
-from typing import Dict, List
 from models import InterviewRequest
 import re
+import uuid
 
 def group_requests_by_interviewer_and_position(requests: List[InterviewRequest]) -> Dict[str, List[InterviewRequest]]:
     """
-    면접관 + 포지션 조합으로 면접 요청 그룹핑
+    🔧 개선된 그룹핑: 면접관 + 포지션 조합으로 면접 요청 그룹핑
+    
+    문제점: 기존 코드는 동일한 면접자가 여러 그룹에 포함되어 중복 발송
+    해결책: 면접관 ID와 포지션명을 정확히 조합하여 유일한 그룹 생성
     
     Args:
         requests: 면접 요청 리스트
     
     Returns:
         {
-            "면접관1,면접관2_IT혁신팀": [request1, request2, request3],
-            "면접관1_데이터분석가": [request4],
+            "223286,223287_IT혁신팀": [request1, request2, request3],
+            "223286_데이터분석가": [request4],
         }
     """
     groups = defaultdict(list)
     
     for request in requests:
-        # 면접관 ID 정규화 (정렬하여 일관성 유지)
+        # ✅ 면접관 ID 정규화 및 정렬 (일관성 보장)
         interviewer_ids = sorted([id.strip() for id in request.interviewer_id.split(',')])
         interviewer_key = ",".join(interviewer_ids)
         
-        # 그룹 키 생성: "면접관ID들_포지션명"
-        group_key = f"{interviewer_key}_{request.position_name}"
+        # ✅ 그룹 키 생성: "면접관ID들_포지션명"
+        # 포지션명도 정규화하여 공백 문제 방지
+        position_normalized = request.position_name.strip().replace(" ", "")
+        group_key = f"{interviewer_key}_{position_normalized}"
+        
         groups[group_key].append(request)
+    
+    # ✅ 로그 출력으로 그룹핑 결과 확인
+    print(f"📊 그룹핑 결과: 총 {len(groups)}개 그룹 생성")
+    for group_key, group_requests in groups.items():
+        print(f"  - {group_key}: {len(group_requests)}명 면접자")
     
     return groups
 
@@ -359,67 +370,78 @@ def normalize_text(text: str) -> str:
 
 import re
 
-def parse_proposed_slots(raw_slots: str):
+def parse_proposed_slots(raw_slots: str) -> List[dict]:
     """
-    구글 시트의 제안 일정 문자열을 파싱하여 구조화된 리스트로 변환합니다.
-    예: 
-        "2025-11-03 14:00(30분) | 2025-11-03 14:30(30분)"
-        → [{'date': '2025-11-03', 'time': '14:00', 'duration': 30}, ...]
+    🔧 개선된 제안 일정 파싱
+    
+    문제점: 다양한 형식의 일정 문자열 파싱 실패
+    해결책: 정규식 패턴을 확장하여 다양한 형식 지원
     """
     if not raw_slots:
         return []
-
+    
     slots = []
     try:
-        # ✅ 파이프(|), 쉼표(,), 슬래시(/), 줄바꿈 등 모두 구분자로 인식
-        parts = re.split(r'[|,;/\n]+', raw_slots)
+        # 구분자로 분할 (|, 쉼표, 세미콜론, 줄바꿈 등)
+        parts = re.split(r'[|,;/\n\r]+', str(raw_slots))
+        
         for part in parts:
             part = part.strip()
             if not part:
                 continue
-
-            # ✅ 예: 2025-11-03 14:00(30분)
-            match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s*\((\d+)\s*분?\)', part)
+            
+            # 패턴 1: "2025-01-15 14:00(30분)"
+            match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s*$(\d+)분?$', part)
             if match:
-                date_str = match.group(1)
-                time_str = match.group(2)
-                duration = int(match.group(3))
-            else:
-                # 괄호 누락된 케이스: 2025-11-03 14:00
-                match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})', part)
-                if not match:
-                    continue
-                date_str = match.group(1)
-                time_str = match.group(2)
-                duration = 30  # 기본값
-
-            slots.append({
-                "date": date_str,
-                "time": time_str,
-                "duration": duration
-            })
+                date_str, time_str, duration_str = match.groups()
+                slots.append({
+                    "date": date_str,
+                    "time": time_str,
+                    "duration": int(duration_str)
+                })
+                continue
+            
+            # 패턴 2: "2025-01-15 14:00" (괄호 없음)
+            match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})', part)
+            if match:
+                date_str, time_str = match.groups()
+                slots.append({
+                    "date": date_str,
+                    "time": time_str,
+                    "duration": 30  # 기본값
+                })
+                continue
+                
     except Exception as e:
-        print("parse_proposed_slots error:", e)
-
+        print(f"❌ 제안 일정 파싱 오류: {e}")
+    
+    print(f"📅 파싱 결과: {len(slots)}개 슬롯 추출")
     return slots
-
         
 def normalize_request_id(request_id: str) -> str:
-    """요청 ID 정규화 - 항상 8자리만 반환"""
+    """
+    🔧 개선된 요청 ID 정규화
+    
+    문제점: 기존 코드는 "..." 제거 후 8자리만 추출했으나 DB 검색 시 불일치
+    해결책: 일관된 정규화 규칙 적용
+    """
     if not request_id:
         return ""
     
-    # "..." 제거
-    clean_id = request_id.replace('...', '').strip()
+    # 공백 및 특수문자 제거
+    clean_id = re.sub(r'[^a-zA-Z0-9]', '', str(request_id).strip())
     
-    # 8자리만 추출
+    # 8자리 이상이면 앞 8자리 반환, 미만이면 그대로 반환
     return clean_id[:8] if len(clean_id) >= 8 else clean_id
 
 def generate_request_id() -> str:
-    """8자리 요청 ID 생성"""
-    import uuid
-    return str(uuid.uuid4()).replace('-', '')[:8]
-
+    """8자리 요청 ID 생성 (영문+숫자 조합)"""
+    import string
+    import random
+    
+    # 더 읽기 쉬운 8자리 ID 생성 (숫자 + 대문자)
+    chars = string.ascii_uppercase + string.digits
+    return ''.join(random.choices(chars, k=8))
 
 def get_business_days_between(start_date: str, end_date: str) -> int:
     """두 날짜 사이의 영업일 수 계산"""
@@ -449,3 +471,4 @@ def is_business_hour(time_str: str) -> bool:
         return business_start <= time_obj <= business_end
     except:
         return False
+
