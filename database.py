@@ -334,7 +334,7 @@ class DatabaseManager:
             # 에러 발생 시에도 안전한 기본값 반환
             try:
                 interviewer_count = len(request.interviewer_id.split(','))
-            except:
+            except Exception:  # ✅
                 interviewer_count = 1
             return (False, 0, interviewer_count)
     
@@ -477,9 +477,8 @@ class DatabaseManager:
     def get_interview_request(self, request_id: str) -> Optional[InterviewRequest]:
         """면접 요청 조회 - ID 정규화 및 부분 매칭 강화"""
         from utils import normalize_request_id
-        
         clean_id = normalize_request_id(request_id)
-        
+
         try:
             with sqlite3.connect(self.db_path) as conn:
                 # ✅ 1차: 정확한 매칭 시도
@@ -550,9 +549,10 @@ class DatabaseManager:
                     selected_slot=selected_slot,
                     candidate_note=row[11] or ""
                 )
-            except Exception as e:
-                logger.error(f"면접 요청 조회 실패: {e}")
-                return None
+
+        except Exception as e:
+            logger.error(f"면접 요청 조회 실패: {e}")
+            return None
 
 
     def get_all_requests(self) -> List[InterviewRequest]:
@@ -859,6 +859,6 @@ class DatabaseManager:
                 status['google_sheet'] = True
         except Exception as e:
             logger.error(f"구글 시트 체크 실패: {e}")
-        
+            status['google_sheet'] = False  # ❗반환은 계속됨
 
         return status
