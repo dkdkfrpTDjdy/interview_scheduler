@@ -349,7 +349,6 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                         if common_slots:
                             # ✅ Step 4: 모든 요청에 공통 슬롯 저장 + 구글시트 업데이트
                             success_count = 0
-                            email_success_count = 0
                             
                             for request in requests:
                                 request.available_slots = common_slots.copy()
@@ -364,33 +363,55 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                                 
                                 success_count += 1
                             
-                            # ✅ Step 5: 면접자들에게 이메일 발송 (모든 면접자에게 개별 발송)
-                            try:
-                                # ✅ 모든 면접자에게 개별 발송
-                                email_result = email_service.send_candidate_invitation(requests)
+                            st.success(f"✅ {success_count}건의 면접 요청이 업데이트되었습니다.")
+                            
+                            # ✅ Step 5: 각 면접자에게 개별 이메일 발송
+                            st.info("📧 면접자들에게 이메일을 발송하고 있습니다...")
+                            
+                            email_success = 0
+                            email_fail = 0
+                            
+                            for request in requests:
+                                try:
+                                    # ✅ 개별 request 객체로 이메일 발송
+                                    result = email_service.send_candidate_invitation(request)
+                                    
+                                    if isinstance(result, dict):
+                                        email_success += result.get('success_count', 0)
+                                        email_fail += result.get('fail_count', 0)
+                                    elif result:
+                                        email_success += 1
+                                    else:
+                                        email_fail += 1
+                                        
+                                    # API 부하 방지
+                                    time.sleep(0.5)
+                                    
+                                except Exception as e:
+                                    email_fail += 1
+                                    logger.error(f"❌ {request.candidate_name} 이메일 발송 실패: {e}")
+                            
+                            # ✅ 최종 결과 표시
+                            st.success(f"""
+                            ✅ 모든 면접관이 응답을 완료했습니다!
+                            
+                            📊 처리 결과:
+                            • 공통 가능 일정: {len(common_slots)}개 슬롯
+                            • 구글시트 업데이트: {success_count}/{len(requests)}건 완료
+                            • 면접자 이메일 발송: {email_success}/{len(requests)}명 성공
+                            {f"• 발송 실패: {email_fail}명 (인사팀 확인 필요)" if email_fail > 0 else ""}
+                            
+                            💡 면접자들이 이메일을 확인하고 일정을 선택하면 자동으로 확정됩니다.
+                            """)
+                            
+                            if email_fail > 0:
+                                st.warning(f"""
+                                ⚠️ {email_fail}명에게 이메일 발송에 실패했습니다.
                                 
-                                if email_result['success_count'] > 0:
-                                    st.success(f"""
-                                    ✅ 모든 면접관이 응답을 완료했습니다!
-                                    
-                                    📊 처리 결과:
-                                    • 공통 가능 일정: {len(common_slots)}개 슬롯
-                                    • 구글시트 업데이트: {success_count}/{len(requests)}건 완료
-                                    • 면접자 이메일 발송: {email_result['success_count']}/{email_result['total']}명 완료
-                                    {f"• 발송 실패: {email_result['fail_count']}명" if email_result['fail_count'] > 0 else ""}
-                                    
-                                    💡 면접자들이 이메일을 확인하고 일정을 선택하면 자동으로 확정됩니다.
-                                    """)
-                                else:
-                                    st.warning(f"""
-                                    ⚠️ 구글시트는 업데이트되었으나 이메일 발송에 실패했습니다.
-                                    
-                                    • 구글시트 업데이트: {success_count}/{len(requests)}건 완료
-                                    • 이메일 발송 실패: {email_result['fail_count']}/{email_result['total']}명
-                                    • 인사팀에 문의하여 수동으로 발송해주세요
-                                    """)
-                            except Exception as email_error:
-                                st.error(f"❌ 이메일 발송 중 오류: {email_error}")
+                                실패한 면접자:
+                                """)
+                                for request in requests:
+                                    st.write(f"- {request.candidate_name} ({request.candidate_email})")
                         else:
                             st.warning("""
                             ⚠️ 공통 가능한 일정이 없습니다.
@@ -414,6 +435,9 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                         
                 except Exception as e:
                     st.error(f"❌ 처리 중 오류가 발생했습니다: {str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc())
 
 if __name__ == "__main__":
+
     main()
