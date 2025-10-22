@@ -775,6 +775,14 @@ def show_confirmed_schedule(request):
 def main():
     hide_pages()
     
+    # ✅ DB 동기화 (최초 1회만)
+    if 'db_synced' not in st.session_state:
+        with st.spinner("📊 데이터 동기화 중..."):
+            from database import DatabaseManager
+            db = DatabaseManager()
+            db.sync_from_google_sheet_to_db()
+            st.session_state.db_synced = True
+
     # 이미지 헤더
     st.markdown("""
     <div style="text-align: center; margin: 30px 0 40px 0;">

@@ -337,6 +337,134 @@ class DatabaseManager:
             except Exception:  # ✅
                 interviewer_count = 1
             return (False, 0, interviewer_count)
+        
+    def sync_from_google_sheet_to_db(self):
+        """구글시트 데이터를 SQLite DB로 동기화"""
+        try:
+            if not self.sheet:
+                logger.warning("구글 시트가 연결되지 않았습니다.")
+                return False
+            
+            # 구글시트에서 모든 데이터 가져오기
+            all_records = self.sheet.get_all_records()
+            
+            for record in all_records:
+                try:
+                    # 구글시트 데이터를 InterviewRequest 객체로 변환
+                    request_id = record.get('요청ID', '')
+                    if not request_id:
+                        continue
+                    
+                    # 이미 DB에 있는지 확인
+                    existing = self.get_interview_request(request_id)
+                    if existing:
+                        logger.info(f"이미 존재하는 요청 건너뜀: {request_id}")
+                        continue
+                    
+                    # InterviewRequest 객체 생성
+                    from models import InterviewRequest, InterviewSlot
+                    
+                    # available_slots 파싱
+                    available_slots = []
+                    proposed_slots_str = record.get('제안일시목록', '')
+                    if proposed_slots_str:
+                        from utils import parse_proposed_slots
+                        slot_data = parse_proposed_slots(proposed_slots_str)
+                        available_slots = [InterviewSlot(**slot) for slot in slot_data]
+                    
+                    # preferred_datetime_slots 파싱
+                    preferred_slots = []
+                    preferred_str = record.get('희망일시목록', '')
+                    if preferred_str:
+                        preferred_slots = [slot.strip() for slot in preferred_str.split('|')]
+                    
+                    # selected_slot 파싱
+                    selected_slot = None
+                    confirmed_str = record.get('확정일시', '')
+                    if confirmed_str:
+                        # "2025-01-15 14:00(30분)" 형식 파싱
+                        import re
+                        match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})$(\d+)분$', confirmed_str)
+                        if match:
+                            selected_slot = InterviewSlot(
+                                date=match.group(1),
+                                time=match.group(2),
+                                duration=int(match.group(3))
+                            )
+                    
+                    # 생성일시 파싱
+                    created_at = datetime.now()
+                    created_str = record.get('생성일시', '')
+                    if created_str:
+                        try:
+                            created_at = datetime.strptime(created_str, '%Y-%m-%d %H:%M')
+                        except:
+                            pass
+                    
+                    # 상태 매핑
+                    status_map = {
+                        '면접관_일정입력대기': Config.Status.PENDING_INTERVIEWER,
+                        '면접자_선택대기': Config.Status.PENDING_CANDIDATE,
+                        '확정완료': Config.Status.CONFIRMED,
+                        '일정재조율요청': Config.Status.PENDING_CONFIRMATION,
+                        '취소': Config.Status.CANCELLED
+                    }
+                    
+                    status = status_map.get(record.get('상태', ''), Config.Status.PENDING_INTERVIEWER)
+                    
+                    # InterviewRequest 객체 생성
+                    request = InterviewRequest(
+                        id=request_id,
+                        interviewer_id=record.get('면접관ID', ''),
+                        candidate_email=record.get('면접자이메일', ''),
+                        candidate_name=record.get('면접자명', ''),
+                        position_name=record.get('포지션명', ''),
+                        status=status,
+                        created_at=created_at,
+                        updated_at=datetime.now(),
+                        available_slots=available_slots,
+                        preferred_datetime_slots=preferred_slots,
+                        selected_slot=selected_slot,
+                        candidate_note=record.get('면접자요청사항', '')
+                    )
+                    
+                    # SQLite에 저장 (구글시트 업데이트는 하지 않음)
+                    with sqlite3.connect(self.db_path) as conn:
+                        conn.execute("""
+                            INSERT OR REPLACE INTO interview_requests 
+                            (id, interviewer_id, candidate_email, candidate_name, position_name, 
+                            status, created_at, updated_at, available_slots, preferred_datetime_slots, 
+                            selected_slot, candidate_note)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            request.id,
+                            request.interviewer_id,
+                            request.candidate_email,
+                            request.candidate_name,
+                            request.position_name,
+                            request.status,
+                            request.created_at.isoformat(),
+                            request.updated_at.isoformat(),
+                            json.dumps([{"date": slot.date, "time": slot.time, "duration": slot.duration} 
+                                    for slot in request.available_slots]),
+                            json.dumps(request.preferred_datetime_slots) if request.preferred_datetime_slots else None,
+                            json.dumps({"date": request.selected_slot.date, "time": request.selected_slot.time, 
+                                    "duration": request.selected_slot.duration}) if request.selected_slot else None,
+                            request.candidate_note or ""
+                        ))
+                    
+                    logger.info(f"구글시트 → DB 동기화 완료: {request_id}")
+                    
+                except Exception as e:
+                    logger.error(f"레코드 동기화 실패: {e}")
+                    continue
+            
+            logger.info("구글시트 → SQLite DB 동기화 완료")
+            return True
+            
+        except Exception as e:
+            logger.error(f"동기화 실패: {e}")
+            return False
     
     def get_common_available_slots(self, request: InterviewRequest) -> List[InterviewSlot]:
         """모든 면접관이 공통으로 선택한 30분 단위 타임슬롯 반환"""
