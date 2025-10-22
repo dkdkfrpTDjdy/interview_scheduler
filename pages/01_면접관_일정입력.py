@@ -338,32 +338,30 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                             slots = time_range.generate_30min_slots()
                             all_slots.extend(slots)
                     
-                    # ✅ Step 1: 현재 면접관의 응답 저장
-                    st.write(f"🔍 **디버깅 - Step 1: 응답 저장**")
-                    st.write(f"- Request ID: {first_request.id}")
-                    st.write(f"- 면접관 ID: {current_interviewer_id}")
-                    st.write(f"- 생성된 슬롯 수: {len(all_slots)}")
-                    
-                    db.save_interviewer_response(
-                        request_id=first_request.id,
-                        interviewer_id=current_interviewer_id,
-                        slots=all_slots
-                    )
-                    
-                    # ✅ Step 2: **모든 요청에 대해** 개별적으로 체크
-                    st.write(f"🔍 **디버깅 - Step 2: 각 요청별 응답 상태 체크**")
-                    
-                    all_ready_for_email = []
-                    
-                    for idx, request in enumerate(requests):
-                        st.write(f"📋 **요청 {idx+1}: {request.candidate_name} ({request.id})**")
-                        
+                    # ✅ **모든 요청에 대해 면접관 응답 저장**
+                    for request in requests:
                         try:
-                            # 🔧 각 요청별로 개별 체크
-                            all_responded, responded_count, total_count = db.check_all_interviewers_responded(request)
+                            db.save_interviewer_response(
+                                request_id=request.id,
+                                interviewer_id=current_interviewer_id,
+                                slots=all_slots
+                            )
+                            st.write(f"✅ {request.candidate_name} 요청에 응답 저장 완료")
+                        except Exception as e:
+                            st.error(f"❌ {request.candidate_name} 응답 저장 실패: {e}")
+                    
+                    # ✅ **모든 요청에 대해 개별 체크 및 이메일 발송**
+                    email_success = 0
+                    email_fail = 0
+                    processed_requests = []
+                    
+                    for request in requests:
+                        try:
+                            st.write(f"🔍 **{request.candidate_name} ({request.id}) 처리 중...**")
                             
+                            # 면접관 응답 상태 체크
+                            all_responded, responded_count, total_count = db.check_all_interviewers_responded(request)
                             st.write(f"  - 면접관 응답: {responded_count}/{total_count}")
-                            st.write(f"  - 모든 응답 완료: {all_responded}")
                             
                             if all_responded:
                                 # 공통 슬롯 계산
@@ -376,77 +374,70 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                                     request.status = Config.Status.PENDING_CANDIDATE
                                     request.updated_at = datetime.now()
                                     
-                                    # DB 저장
+                                    # DB 및 구글시트 저장
                                     db.save_interview_request(request)
-                                    # 구글시트 업데이트
                                     db.update_google_sheet(request)
                                     
-                                    all_ready_for_email.append(request)
-                                    st.write(f"  - ✅ 이메일 발송 대상에 추가")
+                                    # 이메일 발송
+                                    st.write(f"  - 📧 이메일 발송 중...")
+                                    result = email_service.send_candidate_invitation(request)
+                                    
+                                    if isinstance(result, dict):
+                                        email_success += result.get('success_count', 0)
+                                        email_fail += result.get('fail_count', 0)
+                                    elif result:
+                                        email_success += 1
+                                        st.write(f"  - ✅ 이메일 발송 성공")
+                                    else:
+                                        email_fail += 1
+                                        st.write(f"  - ❌ 이메일 발송 실패")
+                                    
+                                    processed_requests.append(request)
+                                    
                                 else:
-                                    st.write(f"  - ❌ 공통 슬롯 없음")
+                                    st.warning(f"  - ⚠️ 공통 슬롯이 없어 이메일 발송 불가")
+                                    email_fail += 1
                             else:
-                                st.write(f"  - ⏳ 대기 중 ({responded_count}/{total_count})")
-                                
+                                st.info(f"  - ⏳ 다른 면접관 응답 대기 중 ({responded_count}/{total_count})")
+                            
+                            # API 부하 방지
+                            time.sleep(0.5)
+                            
                         except Exception as e:
-                            st.error(f"  - ❌ 요청 처리 오류: {e}")
+                            email_fail += 1
+                            st.error(f"  - ❌ 처리 오류: {e}")
                             continue
                     
-                    # ✅ Step 3: 이메일 발송
-                    if all_ready_for_email:
-                        st.write(f"📧 **Step 3: 이메일 발송 ({len(all_ready_for_email)}명)**")
-                        
-                        email_success = 0
-                        email_fail = 0
-                        
-                        for request in all_ready_for_email:
-                            try:
-                                st.write(f"📤 {request.candidate_name}에게 이메일 발송 중...")
-                                
-                                # 🔧 슬롯 재확인
-                                if not request.available_slots:
-                                    st.warning(f"  - ⚠️ 슬롯이 없어 건너뜀")
-                                    email_fail += 1
-                                    continue
-                                
-                                # 이메일 발송
-                                result = email_service.send_candidate_invitation(request)
-                                
-                                if isinstance(result, dict):
-                                    email_success += result.get('success_count', 0)
-                                    email_fail += result.get('fail_count', 0)
-                                elif result:
-                                    email_success += 1
-                                    st.write(f"  - ✅ 발송 성공")
-                                else:
-                                    email_fail += 1
-                                    st.write(f"  - ❌ 발송 실패")
-                                    
-                                time.sleep(0.5)
-                                
-                            except Exception as e:
-                                email_fail += 1
-                                st.error(f"  - ❌ {request.candidate_name} 발송 오류: {e}")
-                        
-                        # 최종 결과
+                    # ✅ 최종 결과 표시
+                    total_requests = len(requests)
+                    
+                    if processed_requests:
                         st.success(f"""
                         ✅ 처리 완료!
                         
                         📊 결과:
-                        • 이메일 발송 대상: {len(all_ready_for_email)}명
-                        • 발송 성공: {email_success}명
-                        • 발송 실패: {email_fail}명
-                        """)
+                        • 전체 요청: {total_requests}건
+                        • 처리 완료: {len(processed_requests)}건
+                        • 이메일 발송 성공: {email_success}명
+                        • 이메일 발송 실패: {email_fail}명
                         
+                        💡 처리된 면접자: {', '.join([req.candidate_name for req in processed_requests])}
+                        """)
                     else:
-                        st.info("⏳ 아직 모든 면접관의 응답이 완료되지 않았습니다.")
+                        st.info(f"""
+                        ⏳ 아직 처리 준비가 완료되지 않았습니다.
+                        
+                        • 전체 요청: {total_requests}건
+                        • 귀하의 응답이 저장되었습니다.
+                        • 다른 면접관들의 응답을 기다리고 있습니다.
+                        """)
                     
                     # 세션 정리
                     if 'grouped_requests' in st.session_state:
                         if position_name in st.session_state.grouped_requests:
                             del st.session_state.grouped_requests[position_name]
                     
-                    time.sleep(3)  # 디버깅 정보 확인 시간
+                    time.sleep(2)
                     st.rerun()
                         
                 except Exception as e:
