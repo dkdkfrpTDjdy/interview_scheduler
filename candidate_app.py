@@ -214,36 +214,54 @@ def find_candidate_requests(name: str, email: str):
             return []
 
         headers = all_values[0]
-        name_col_idx = email_col_idx = None
-
-        # ✅ 이름/이메일 컬럼 인덱스 찾기
+        
+        # 🔧 정확한 컬럼 인덱스 찾기 (F열=5, G열=6)
+        name_col_idx = None
+        email_col_idx = None
+        
+        # 헤더를 통해 정확한 인덱스 찾기
         for i, header in enumerate(headers):
-            header_normalized = normalize_text(header)
-            if header_normalized in ['면접자명', '면접자이름', '이름', 'name', 'candidate_name']:
+            if header.strip() == '면접자명':
                 name_col_idx = i
-            elif header_normalized in ['면접자이메일', '면접자메일', '이메일', 'email', 'candidate_email']:
+            elif header.strip() == '면접자이메일':
                 email_col_idx = i
 
-        if name_col_idx is None or email_col_idx is None:
-            st.error("❌ 필요한 컬럼을 찾을 수 없습니다.")
-            return []
+        # 🔧 만약 헤더로 찾지 못했다면 직접 지정 (F=5, G=6)
+        if name_col_idx is None:
+            name_col_idx = 5  # F열 (0부터 시작하므로 5)
+            
+        if email_col_idx is None:
+            email_col_idx = 6  # G열 (0부터 시작하므로 6)
 
         normalized_search_name = normalize_text(name)
         normalized_search_email = normalize_text(email)
-
+        
         matching_requests = []
 
         # ✅ 조건에 맞는 요청만 필터링
         for row_idx, row in enumerate(all_values[1:], start=2):
             try:
-                row_name = row[name_col_idx] if name_col_idx < len(row) else ""
-                row_email = row[email_col_idx] if email_col_idx < len(row) else ""
+                # 🔧 정확한 컬럼에서 데이터 가져오기
+                row_name = row[name_col_idx].strip() if name_col_idx < len(row) else ""
+                row_email = row[email_col_idx].strip() if email_col_idx < len(row) else ""
+                
+                normalized_row_name = normalize_text(row_name)
+                normalized_row_email = normalize_text(row_email)
+                
+                # 🔧 정확한 매칭
+                name_match = normalized_row_name == normalized_search_name
+                email_match = normalized_row_email == normalized_search_email
+                
+                # 🔧 디버깅 로그 (처음 5개 행만)
+                if row_idx <= 6:
+                    logger.info(f"Row {row_idx}: 이름='{row_name}'→'{normalized_row_name}' (매칭:{name_match}), 이메일='{row_email}'→'{normalized_row_email}' (매칭:{email_match})")
 
-                if normalize_text(row_name) == normalized_search_name and normalize_text(row_email) == normalized_search_email:
+                if name_match and email_match:
                     request_obj = {'_row_number': row_idx}
 
+                    # 🔧 모든 컬럼 데이터 매핑
                     for col_idx, header in enumerate(headers):
-                        request_obj[header] = row[col_idx] if col_idx < len(row) else ""
+                        request_obj[header] = row[col_idx].strip() if col_idx < len(row) else ""
 
                     # 요청 정보 정규화
                     raw_id = request_obj.get('요청ID', '')
@@ -253,8 +271,8 @@ def find_candidate_requests(name: str, email: str):
                         'id': clean_id,
                         'raw_id': raw_id,
                         'position_name': request_obj.get('포지션명', ''),
-                        'candidate_name': request_obj.get('면접자명', ''),
-                        'candidate_email': request_obj.get('면접자이메일', ''),
+                        'candidate_name': row_name,  # 🔧 직접 사용
+                        'candidate_email': row_email,  # 🔧 직접 사용
                         'interviewer_id': request_obj.get('면접관ID', ''),
                         'interviewer_name': request_obj.get('면접관이름', ''),
                         'status': request_obj.get('상태', ''),
@@ -273,13 +291,13 @@ def find_candidate_requests(name: str, email: str):
 
                     matching_requests.append(request_obj)
 
-            except Exception:
+            except Exception as e:
                 continue
 
         return matching_requests
 
     except Exception as e:
-        st.error(f"❌ 데이터 조회 중 오류: {e}")
+        logger.error(f"find_candidate_requests 오류: {e}")
         return []
 
 def format_date_korean(date_str: str) -> str:
@@ -298,7 +316,7 @@ def update_sheet_selection(request, selected_slot=None, candidate_note="", is_al
         if not google_sheet:
             st.markdown("""
             <div style="background-color: #f7ddd4; border-left: 5px solid #e0752e; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <p style="color: #1A1A1A; margin: 0;">❌ 구글 시트 연결이 없습니다.</p>
+                <p style="color: #1A1A1A; margin: 0;">구글 시트 연결이 없습니다.</p>
             </div>
             """, unsafe_allow_html=True)
             return False
@@ -306,7 +324,7 @@ def update_sheet_selection(request, selected_slot=None, candidate_note="", is_al
         if 'row_number' not in request:
             st.markdown("""
             <div style="background-color: #f7ddd4; border-left: 5px solid #e0752e; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <p style="color: #1A1A1A; margin: 0;">❌ 행 번호 정보가 없습니다.</p>
+                <p style="color: #1A1A1A; margin: 0;">행 번호 정보가 없습니다.</p>
             </div>
             """, unsafe_allow_html=True)
             return False
@@ -323,7 +341,7 @@ def update_sheet_selection(request, selected_slot=None, candidate_note="", is_al
         except ValueError as e:
             st.markdown(f"""
             <div style="background-color: #f7ddd4; border-left: 5px solid #e0752e; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <p style="color: #1A1A1A; margin: 0;">❌ 필요한 컬럼을 찾을 수 없습니다: {e}</p>
+                <p style="color: #1A1A1A; margin: 0;">필요한 컬럼을 찾을 수 없습니다: {e}</p>
             </div>
             """, unsafe_allow_html=True)
             return False
@@ -348,7 +366,7 @@ def update_sheet_selection(request, selected_slot=None, candidate_note="", is_al
             else:
                 st.markdown("""
                 <div style="background-color: #f7ddd4; border-left: 5px solid #e0752e; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                    <p style="color: #1A1A1A; margin: 0;">❌ 선택된 슬롯 정보가 없습니다.</p>
+                    <p style="color: #1A1A1A; margin: 0;">선택된 슬롯 정보가 없습니다.</p>
                 </div>
                 """, unsafe_allow_html=True)
                 return False
@@ -360,7 +378,7 @@ def update_sheet_selection(request, selected_slot=None, candidate_note="", is_al
     except Exception as e:
         st.markdown(f"""
         <div style="background-color: #f7ddd4; border-left: 5px solid #e0752e; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <p style="color: #1A1A1A; margin: 0;">❌ 시트 업데이트 실패: {e}</p>
+            <p style="color: #1A1A1A; margin: 0;">시트 업데이트 실패: {e}</p>
         </div>
         """, unsafe_allow_html=True)
         return False
@@ -735,7 +753,7 @@ def show_request_detail(request, index):
                 st.session_state.candidate_requests = updated
                 st.rerun()
             else:
-                st.error("❌ 해당 일정이 이미 선택되었습니다. 다른 일정을 선택해주세요.")
+                st.error("해당 일정이 이미 선택되었습니다. 다른 일정을 선택해주세요.")
                 st.session_state.candidate_requests = force_refresh_candidate_data(
                     st.session_state.authenticated_candidate['name'],
                     st.session_state.authenticated_candidate['email']
@@ -774,7 +792,7 @@ def show_confirmed_schedule(request):
 
 def main():
     hide_pages()
-    
+
     # ✅ DB 동기화 (최초 1회만)
     if 'db_synced' not in st.session_state:
         with st.spinner("📊 데이터 동기화 중..."):
