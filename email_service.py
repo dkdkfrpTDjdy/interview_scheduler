@@ -691,108 +691,146 @@ class EmailService:
         </table>
         """
 
-    def send_candidate_invitation(self, request: InterviewRequest):
+    def send_candidate_invitation(self, requests):
         """
-        🔧 개선된 면접자 초대 메일 발송 (30분 단위 타임슬롯)
+        🔧 개선된 면접자 초대 메일 발송 (복수 면접자 지원)
         
-        문제점: 공통 일정이 없거나 슬롯 생성 오류
-        해결책: 안전한 슬롯 생성 및 오류 처리 강화
+        Args:
+            requests: InterviewRequest 또는 List[InterviewRequest]
+        
+        Returns:
+            dict: {'success_count': int, 'fail_count': int, 'total': int}
         """
         try:
             from database import DatabaseManager
             db = DatabaseManager()
             
-            # 중복 30분 단위 타임슬롯만 가져오기
-            overlapping_slots = db.find_overlapping_time_slots(request)
+            # ✅ 단일 요청인 경우 리스트로 변환
+            if not isinstance(requests, list):
+                requests = [requests]
             
-            if not overlapping_slots:
-                logger.warning(f"중복 타임슬롯이 없어 메일 발송 불가: {request.id}")
-                return False
+            success_count = 0
+            fail_count = 0
             
-            # 면접관 정보 처리
-            interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
-            interviewer_names = []
+            for request in requests:
+                try:
+                    # 중복 타임슬롯만 가져오기
+                    overlapping_slots = db.find_overlapping_time_slots(request)
+                    
+                    if not overlapping_slots:
+                        logger.warning(f"중복 타임슬롯이 없어 메일 발송 불가: {request.candidate_name}")
+                        fail_count += 1
+                        continue
+                    
+                    # 면접관 정보 처리
+                    interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
+                    interviewer_names = []
+                    
+                    for interviewer_id in interviewer_ids:
+                        info = get_employee_info(interviewer_id)
+                        interviewer_names.append(info.get('name', interviewer_id))
+                    
+                    interviewer_display = ", ".join(interviewer_names)
+                    
+                    candidate_link = f"https://candidate-app.streamlit.app/"
+                    
+                    logger.info(f"📧 면접자 초대 메일 준비 - {request.candidate_name} ({len(overlapping_slots)}개 타임슬롯)")
+                    
+                    # 면접 일정 테이블 HTML 생성
+                    slots_by_date = {}
+                    for slot in overlapping_slots:
+                        if slot.date not in slots_by_date:
+                            slots_by_date[slot.date] = []
+                        slots_by_date[slot.date].append(slot)
+                    
+                    slots_html = ""
+                    slot_number = 1
+                    for date, slots in sorted(slots_by_date.items()):
+                        for slot in slots:
+                            bg_color = "#ffffff" if slot_number % 2 == 0 else "white"
+                            slots_html += f"""
+                            <tr style="background-color: {bg_color};">
+                                <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{slot_number}</td>
+                                <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{format_date_korean(slot.date)}</td>
+                                <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px; font-weight:bold; color:#EF3340;">{slot.time}</td>
+                                <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">30분</td>
+                            </tr>
+                            """
+                            slot_number += 1
+                    
+                    subject = f"[AJ네트웍스] 면접 일정을 선택해주세요 - {request.position_name}"
+                    body = self._create_gmail_safe_html({
+                        'company_name': 'AJ네트웍스',
+                        'recipient_name': request.candidate_name,
+                        'main_message': f'{request.position_name} 포지션 지원에 감사드립니다.<br>면접관들이 가능한 시간 중에서 원하시는 <strong style="color:#EF3340;">시간</strong>을 선택해주세요.<br><strong style="color:#EF3340;">⚠️ 선착순으로 마감됩니다!</strong>',
+                        'position': request.position_name,
+                        'interviewer': interviewer_display,
+                        'action_link': candidate_link,
+                        'button_text': '✅ 면접 일정 선택하기',
+                        'additional_content': f"""
+                        <h4 style="color: #EF3340; margin: 0 0 20px 0; font-size:16px;">🗓️ 선택 가능한 면접 시간 ({len(overlapping_slots)}개 슬롯)</h4>
+                        <table style="width: 100%; border-collapse: collapse; border: 2px solid #EF3340; border-radius: 8px; overflow: hidden;">
+                            <thead>
+                                <tr style="background: linear-gradient(135deg, #EF3340 0%, #e0752e 100%); color: white;">
+                                    <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">번호</th>
+                                    <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">날짜</th>
+                                    <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">시간</th>
+                                    <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">소요시간</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {slots_html}
+                            </tbody>
+                        </table>
+                        <div style="background-color:#fff3cd;padding:15px;border-radius:8px;margin-top:20px;border-left:5px solid #ffc107;">
+                            <p style="margin:0;color:#856404;font-weight:bold;">⚠️ 선착순 마감 안내</p>
+                            <p style="margin:5px 0 0 0;color:#856404;">• 각 면접은 <strong>30분</strong>으로 진행됩니다<br>• 다른 면접자가 먼저 선택한 시간은 자동으로 제외됩니다<br>• 빠른 선택을 권장합니다</p>
+                        </div>
+                        """,
+                        'contact_email': Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'
+                    })
+                    
+                    # ✅ 개별 면접자에게 이메일 발송
+                    result = self.send_email(
+                        to_emails=[request.candidate_email],
+                        cc_emails=Config.HR_EMAILS,
+                        subject=subject,
+                        body=body,
+                        is_html=True,
+                        request_id=f"candidate_{request.id}"
+                    )
+                    
+                    if result:
+                        success_count += 1
+                        logger.info(f"✅ 면접자 {request.candidate_name} 메일 발송 성공")
+                    else:
+                        fail_count += 1
+                        logger.error(f"❌ 면접자 {request.candidate_name} 메일 발송 실패")
+                    
+                    # API 부하 방지
+                    time.sleep(0.5)
+                    
+                except Exception as e:
+                    fail_count += 1
+                    logger.error(f"❌ 면접자 {request.candidate_name} 메일 발송 중 오류: {e}")
+                    continue
             
-            for interviewer_id in interviewer_ids:
-                info = get_employee_info(interviewer_id)
-                interviewer_names.append(info.get('name', interviewer_id))
+            total = len(requests)
+            logger.info(f"📧 면접자 초대 메일 발송 완료: {success_count}/{total}명 성공, {fail_count}명 실패")
             
-            interviewer_display = ", ".join(interviewer_names)
-            
-            candidate_link = f"https://candidate-app.streamlit.app/"
-            
-            logger.info(f"📧 면접자 초대 메일 준비 - {len(overlapping_slots)}개 타임슬롯")
-            
-            # 면접 일정 테이블 HTML 생성 (날짜별 그룹화)
-            slots_by_date = {}
-            for slot in overlapping_slots:
-                if slot.date not in slots_by_date:
-                    slots_by_date[slot.date] = []
-                slots_by_date[slot.date].append(slot)
-            
-            slots_html = ""
-            slot_number = 1
-            for date, slots in sorted(slots_by_date.items()):
-                for slot in slots:
-                    bg_color = "#ffffff" if slot_number % 2 == 0 else "white"
-                    slots_html += f"""
-                    <tr style="background-color: {bg_color};">
-                        <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{slot_number}</td>
-                        <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{format_date_korean(slot.date)}</td>
-                        <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px; font-weight:bold; color:#EF3340;">{slot.time}</td>
-                        <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">30분</td>
-                    </tr>
-                    """
-                    slot_number += 1
-            
-            subject = f"[AJ네트웍스] 면접 일정을 선택해주세요 - {request.position_name}"
-            body = self._create_gmail_safe_html({
-                'company_name': 'AJ네트웍스',
-                'recipient_name': request.candidate_name,
-                'main_message': f'{request.position_name} 포지션 지원에 감사드립니다.<br>면접관들이 공통으로 가능한 시간 중에서 원하시는 <strong style="color:#EF3340;">30분 슬롯</strong>을 선택해주세요.<br><strong style="color:#EF3340;">⚠️ 선착순으로 마감됩니다!</strong>',
-                'position': request.position_name,
-                'interviewer': interviewer_display,
-                'action_link': candidate_link,
-                'button_text': '✅ 면접 일정 선택하기',
-                'additional_content': f"""
-                <h4 style="color: #EF3340; margin: 0 0 20px 0; font-size:16px;">🗓️ 선택 가능한 면접 시간 ({len(overlapping_slots)}개 슬롯)</h4>
-                <table style="width: 100%; border-collapse: collapse; border: 2px solid #EF3340; border-radius: 8px; overflow: hidden;">
-                    <thead>
-                        <tr style="background: linear-gradient(135deg, #EF3340 0%, #e0752e 100%); color: white;">
-                            <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">번호</th>
-                            <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">날짜</th>
-                            <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">시간</th>
-                            <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">소요시간</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {slots_html}
-                    </tbody>
-                </table>
-                <div style="background-color:#fff3cd;padding:15px;border-radius:8px;margin-top:20px;border-left:5px solid #ffc107;">
-                    <p style="margin:0;color:#856404;font-weight:bold;">⚠️ 선착순 마감 안내</p>
-                    <p style="margin:5px 0 0 0;color:#856404;">• 각 면접은 <strong>30분</strong>으로 진행됩니다<br>• 다른 면접자가 먼저 선택한 시간은 자동으로 제외됩니다<br>• 빠른 선택을 권장합니다</p>
-                </div>
-                """,
-                'contact_email': Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'
-            })
-            
-            # ✅ 중복 방지를 위한 요청 ID 전달
-            result = self.send_email(
-                to_emails=[request.candidate_email],
-                cc_emails=Config.HR_EMAILS,
-                subject=subject,
-                body=body,
-                is_html=True,
-                request_id=f"candidate_{request.id}"  # 고유 식별자
-            )
-            
-            logger.info(f"📧 면접자 초대 메일 발송 결과: {result}")
-            return result
+            return {
+                'success_count': success_count,
+                'fail_count': fail_count,
+                'total': total
+            }
             
         except Exception as e:
             logger.error(f"❌ 면접자 초대 메일 발송 실패: {e}")
-            return False
+            return {
+                'success_count': 0,
+                'fail_count': len(requests) if isinstance(requests, list) else 1,
+                'total': len(requests) if isinstance(requests, list) else 1
+            }
         
     def send_automatic_confirmation_on_sheet_update(self, request: InterviewRequest):
         """구글 시트 L열 업데이트 시 자동 확정 이메일 발송"""

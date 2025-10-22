@@ -364,18 +364,20 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                                 
                                 success_count += 1
                             
-                            # ✅ Step 5: 면접자에게 이메일 발송 (그룹별 1회만)
+                            # ✅ Step 5: 면접자들에게 이메일 발송 (모든 면접자에게 개별 발송)
                             try:
-                                # 첫 번째 요청으로 대표 발송
-                                if email_service.send_candidate_invitation(first_request):
-                                    email_success_count = len(requests)
+                                # ✅ 모든 면접자에게 개별 발송
+                                email_result = email_service.send_candidate_invitation(requests)
+                                
+                                if email_result['success_count'] > 0:
                                     st.success(f"""
                                     ✅ 모든 면접관이 응답을 완료했습니다!
                                     
                                     📊 처리 결과:
                                     • 공통 가능 일정: {len(common_slots)}개 슬롯
                                     • 구글시트 업데이트: {success_count}/{len(requests)}건 완료
-                                    • 면접자 이메일 발송: {email_success_count}/{len(requests)}명 완료
+                                    • 면접자 이메일 발송: {email_result['success_count']}/{email_result['total']}명 완료
+                                    {f"• 발송 실패: {email_result['fail_count']}명" if email_result['fail_count'] > 0 else ""}
                                     
                                     💡 면접자들이 이메일을 확인하고 일정을 선택하면 자동으로 확정됩니다.
                                     """)
@@ -384,7 +386,8 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                                     ⚠️ 구글시트는 업데이트되었으나 이메일 발송에 실패했습니다.
                                     
                                     • 구글시트 업데이트: {success_count}/{len(requests)}건 완료
-                                    • 이메일 발송 실패: 관리자에게 문의하세요
+                                    • 이메일 발송 실패: {email_result['fail_count']}/{email_result['total']}명
+                                    • 인사팀에 문의하여 수동으로 발송해주세요
                                     """)
                             except Exception as email_error:
                                 st.error(f"❌ 이메일 발송 중 오류: {email_error}")
