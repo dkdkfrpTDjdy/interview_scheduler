@@ -339,108 +339,118 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                             all_slots.extend(slots)
                     
                     # ✅ Step 1: 현재 면접관의 응답 저장
+                    st.write(f"🔍 **디버깅 - Step 1: 응답 저장**")
+                    st.write(f"- Request ID: {first_request.id}")
+                    st.write(f"- 면접관 ID: {current_interviewer_id}")
+                    st.write(f"- 생성된 슬롯 수: {len(all_slots)}")
+                    
                     db.save_interviewer_response(
                         request_id=first_request.id,
                         interviewer_id=current_interviewer_id,
                         slots=all_slots
                     )
                     
-                    # ✅ Step 2: 모든 면접관이 응답했는지 확인
-                    all_responded, responded_count, total_count = db.check_all_interviewers_responded(first_request)
+                    # ✅ Step 2: **모든 요청에 대해** 개별적으로 체크
+                    st.write(f"🔍 **디버깅 - Step 2: 각 요청별 응답 상태 체크**")
                     
-                    if all_responded:
-                        # ✅ Step 3: 공통 일정 계산
-                        common_slots = db.get_common_available_slots(first_request)
+                    all_ready_for_email = []
+                    
+                    for idx, request in enumerate(requests):
+                        st.write(f"📋 **요청 {idx+1}: {request.candidate_name} ({request.id})**")
                         
-                        if common_slots:
-                            # ✅ Step 4: 모든 요청에 공통 슬롯 저장 + 구글시트 업데이트
-                            success_count = 0
+                        try:
+                            # 🔧 각 요청별로 개별 체크
+                            all_responded, responded_count, total_count = db.check_all_interviewers_responded(request)
                             
-                            for request in requests:
-                                request.available_slots = common_slots.copy()
-                                request.status = Config.Status.PENDING_CANDIDATE
-                                request.updated_at = datetime.now()
+                            st.write(f"  - 면접관 응답: {responded_count}/{total_count}")
+                            st.write(f"  - 모든 응답 완료: {all_responded}")
+                            
+                            if all_responded:
+                                # 공통 슬롯 계산
+                                common_slots = db.get_common_available_slots(request)
+                                st.write(f"  - 공통 슬롯: {len(common_slots) if common_slots else 0}개")
                                 
-                                # DB 저장
-                                db.save_interview_request(request)
-                                
-                                # ✅ 구글시트 업데이트 (K1 셀에 공통 일정 저장)
-                                db.update_google_sheet(request)
-                                
-                                success_count += 1
-                            
-                            st.success(f"✅ {success_count}건의 면접 요청이 업데이트되었습니다.")
-                            
-                            # ✅ Step 5: 각 면접자에게 개별 이메일 발송
-                            st.info("📧 면접자들에게 이메일을 발송하고 있습니다...")
-                            
-                            email_success = 0
-                            email_fail = 0
-                            
-                            for request in requests:
-                                try:
-                                    # ✅ 개별 request 객체로 이메일 발송
-                                    result = email_service.send_candidate_invitation(request)
+                                if common_slots:
+                                    # 요청 업데이트
+                                    request.available_slots = common_slots.copy()
+                                    request.status = Config.Status.PENDING_CANDIDATE
+                                    request.updated_at = datetime.now()
                                     
-                                    if isinstance(result, dict):
-                                        email_success += result.get('success_count', 0)
-                                        email_fail += result.get('fail_count', 0)
-                                    elif result:
-                                        email_success += 1
-                                    else:
-                                        email_fail += 1
-                                        
-                                    # API 부하 방지
-                                    time.sleep(0.5)
+                                    # DB 저장
+                                    db.save_interview_request(request)
+                                    # 구글시트 업데이트
+                                    db.update_google_sheet(request)
                                     
-                                except Exception as e:
+                                    all_ready_for_email.append(request)
+                                    st.write(f"  - ✅ 이메일 발송 대상에 추가")
+                                else:
+                                    st.write(f"  - ❌ 공통 슬롯 없음")
+                            else:
+                                st.write(f"  - ⏳ 대기 중 ({responded_count}/{total_count})")
+                                
+                        except Exception as e:
+                            st.error(f"  - ❌ 요청 처리 오류: {e}")
+                            continue
+                    
+                    # ✅ Step 3: 이메일 발송
+                    if all_ready_for_email:
+                        st.write(f"📧 **Step 3: 이메일 발송 ({len(all_ready_for_email)}명)**")
+                        
+                        email_success = 0
+                        email_fail = 0
+                        
+                        for request in all_ready_for_email:
+                            try:
+                                st.write(f"📤 {request.candidate_name}에게 이메일 발송 중...")
+                                
+                                # 🔧 슬롯 재확인
+                                if not request.available_slots:
+                                    st.warning(f"  - ⚠️ 슬롯이 없어 건너뜀")
                                     email_fail += 1
-                                    logger.error(f"❌ {request.candidate_name} 이메일 발송 실패: {e}")
-                            
-                            # ✅ 최종 결과 표시
-                            st.success(f"""
-                            ✅ 모든 면접관이 응답을 완료했습니다!
-                            
-                            📊 처리 결과:
-                            • 공통 가능 일정: {len(common_slots)}개 슬롯
-                            • 구글시트 업데이트: {success_count}/{len(requests)}건 완료
-                            • 면접자 이메일 발송: {email_success}/{len(requests)}명 성공
-                            {f"• 발송 실패: {email_fail}명 (인사팀 확인 필요)" if email_fail > 0 else ""}
-                            
-                            💡 면접자들이 이메일을 확인하고 일정을 선택하면 자동으로 확정됩니다.
-                            """)
-                            
-                            if email_fail > 0:
-                                st.warning(f"""
-                                ⚠️ {email_fail}명에게 이메일 발송에 실패했습니다.
+                                    continue
                                 
-                                실패한 면접자:
-                                """)
-                                for request in requests:
-                                    st.write(f"- {request.candidate_name} ({request.candidate_email})")
-                        else:
-                            st.warning("""
-                            ⚠️ 공통 가능한 일정이 없습니다.
-                            
-                            • 모든 면접관이 응답했으나 겹치는 시간이 없습니다.
-                            • 인사팀에 문의하여 일정을 재조율해주세요.
-                            """)
-                    else:
-                        st.info(f"""
-                        ✅ 귀하의 일정이 저장되었습니다!
+                                # 이메일 발송
+                                result = email_service.send_candidate_invitation(request)
+                                
+                                if isinstance(result, dict):
+                                    email_success += result.get('success_count', 0)
+                                    email_fail += result.get('fail_count', 0)
+                                elif result:
+                                    email_success += 1
+                                    st.write(f"  - ✅ 발송 성공")
+                                else:
+                                    email_fail += 1
+                                    st.write(f"  - ❌ 발송 실패")
+                                    
+                                time.sleep(0.5)
+                                
+                            except Exception as e:
+                                email_fail += 1
+                                st.error(f"  - ❌ {request.candidate_name} 발송 오류: {e}")
                         
-                        • 다른 면접관들의 응답을 기다리고 있습니다. ({responded_count}/{total_count}명 완료)
-                        • 모든 면접관이 응답하면 자동으로 면접자에게 이메일이 발송됩니다.
+                        # 최종 결과
+                        st.success(f"""
+                        ✅ 처리 완료!
+                        
+                        📊 결과:
+                        • 이메일 발송 대상: {len(all_ready_for_email)}명
+                        • 발송 성공: {email_success}명
+                        • 발송 실패: {email_fail}명
                         """)
+                        
+                    else:
+                        st.info("⏳ 아직 모든 면접관의 응답이 완료되지 않았습니다.")
                     
+                    # 세션 정리
                     if 'grouped_requests' in st.session_state:
                         if position_name in st.session_state.grouped_requests:
                             del st.session_state.grouped_requests[position_name]
                     
+                    time.sleep(3)  # 디버깅 정보 확인 시간
                     st.rerun()
                         
                 except Exception as e:
-                    st.error(f"❌ 처리 중 오류가 발생했습니다: {str(e)}")
+                    st.error(f"❌ 처리 중 오류: {str(e)}")
                     import traceback
                     st.code(traceback.format_exc())
 
