@@ -3,6 +3,8 @@ import pandas as pd
 import os
 from datetime import datetime
 import sys
+import time  # 추가
+import logging  # 추가
 
 # 부모 디렉토리를 Python 경로에 추가
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -13,6 +15,10 @@ from email_service import EmailService
 from models import InterviewSlot, TimeRange
 from config import Config
 from utils import format_date_korean, get_employee_info
+
+# 로거 설정 추가
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 st.set_page_config(
     page_title="면접관 일정 입력 - AI 면접 시스템",
@@ -441,3 +447,4 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
 if __name__ == "__main__":
 
     main()
+
