@@ -345,73 +345,72 @@ def main():
                     help="면접 가능 시작 시간"
                 )
 
-            with col3:
-                # ✅ 면접자 수에 따른 자동 종료 시간 계산
-                candidate_count = len(st.session_state.selected_candidates)
-                
-                if start_time != "선택안함" and candidate_count > 0:
-                    try:
-                        # 시작 시간 파싱
-                        start_hour, start_min = map(int, start_time.split(':'))
-                        start_total_minutes = start_hour * 60 + start_min
-                        
-                        # 종료 시간 계산 (면접자 수 × 30분)
-                        duration_minutes = candidate_count * 30
-                        end_total_minutes = start_total_minutes + duration_minutes
-                        
-                        # 시간 형식으로 변환
-                        end_hour = end_total_minutes // 60
-                        end_min = end_total_minutes % 60
-                        auto_end_time = f"{end_hour:02d}:{end_min:02d}"
-                        
-                        # ✅ 종료 시간 표시 (라벨 + 값)
-                        st.markdown("**종료 시간**")
-                        st.markdown(f"### {auto_end_time}")
-                        
-                        calculated_end_time = auto_end_time
-                        
-                    except Exception as e:
-                        st.error(f"시간 계산 오류: {e}")
-                        calculated_end_time = "선택안함"
-                else:
-                    # 안내 메시지
-                    st.markdown("**종료 시간**")
-                    if candidate_count == 0:
-                        st.markdown("### --:--")
-                        st.caption("면접자를 추가해주세요")
-                    else:
-                        st.markdown("### --:--")
-                        st.caption("시작 시간을 선택해주세요")
-                    calculated_end_time = "선택안함"
-
-            with col4:
-                st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
-                add_clicked = st.button(
-                    "➕ 시간대 추가",
-                    disabled=(
-                        selected_date == "선택안함" or 
-                        start_time == "선택안함" or 
-                        calculated_end_time == "선택안함" or
-                        candidate_count == 0
-                    ),
-                    key=f"add_range_btn_{key_suffix}"
-                )
-
-            if add_clicked:
-                if selected_date != "선택안함" and start_time != "선택안함" and calculated_end_time != "선택안함":
-                    # ✅ 자동 계산된 종료 시간 사용
-                    time_range_str = f"{selected_date} {start_time}~{calculated_end_time}"
+        with col3:
+            candidate_count = len(st.session_state.selected_candidates)
+            
+            if start_time != "선택안함" and candidate_count > 0:
+                try:
+                    # 시간 계산
+                    start_hour, start_min = map(int, start_time.split(':'))
+                    duration_minutes = candidate_count * 30
+                    end_total_minutes = (start_hour * 60 + start_min) + duration_minutes
                     
-                    if time_range_str not in st.session_state.selected_slots:
-                        if len(st.session_state.selected_slots) < 5:
-                            st.session_state.selected_slots.append(time_range_str)
-                            st.success(f"✅ 시간대 추가: {format_date_korean(selected_date)} {start_time}~{calculated_end_time} (면접자 {candidate_count}명)")
-                            time.sleep(0.5)
-                            st.rerun()
-                        else:
-                            st.warning("⚠️ 최대 5개까지 선택 가능합니다.")
-                    else:
-                        st.warning("⚠️ 이미 선택된 시간대입니다.")
+                    end_hour = end_total_minutes // 60
+                    end_min = end_total_minutes % 60
+                    auto_end_time = f"{end_hour:02d}:{end_min:02d}"
+                    
+                    # ✅ Streamlit 네이티브 스타일 (disabled selectbox처럼)
+                    st.markdown("""
+                    <style>
+                    .custom-time-display {
+                        font-size: 0.875rem;
+                        font-weight: 400;
+                        color: rgb(49, 51, 63);
+                        margin-bottom: 0.5rem;
+                    }
+                    .custom-time-box {
+                        background-color: rgb(240, 242, 246);
+                        border: 1px solid transparent;
+                        border-radius: 0.5rem;
+                        padding: 0.4375rem 0.75rem;
+                        font-size: 1rem;
+                        color: rgb(49, 51, 63);
+                        height: 38px;
+                        display: flex;
+                        align-items: center;
+                        opacity: 0.7;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
+                    
+                    st.markdown(f"""
+                    <div class="custom-time-display">종료 시간</div>
+                    <div class="custom-time-box">
+                        <span style="font-weight: 400;">{auto_end_time}</span>
+                        <span style="color: rgb(128, 128, 128); font-size: 0.875rem; margin-left: 8px;">
+                            ({candidate_count}명 × 30분)
+                        </span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    calculated_end_time = auto_end_time
+                    
+                except Exception as e:
+                    st.error(f"시간 계산 오류: {e}")
+                    calculated_end_time = "선택안함"
+            else:
+                if candidate_count == 0:
+                    message = "면접자를 먼저 추가해주세요"
+                else:
+                    message = "시작 시간을 선택해주세요"
+                
+                st.markdown(f"""
+                <div class="custom-time-display">종료 시간</div>
+                <div class="custom-time-box" style="color: rgb(128, 128, 128); font-size: 0.875rem;">
+                    {message}
+                </div>
+                """, unsafe_allow_html=True)
+                calculated_end_time = "선택안함"
 
             # ✅ 선택된 시간대를 테이블로 표시
             if st.session_state.selected_slots:
