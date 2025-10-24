@@ -14,7 +14,7 @@ def group_requests_by_interviewer_and_position(requests: List[InterviewRequest])
     🔧 개선된 그룹핑: 면접관 + 포지션 조합으로 면접 요청 그룹핑
     
     문제점: 기존 코드는 동일한 면접자가 여러 그룹에 포함되어 중복 발송
-    해결책: 면접관 ID와 포지션명을 정확히 조합하여 유일한 그룹 생성
+    해결책: 면접관 ID와 공고명을 정확히 조합하여 유일한 그룹 생성
     
     Args:
         requests: 면접 요청 리스트
@@ -32,8 +32,8 @@ def group_requests_by_interviewer_and_position(requests: List[InterviewRequest])
         interviewer_ids = sorted([id.strip() for id in request.interviewer_id.split(',')])
         interviewer_key = ",".join(interviewer_ids)
         
-        # ✅ 그룹 키 생성: "면접관ID들_포지션명"
-        # 포지션명도 정규화하여 공백 문제 방지
+        # ✅ 그룹 키 생성: "면접관ID들_공고명"
+        # 공고명도 정규화하여 공백 문제 방지
         position_normalized = request.position_name.strip().replace(" ", "")
         group_key = f"{interviewer_key}_{position_normalized}"
         

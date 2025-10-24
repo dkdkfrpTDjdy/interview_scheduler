@@ -102,13 +102,18 @@ class InterviewRequest:
 
     @classmethod
     def create_new(cls, interviewer_id: str, candidate_email: str, 
-                   candidate_name: str, position_name: str, 
-                   preferred_dates: List[str] = None,
-                   preferred_datetime_slots: List[str] = None,
-                   preferred_time_ranges: List[TimeRange] = None,
-                   detailed_position_name: str = "",
-                   candidate_phone: str = ""):  # ✅ 전화번호 매개변수 추가
+                candidate_name: str, position_name: str, 
+                preferred_dates: List[str] = None,
+                preferred_datetime_slots: List[str] = None,
+                preferred_time_ranges: List[TimeRange] = None,
+                detailed_position_name: str = "",  # ✅ 매개변수 있음
+                candidate_phone: str = ""):
         from utils import generate_request_id
+        
+        # ✅ 디버깅 로그 추가
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"📝 create_new 호출 - detailed_position_name: '{detailed_position_name}'")
         
         return cls(
             id=generate_request_id(),
@@ -122,6 +127,6 @@ class InterviewRequest:
             preferred_dates=preferred_dates or [],
             preferred_datetime_slots=preferred_datetime_slots or [],
             preferred_time_ranges=preferred_time_ranges or [],
-            detailed_position_name=detailed_position_name,
-            candidate_phone=candidate_phone  # ✅ 전화번호 추가
+            detailed_position_name=detailed_position_name,  # ✅ 반드시 포함
+            candidate_phone=candidate_phone
         )

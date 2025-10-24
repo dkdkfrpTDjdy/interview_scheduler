@@ -481,8 +481,22 @@ def main():
                         all_requests = []
                         failed_candidates = []
 
+                        # ✅ 디버깅: basic_info 확인
+                        st.write("🔍 **디버깅 정보:**")
+                        st.write(f"- 공고명: {st.session_state.basic_info.get('position_name', 'N/A')}")
+                        st.write(f"- 상세공고명: {st.session_state.basic_info.get('detailed_position_name', 'N/A')}")
+
                         for candidate in st.session_state.selected_candidates:
                             try:
+                                # ✅ 명시적으로 값 추출
+                                position_name = st.session_state.basic_info['position_name']
+                                detailed_position_name = st.session_state.basic_info.get('detailed_position_name', '')
+                                
+                                # ✅ 디버깅 로그
+                                st.write(f"📝 {candidate['name']} 요청 생성 중...")
+                                st.write(f"  - 공고명: {position_name}")
+                                st.write(f"  - 상세공고명: '{detailed_position_name}'")
+                    
                                 request = InterviewRequest.create_new(
                                     interviewer_id=",".join(st.session_state.selected_interviewers),
                                     candidate_email=candidate['email'],
@@ -490,6 +504,9 @@ def main():
                                     position_name=st.session_state.basic_info['position_name'],
                                     preferred_datetime_slots=st.session_state.selected_slots.copy()
                                 )
+                                
+                                # ✅ 생성 후 확인
+                                st.write(f"  - 생성된 객체의 detailed_position_name: '{request.detailed_position_name}'")
                                 
                                 db.save_interview_request(request)
                                 all_requests.append(request)
@@ -601,18 +618,16 @@ def main():
                     df = pd.DataFrame(pending_candidates)
                     
                     display_columns = []
-                    if '포지션명' in df.columns:
-                        display_columns.append('포지션명')
+                    if '공고명' in df.columns:
+                        display_columns.append('공고명')
+                    if '상세공고명' in df.columns:
+                        display_columns.append('상세공고명')
                     if '면접자명' in df.columns:
                         display_columns.append('면접자명')
                     if '면접자이메일' in df.columns:
                         display_columns.append('면접자이메일')
-                    if '면접자전화번호' in df.columns:  # ✅ 추가
-                        display_columns.append('면접자전화번호')
                     if '제안일시목록' in df.columns:
                         display_columns.append('제안일시목록')
-                    if '생성일시' in df.columns:
-                        display_columns.append('생성일시')
                     
                     if display_columns:
                         display_df = df[display_columns].copy()
@@ -709,8 +724,8 @@ def main():
                     df = pd.DataFrame(sheet_data)
                     
                     display_columns = []
-                    if '포지션명' in df.columns:
-                        display_columns.append('포지션명')
+                    if '공고명' in df.columns:
+                        display_columns.append('공고명')
                     if '상세공고명' in df.columns:
                         display_columns.append('상세공고명')
                     if '면접관이름' in df.columns:

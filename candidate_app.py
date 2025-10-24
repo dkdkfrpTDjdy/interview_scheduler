@@ -270,7 +270,7 @@ def find_candidate_requests(name: str, email: str):
                     request_obj.update({
                         'id': clean_id,
                         'raw_id': raw_id,
-                        'position_name': request_obj.get('포지션명', ''),
+                        'position_name': request_obj.get('공고명', ''),
                         'candidate_name': row_name,  # 🔧 직접 사용
                         'candidate_email': row_email,  # 🔧 직접 사용
                         'interviewer_id': request_obj.get('면접관ID', ''),

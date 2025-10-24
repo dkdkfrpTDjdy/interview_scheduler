@@ -184,9 +184,9 @@ class DatabaseManager:
             
             # 헤더 설정
             headers = [
-                "요청ID", "생성일시", "포지션명", "상세공고명",
+                "요청ID", "생성일시", "공고명", "상세공고명",
                 "면접관ID", "면접관이름", "면접자명", 
-                "면접자이메일", "면접자전화번호",  # ✅ 전화번호 추가
+                "면접자이메일", "면접자전화번호", 
                 "상태", "상태변경일시", "희망일시목록", "제안일시목록", 
                 "확정일시", "면접자요청사항", "마지막업데이트", "처리소요시간", "비고"
             ]
@@ -194,7 +194,6 @@ class DatabaseManager:
             try:
                 existing_headers = self.sheet.row_values(1)
                 
-                # ✅ "면접자전화번호" 컬럼이 없으면 추가
                 if not existing_headers or "면접자전화번호" not in existing_headers:
                     self._setup_sheet_headers(headers)
                 else:
@@ -213,9 +212,8 @@ class DatabaseManager:
     def _setup_sheet_headers(self, headers):
         """시트 헤더 설정"""
         try:
-            # ✅ 상세 공고명 컬럼 추가
             if "상세공고명" not in headers:
-                headers.insert(3, "상세공고명")  # 포지션명 다음에 추가
+                headers.insert(3, "상세공고명")
             
             self.sheet.clear()
             self.sheet.append_row(headers)
@@ -234,7 +232,7 @@ class DatabaseManager:
     # init_google_sheet() 함수 내 헤더 수정
 
     headers = [
-        "요청ID", "생성일시", "포지션명", "상세공고명", "면접관ID", "면접관이름", "면접자명", 
+        "요청ID", "생성일시", "공고명", "상세공고명", "면접관ID", "면접관이름", "면접자명", 
         "면접자이메일", "상태", "상태변경일시", "희망일시목록", "제안일시목록", 
         "확정일시", "면접자요청사항", "마지막업데이트", "처리소요시간", "비고"
     ]
@@ -242,6 +240,15 @@ class DatabaseManager:
     def save_interview_request(self, request: InterviewRequest):
         """면접 요청 저장"""
         try:
+            # ✅ 디버깅: 저장 전 확인
+            detailed_name = getattr(request, 'detailed_position_name', '')
+            phone = getattr(request, 'candidate_phone', '')
+            
+            logger.info(f"💾 DB 저장 시도")
+            logger.info(f"  - ID: {request.id}")
+            logger.info(f"  - 공고명: {request.position_name}")
+            logger.info(f"  - 상세공고명: '{detailed_name}'")
+            logger.info(f"  - 전화번호: '{phone}'")
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute("""
                     INSERT OR REPLACE INTO interview_requests 
@@ -255,7 +262,7 @@ class DatabaseManager:
                     request.candidate_email,
                     request.candidate_name,
                     request.position_name,
-                    getattr(request, 'detailed_position_name', ''),
+                    detailed_name,  # ✅ 명시적 사용
                     request.status,
                     request.created_at.isoformat(),
                     (request.updated_at or datetime.now()).isoformat(),
@@ -265,7 +272,7 @@ class DatabaseManager:
                     json.dumps({"date": request.selected_slot.date, "time": request.selected_slot.time, 
                             "duration": request.selected_slot.duration}) if request.selected_slot else None,
                     request.candidate_note or "",
-                    getattr(request, 'candidate_phone', '')  # ✅ 전화번호 추가
+                    phone
                 ))
                 logger.info(f"면접 요청 저장 완료: {request.id[:8]}...")
             
@@ -456,7 +463,7 @@ class DatabaseManager:
                         interviewer_id=record.get('면접관ID', ''),
                         candidate_email=record.get('면접자이메일', ''),
                         candidate_name=record.get('면접자명', ''),
-                        position_name=record.get('포지션명', ''),
+                        position_name=record.get('공고명', ''),
                         status=status,
                         created_at=created_at,
                         updated_at=datetime.now(),
@@ -777,19 +784,25 @@ class DatabaseManager:
             row_index = self._find_request_row(request.id)
             
             if row_index:
+                # ✅ 기존 행 업데이트
+                logger.info(f"📝 기존 행 업데이트: {row_index}번 행")
                 updates = self._prepare_batch_updates(request, row_index)
                 if updates:
                     self.sheet.batch_update(updates)
                     
                 self._apply_status_formatting(row_index, request.status)
                 
-                logger.info(f"구글 시트 업데이트 완료: {request.id[:8]}...")
+                logger.info(f"✅ 구글 시트 업데이트 완료: {request.id[:8]}...")
                 return True
             else:
+                # ✅ 새 행 추가
+                logger.info(f"📝 새 행 추가")
                 return self.save_to_google_sheet(request)
                 
         except Exception as e:
-            logger.error(f"구글 시트 업데이트 실패: {e}")
+            logger.error(f"❌ 구글 시트 업데이트 실패: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False
     
     def _find_request_row(self, request_id: str) -> Optional[int]:
@@ -908,12 +921,19 @@ class DatabaseManager:
                 time_diff = request.updated_at - request.created_at
                 hours = int(time_diff.total_seconds() // 3600)
                 processing_time = f"{hours}시간" if hours > 0 else "1시간 미만"
+
+            detailed_name = getattr(request, 'detailed_position_name', '')
+            phone = getattr(request, 'candidate_phone', '')
+
+            # ✅ 상세공고명과 전화번호 추출
+            logger.info(f"📝 배치 업데이트 - detailed_position_name: '{detailed_name}'")
+            logger.info(f"📝 배치 업데이트 - candidate_phone: '{phone}'") 
             
             updates = [
-                {'range': f'D{row_index}', 'values': [[getattr(request, 'detailed_position_name', '')]]},
-                {'range': f'F{row_index}', 'values': [[interviewer_name_str]]},
-                {'range': f'I{row_index}', 'values': [[getattr(request, 'candidate_phone', '')]]},  # ✅ 전화번호
-                {'range': f'J{row_index}', 'values': [[request.status]]},
+                {'range': f'D{row_index}', 'values': [[detailed_name]]},  # ✅ D열: 상세공고명
+                {'range': f'F{row_index}', 'values': [[interviewer_name_str]]},  # F열: 면접관이름
+                {'range': f'I{row_index}', 'values': [[phone]]},  # ✅ I열: 전화번호
+                {'range': f'J{row_index}', 'values': [[request.status]]},  # J열: 상태
                 {'range': f'K{row_index}', 'values': [[request.updated_at.strftime('%Y-%m-%d %H:%M') if request.updated_at else ""]]},
                 {'range': f'L{row_index}', 'values': [[preferred_datetime_str]]},
                 {'range': f'M{row_index}', 'values': [[proposed_slots_str]]},
