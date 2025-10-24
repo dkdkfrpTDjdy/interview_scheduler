@@ -691,6 +691,76 @@ class EmailService:
         </table>
         """
 
+    # ✅ HR 알림 메일 발송 함수 추가
+
+    def send_hr_notification_on_interviewer_completion(self, position_name: str, candidate_count: int):
+        """
+        면접관 일정 등록 완료 시 HR에게 알림 메일 발송
+        """
+        try:
+            subject = f"[{position_name}] 면접관 일정 등록 완료"
+            
+            app_link = "https://interview-scheduler-ajnetworks.streamlit.app/"
+            
+            body = f"""
+            <div style="font-family: 'Apple SD Gothic Neo', Arial, sans-serif; max-width: 640px; margin: 0 auto; background-color: #ffffff;">
+                <!-- Header -->
+                <div style="background-color: #EF3340; color: white; padding: 30px; text-align: center;">
+                    <h1 style="margin: 0; font-size: 22px;">면접관 일정 등록 완료</h1>
+                </div>
+
+                <!-- Body -->
+                <div style="padding: 30px;">
+                    <p style="font-size: 16px; line-height: 1.6;">
+                        <strong>{position_name}</strong> 공고에 대한 면접관들의 일정이 모두 선택되었습니다.
+                    </p>
+                    
+                    <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <p style="margin: 0; color: #1A1A1A;">
+                            <strong>면접자 수:</strong> {candidate_count}명
+                        </p>
+                    </div>
+                    
+                    <p style="font-size: 15px; color: #737272; line-height: 1.6;">
+                        면접 조율 앱에서 확인하시고 면접자들에게 <strong style="color: #EF3340;">늦지 않게 메일을 발송</strong>해 주세요.
+                    </p>
+
+                    <!-- Button -->
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{app_link}" 
+                        style="display: inline-block; padding: 18px 35px; background-color: #EF3340; color: #ffffff;
+                                text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+                            📅 면접 조율 앱 열기
+                        </a>
+                    </div>
+                    
+                    <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; border-left: 5px solid #ffc107; margin: 20px 0;">
+                        <p style="margin: 0; color: #856404; font-weight: bold;">⚠️ 안내사항</p>
+                        <p style="margin: 5px 0 0 0; color: #856404; font-size: 14px;">
+                            • "면접자 메일 발송" 탭에서 일괄 발송 가능합니다<br>
+                            • 면접자들이 선착순으로 일정을 선택합니다
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div style="background-color: #f9f9f9; padding: 20px; text-align: center; font-size: 12px; color: #737272;">
+                    본 메일은 AI 면접 일정 조율 시스템에서 자동 발송되었습니다.
+                </div>
+            </div>
+            """
+            
+            return self.send_email(
+                to_emails=Config.HR_EMAILS,
+                subject=subject,
+                body=body,
+                is_html=True
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ HR 알림 메일 발송 실패: {e}")
+            return False
+
     def send_candidate_invitation(self, requests):
         """
         🔧 개선된 면접자 초대 메일 발송 (복수 면접자 지원)

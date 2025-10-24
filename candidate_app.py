@@ -592,7 +592,7 @@ def show_alternative_request_success(candidate_note: str):
 
 def prepare_slot_selectbox(available_slots, index):
     """
-    면접 시간 슬롯 리스트에서 selectbox 라벨-객체 매핑 처리 및 선택 값 반환
+    면접 시간 슬롯 리스트에서 라디오 버튼으로 선택
     """
     from datetime import datetime
 
@@ -611,19 +611,13 @@ def prepare_slot_selectbox(available_slots, index):
     alternative_label = "💬 다른 일정 요청"
     slot_labels = list(slot_label_to_obj.keys()) + [alternative_label]
 
-    # 세션 상태 키 (요청 index 기반으로 고유화)
-    select_key = f"select_selection_{index}"
+    # 세션 상태 키
+    select_key = f"radio_selection_{index}"
 
-    # 기본값 (세션에서 선택된 값 유지 or 첫 항목)
-    default_value = st.session_state.get(select_key, slot_labels[0])
-    if default_value not in slot_labels:
-        default_value = slot_labels[0]
-
-    # ✅ 셀렉트박스 렌더링
-    selected_label = st.selectbox(
+    # ✅ 라디오 버튼 렌더링
+    selected_label = st.radio(
         "일정 선택",
         options=slot_labels,
-        index=slot_labels.index(default_value),
         key=select_key,
         label_visibility="collapsed"
     )
@@ -633,7 +627,7 @@ def prepare_slot_selectbox(available_slots, index):
 def show_request_detail(request, index):
     from models import InterviewSlot
 
-    # 면접 정보 표시 (기존 코드 동일)
+    # 면접 정보 표시 (기존 코드)
     st.markdown(f"""
     <div style="background: white; padding: 30px; border-radius: 12px; border-left: 5px solid #EF3340; margin: 25px 0; box-shadow: 0 2px 10px rgba(239, 51, 64, 0.08);">
         <table style="width: 100%; border-collapse: collapse;">
@@ -657,6 +651,49 @@ def show_request_detail(request, index):
         show_confirmed_schedule(request)
         return
 
+    # ✅ 전화번호 입력 필드
+    st.markdown("---")
+    st.markdown("**📞 연락처 입력**")
+    
+    phone_number = st.text_input(
+        "전화번호",
+        placeholder="01012345678 (하이픈 없이 11자리)",
+        help="숫자만 11자리 입력해주세요",
+        key=f"phone_number_{index}",
+        max_chars=11
+    )
+
+    # 하이픈 자동 제거
+    phone_number_clean = ""
+    phone_valid = False
+    
+    if phone_number:
+        phone_number_clean = phone_number.replace('-', '').replace(' ', '')
+        
+        # 유효성 검사
+        if not phone_number_clean.isdigit():
+            st.markdown("""
+            <div style="background-color: #f8d7da; border-left: 5px solid #EF3340; padding: 12px; border-radius: 8px; margin: 10px 0;">
+                <p style="color: #721c24; margin: 0; font-size: 14px;">❌ 숫자만 입력해주세요.</p>
+            </div>
+            """, unsafe_allow_html=True)
+        elif len(phone_number_clean) != 11:
+            st.markdown("""
+            <div style="background-color: #f8d7da; border-left: 5px solid #EF3340; padding: 12px; border-radius: 8px; margin: 10px 0;">
+                <p style="color: #721c24; margin: 0; font-size: 14px;">❌ 11자리 전화번호를 입력해주세요.</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            phone_valid = True
+            st.markdown("""
+            <div style="background-color: #d4edda; border-left: 5px solid #28a745; padding: 12px; border-radius: 8px; margin: 10px 0;">
+                <p style="color: #155724; margin: 0; font-size: 14px;">✅ 올바른 전화번호 형식입니다.</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # 일정 선택 섹션
     available_slots_data = request.get('available_slots_filtered', [])
     available_slots = [
         InterviewSlot(
@@ -691,7 +728,17 @@ def show_request_detail(request, index):
 
         st.success(f"✅ 선택하신 일정: {format_date_korean(selected_slot_info.date)} {selected_slot_info.time} ({selected_slot_info.duration}분)")
 
+    # ✅ 제출 버튼 (전화번호 유효성 체크 포함)
     if st.button("✅ 면접 일정 선택 완료", key=f"submit_{index}", use_container_width=True, type="primary"):
+        # ✅ 전화번호 유효성 체크
+        if not phone_number or not phone_valid:
+            st.markdown("""
+            <div style="background-color: #f8d7da; border-left: 5px solid #EF3340; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                <p style="color: #721c24; margin: 0; font-weight: bold;">❌ 올바른 전화번호를 입력해주세요.</p>
+            </div>
+            """, unsafe_allow_html=True)
+            return
+        
         if 'row_number' not in request:
             st.error("❌ 요청 데이터에 문제가 있습니다.")
             return
@@ -708,22 +755,18 @@ def show_request_detail(request, index):
             from database import DatabaseManager
             db = DatabaseManager()
 
-            # ✅ 개선된 요청 ID 매칭 로직
+            # 요청 ID 매칭
             search_id = request.get('id', '').replace('...', '')
             
-            # 1차: 정확한 ID로 검색
             req_obj = db.get_interview_request(search_id)
             
-            # 2차: 모든 요청에서 부분 매칭 검색
             if not req_obj:
                 all_requests = db.get_all_requests()
                 for r in all_requests:
-                    # 정규화된 ID 비교
                     from utils import normalize_request_id
                     if normalize_request_id(r.id) == normalize_request_id(search_id):
                         req_obj = r
                         break
-                    # 부분 매칭도 시도
                     if search_id in r.id or r.id.startswith(search_id):
                         req_obj = r
                         break
@@ -731,16 +774,18 @@ def show_request_detail(request, index):
             if not req_obj:
                 st.error(f"❌ 요청 ID를 찾을 수 없습니다. (검색한 ID: {search_id})")
                 
-                # 🔧 디버깅 정보 표시 (개발 중에만 사용)
                 with st.expander("🔍 디버깅 정보"):
                     st.write(f"**구글시트 ID:** {request.get('id', 'N/A')}")
                     st.write(f"**정규화된 검색 ID:** {search_id}")
                     
                     all_requests = db.get_all_requests()
                     st.write(f"**DB의 모든 요청 ID ({len(all_requests)}개):**")
-                    for r in all_requests[:5]:  # 처음 5개만 표시
+                    for r in all_requests[:5]:
                         st.write(f"  - {r.id}")
                 return
+
+            # ✅ 전화번호를 request 객체에 저장
+            req_obj.candidate_phone = phone_number_clean
 
             # 슬롯 예약 시도
             if db.reserve_slot_for_candidate(req_obj, selected_slot_info):
@@ -753,7 +798,12 @@ def show_request_detail(request, index):
                 st.session_state.candidate_requests = updated
                 st.rerun()
             else:
-                st.error("해당 일정이 이미 선택되었습니다. 다른 일정을 선택해주세요.")
+                st.markdown("""
+                <div style="background-color: #f8d7da; border-left: 5px solid #EF3340; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                    <p style="color: #721c24; margin: 0; font-weight: bold;">❌ 해당 일정이 이미 선택되었습니다.</p>
+                    <p style="color: #721c24; margin: 5px 0 0 0; font-size: 14px;">다른 일정을 선택해주세요.</p>
+                </div>
+                """, unsafe_allow_html=True)
                 st.session_state.candidate_requests = force_refresh_candidate_data(
                     st.session_state.authenticated_candidate['name'],
                     st.session_state.authenticated_candidate['email']
@@ -805,8 +855,9 @@ def main():
     st.markdown("""
     <div style="text-align: center; margin: 30px 0 40px 0;">
         <img src="https://i.imgur.com/JxtMWx3.png" 
-             alt="면접 일정 선택"
-             style="max-width: 280px; height: auto;">
+            alt="AJ네트웍스"
+            style="max-width: 280px; height: auto; margin-bottom: 15px;">
+        <h2 style="color: #1A1A1A; margin: 0; font-weight: 500;">면접 일정 확인</h2>
     </div>
     """, unsafe_allow_html=True)
 

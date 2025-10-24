@@ -150,6 +150,11 @@ def render_interviewer_selection(key_suffix, org_data):
             if len(st.session_state.selected_interviewers) < 3:
                 st.session_state.selected_interviewers.append(new_interviewer_id)
                 st.success(f"✅ 면접관 {new_interviewer_id}이(가) 추가되었습니다.")
+                
+                # ✅ 입력 필드 초기화
+                st.session_state[f"new_interviewer_id_{key_suffix}"] = ""
+                st.session_state[f"new_interviewer_select_{key_suffix}"] = "선택해주세요"
+                
                 st.rerun()
             else:
                 st.warning("⚠️ 최대 3명까지만 선택 가능합니다.")
@@ -214,6 +219,11 @@ def render_candidate_selection(key_suffix):
                 if new_candidate_email not in existing_emails:
                     st.session_state.selected_candidates.append(candidate_info)
                     st.success(f"✅ 면접자 {new_candidate_name}이(가) 추가되었습니다.")
+                    
+                    # ✅ 입력 필드 초기화
+                    st.session_state[f"new_candidate_name_{key_suffix}"] = ""
+                    st.session_state[f"new_candidate_email_{key_suffix}"] = ""
+                    
                     st.rerun()
                 else:
                     st.warning("⚠️ 이미 등록된 이메일입니다.")
@@ -234,26 +244,36 @@ def render_candidate_selection(key_suffix):
 def main():
     st.title("📅 AI 면접 일정 조율 시스템")
 
-    # ✅ 세션 상태 초기화
     init_session_state()
     
     db, email_service, sync_manager = init_services()
     org_data = load_organization_data()
         
-    tab1, tab2 = st.tabs(["새 면접 요청", "진행 현황"])
+    # ✅ 탭 구성 변경: 새 탭 추가
+    tab1, tab2, tab3 = st.tabs(["새 면접 요청", "면접자 메일 발송", "진행 현황"])
     
     with tab1:
         key_suffix = st.session_state.form_reset_counter
         
-        # ✅ 기본 정보 입력 폼
+        # ✅ 상세 공고명 추가
         with st.form("new_interview_request"):
             st.markdown("**📋 기본 정보**")
             
-            position_name = st.text_input(
-                "공고명",
-                placeholder="IT혁신팀 데이터분석가",
-                key=f"position_name_input_{key_suffix}"
-            )
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                position_name = st.text_input(
+                    "공고명",
+                    placeholder="공고명",
+                    key=f"position_name_input_{key_suffix}"
+                )
+            
+            with col2:
+                detailed_position_name = st.text_input(
+                    "상세 공고명",
+                    placeholder="팀명",
+                    key=f"detailed_position_name_input_{key_suffix}"
+                )
             
             basic_info_submitted = st.form_submit_button("💾 기본 정보 저장", use_container_width=True)
             
@@ -262,7 +282,8 @@ def main():
                     st.error("공고명을 입력해주세요.")
                 else:
                     st.session_state.basic_info = {
-                        'position_name': position_name
+                        'position_name': position_name,
+                        'detailed_position_name': detailed_position_name or ""
                     }
                     st.success("✅ 기본 정보가 저장되었습니다. 아래에서 면접관과 면접자를 선택해 주세요.")
         
@@ -513,8 +534,95 @@ def main():
                                     """)
                                 st.rerun()
 
-    
+    # ✅ 새 탭: 면접자 메일 발송
     with tab2:
+        st.subheader("📧 면접자 메일 발송")
+        
+        try:
+            if db.sheet:
+                sheet_data = db.sheet.get_all_records()
+                
+                # "면접자_선택대기" 상태만 필터링
+                pending_candidates = [
+                    row for row in sheet_data 
+                    if str(row.get('상태', '')).strip() == '면접자_선택대기'
+                ]
+                
+                if not pending_candidates:
+                    st.info("현재 메일 발송 대기 중인 면접자가 없습니다.")
+                else:
+                    st.success(f"📊 총 {len(pending_candidates)}명의 면접자가 메일 발송 대기 중입니다.")
+                    
+                    # 테이블 표시
+                    df = pd.DataFrame(pending_candidates)
+                    
+                    display_columns = []
+                    if '포지션명' in df.columns:
+                        display_columns.append('포지션명')
+                    if '면접자명' in df.columns:
+                        display_columns.append('면접자명')
+                    if '면접자이메일' in df.columns:
+                        display_columns.append('면접자이메일')
+                    if '면접자전화번호' in df.columns:  # ✅ 추가
+                        display_columns.append('면접자전화번호')
+                    if '제안일시목록' in df.columns:
+                        display_columns.append('제안일시목록')
+                    if '생성일시' in df.columns:
+                        display_columns.append('생성일시')
+                    
+                    if display_columns:
+                        display_df = df[display_columns].copy()
+                        st.dataframe(display_df, use_container_width=True, hide_index=True)
+                    
+                    # 일괄 발송 버튼
+                    if st.button("📧 선택된 면접자들에게 메일 일괄 발송", type="primary", use_container_width=True):
+                        success_count = 0
+                        fail_count = 0
+                        
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+                        
+                        for i, row in enumerate(pending_candidates):
+                            try:
+                                request_id = row.get('요청ID', '')
+                                if not request_id:
+                                    continue
+                                
+                                status_text.text(f"📧 메일 발송 중... {i+1}/{len(pending_candidates)}")
+                                
+                                # DB에서 요청 조회
+                                request = db.get_interview_request(request_id)
+                                if request:
+                                    result = email_service.send_candidate_invitation(request)
+                                    if result:
+                                        success_count += 1
+                                    else:
+                                        fail_count += 1
+                                else:
+                                    fail_count += 1
+                                
+                                progress_bar.progress((i + 1) / len(pending_candidates))
+                                time.sleep(0.5)
+                                
+                            except Exception as e:
+                                fail_count += 1
+                                st.error(f"❌ {row.get('면접자명', '알 수 없음')} 발송 실패: {e}")
+                        
+                        progress_bar.empty()
+                        status_text.empty()
+                        
+                        if success_count > 0:
+                            st.success(f"✅ 메일 발송 완료: {success_count}명 성공, {fail_count}명 실패")
+                            time.sleep(2)
+                            st.rerun()
+                        else:
+                            st.error(f"❌ 모든 메일 발송 실패: {fail_count}명")
+                            
+        except Exception as e:
+            st.error(f"데이터 로드 실패: {e}")
+
+    
+    with tab3:
         st.subheader("📊 진행 현황")
         
         try:
@@ -557,24 +665,22 @@ def main():
                     df = pd.DataFrame(sheet_data)
                     
                     display_columns = []
-                    if '요청ID' in df.columns:
-                        display_columns.append('요청ID')
                     if '포지션명' in df.columns:
-                        display_columns.append('포지션명')
-                    elif '포지션' in df.columns:
-                        display_columns.append('포지션')
+                        display_columns.append('공고명')
+                    if '상세공고명' in df.columns:
+                        display_columns.append('상세공고명')
                     if '면접관이름' in df.columns:
                         display_columns.append('면접관이름')
-                    elif '면접관' in df.columns:
-                        display_columns.append('면접관')
+                    if '제안일시목록' in df.columns:
+                        display_columns.append('면접관 희망 일시')
                     if '면접자명' in df.columns:
-                        display_columns.append('면접자명')
+                        display_columns.append('면접자 이름')
+                    if '면접자전화번호' in df.columns:
+                        display_columns.append('면접자전화번호')
                     if '면접자이메일' in df.columns:
-                        display_columns.append('면접자이메일')
+                        display_columns.append('면접자 메일')
                     if '상태' in df.columns:
                         display_columns.append('상태')
-                    if '생성일시' in df.columns:
-                        display_columns.append('생성일시')
                     if '확정일시' in df.columns:
                         display_columns.append('확정일시')
                     

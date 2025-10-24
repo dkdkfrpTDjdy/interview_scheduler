@@ -71,6 +71,8 @@ class InterviewRequest:
     selected_slot: Optional[InterviewSlot] = None
     candidate_note: str = ""
     updated_at: Optional[datetime] = None
+    detailed_position_name: str = ""  # ✅ 상세 공고명 추가
+    candidate_phone: str = ""  # ✅ 전화번호 필드 추가
 
     def __post_init__(self):
         """초기화 후 데이터 타입 변환"""
@@ -103,11 +105,13 @@ class InterviewRequest:
                    candidate_name: str, position_name: str, 
                    preferred_dates: List[str] = None,
                    preferred_datetime_slots: List[str] = None,
-                   preferred_time_ranges: List[TimeRange] = None):
+                   preferred_time_ranges: List[TimeRange] = None,
+                   detailed_position_name: str = "",
+                   candidate_phone: str = ""):  # ✅ 전화번호 매개변수 추가
         from utils import generate_request_id
         
         return cls(
-            id=generate_request_id(),  # ✅ 8자리 ID 생성
+            id=generate_request_id(),
             interviewer_id=interviewer_id,
             candidate_email=candidate_email,
             candidate_name=candidate_name,
@@ -117,5 +121,7 @@ class InterviewRequest:
             available_slots=[],
             preferred_dates=preferred_dates or [],
             preferred_datetime_slots=preferred_datetime_slots or [],
-            preferred_time_ranges=preferred_time_ranges or []
+            preferred_time_ranges=preferred_time_ranges or [],
+            detailed_position_name=detailed_position_name,
+            candidate_phone=candidate_phone  # ✅ 전화번호 추가
         )
