@@ -116,6 +116,14 @@ def render_interviewer_selection(key_suffix, org_data):
     """면접관 선택 섹션 렌더링 (최대 3명)"""
     st.markdown("**👨‍💼 면접관 선택 (최대 3명)**")
     
+    # ✅ 추가 버튼 클릭 시 입력 필드 초기화를 위한 플래그
+    if f"interviewer_added_{key_suffix}" in st.session_state:
+        if st.session_state[f"interviewer_added_{key_suffix}"]:
+            st.session_state[f"interviewer_added_{key_suffix}"] = False
+            # 입력 필드 key를 변경하여 강제 초기화
+            st.session_state.form_reset_counter += 1
+            st.rerun()
+    
     col1, col2 = st.columns([3, 1])
     
     with col1:
@@ -124,7 +132,8 @@ def render_interviewer_selection(key_suffix, org_data):
                 "면접관 사번",
                 placeholder="예: 223286",
                 help="면접관의 사번을 입력해주세요",
-                key=f"new_interviewer_id_{key_suffix}"
+                key=f"new_interviewer_id_{key_suffix}",
+                value=""  # ✅ 명시적으로 빈 값 설정
             )
         else:
             interviewer_options = [f"{emp['employee_id']} - {emp['name']} ({emp['department']})" 
@@ -133,7 +142,8 @@ def render_interviewer_selection(key_suffix, org_data):
                 "면접관 선택",
                 options=["선택해주세요"] + interviewer_options,
                 help="면접관을 선택해주세요 (최대 3명)",
-                key=f"new_interviewer_select_{key_suffix}"
+                key=f"new_interviewer_select_{key_suffix}",
+                index=0  # ✅ 항상 첫 번째 옵션 선택
             )
             new_interviewer_id = selected_interviewer.split(' - ')[0] if selected_interviewer != "선택해주세요" else ""
     
@@ -151,8 +161,8 @@ def render_interviewer_selection(key_suffix, org_data):
                 st.session_state.selected_interviewers.append(new_interviewer_id)
                 st.success(f"✅ 면접관 {new_interviewer_id}이(가) 추가되었습니다.")
                 
-                # ✅ 폼 내부 위젯 값은 직접 수정하지 않음
-                # 대신 페이지 새로고침으로 자동 초기화
+                # ✅ 플래그 설정 후 rerun
+                st.session_state[f"interviewer_added_{key_suffix}"] = True
                 st.rerun()
             else:
                 st.warning("⚠️ 최대 3명까지만 선택 가능합니다.")
