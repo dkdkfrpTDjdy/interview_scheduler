@@ -322,119 +322,170 @@ def main():
             
             st.markdown("---")
             
-            # ✅ 면접 희망일시 선택 섹션 (시간 범위 입력)
-            st.markdown("**📅 면접 희망 날짜 및 시간대 선택 (최대 5개)**")
+            # ✅ 면접관 및 면접자 선택 섹션 (폼 밖)
+            if 'basic_info' in st.session_state:
+                st.markdown("---")
+                
+                render_interviewer_selection(key_suffix, org_data)
+                
+                st.markdown("---")
+                
+                render_candidate_selection(key_suffix)
+                
+                st.markdown("---")
+                
+                # ✅ 면접 희망일시 선택 섹션 (시간 범위 입력)
+                st.markdown("**📅 면접 희망 날짜 및 시간대 선택 (최대 5개)**")
 
-            available_dates = get_next_weekdays(30)
+                available_dates = get_next_weekdays(30)
 
-            col1, col2, col3, col4 = st.columns([2, 1.5, 1.5, 1])
+                col1, col2, col3, col4 = st.columns([2, 1.5, 1.5, 1])
 
-            with col1:
-                selected_date = st.selectbox(
-                    "날짜 선택",
-                    options=["선택안함"] + available_dates,
-                    format_func=lambda x: format_date_korean(x) if x != "선택안함" else x,
-                    key=f"date_selector_{key_suffix}"
-                )
+                with col1:
+                    selected_date = st.selectbox(
+                        "날짜 선택",
+                        options=["선택안함"] + available_dates,
+                        format_func=lambda x: format_date_korean(x) if x != "선택안함" else x,
+                        key=f"date_selector_{key_suffix}"
+                    )
 
-            with col2:
-                start_time = st.selectbox(
-                    "시작 시간",
-                    options=["선택안함"] + Config.TIME_SLOTS,
-                    key=f"start_time_selector_{key_suffix}",
-                    help="면접 가능 시작 시간"
-                )
+                with col2:
+                    start_time = st.selectbox(
+                        "시작 시간",
+                        options=["선택안함"] + Config.TIME_SLOTS,
+                        key=f"start_time_selector_{key_suffix}",
+                        help="면접 가능 시작 시간"
+                    )
 
-            with col3:
-                end_time = st.selectbox(
-                    "종료 시간",
-                    options=["선택안함"] + Config.TIME_SLOTS,
-                    key=f"end_time_selector_{key_suffix}",
-                    help="면접 가능 종료 시간"
-                )
-
-            with col4:
-                st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
-                add_clicked = st.button(
-                    "➕ 시간대 추가",
-                    disabled=(selected_date == "선택안함" or start_time == "선택안함" or end_time == "선택안함"),
-                    key=f"add_range_btn_{key_suffix}"
-                )
-
-            if add_clicked:
-                if selected_date != "선택안함" and start_time != "선택안함" and end_time != "선택안함":
-                    # 시간 유효성 검사
-                    start_parts = start_time.split(':')
-                    end_parts = end_time.split(':')
-                    start_hour = int(start_parts[0])
-                    start_min = int(start_parts[1]) if len(start_parts) > 1 else 0
-                    end_hour = int(end_parts[0])
-                    end_min = int(end_parts[1]) if len(end_parts) > 1 else 0
+                with col3:
+                    # ✅ 면접자 수에 따른 자동 종료 시간 계산
+                    candidate_count = len(st.session_state.selected_candidates)
                     
-                    start_total_min = start_hour * 60 + start_min
-                    end_total_min = end_hour * 60 + end_min
-                    
-                    if start_total_min >= end_total_min:
-                        st.error("❌ 종료 시간은 시작 시간보다 늦어야 합니다.")
+                    # 시작 시간이 선택되었고 면접자가 있으면 자동 계산
+                    if start_time != "선택안함" and candidate_count > 0:
+                        try:
+                            # 시작 시간 파싱
+                            start_hour, start_min = map(int, start_time.split(':'))
+                            start_total_minutes = start_hour * 60 + start_min
+                            
+                            # 종료 시간 계산 (면접자 수 × 30분)
+                            duration_minutes = candidate_count * 30
+                            end_total_minutes = start_total_minutes + duration_minutes
+                            
+                            # 시간 형식으로 변환
+                            end_hour = end_total_minutes // 60
+                            end_min = end_total_minutes % 60
+                            auto_end_time = f"{end_hour:02d}:{end_min:02d}"
+                            
+                            # 종료 시간 표시 (비활성화)
+                            st.text_input(
+                                "종료 시간",
+                                value=f"{auto_end_time} (자동계산: {candidate_count}명 × 30분)",
+                                disabled=True,
+                                key=f"end_time_display_{key_suffix}",
+                                help=f"면접자 {candidate_count}명 기준 자동 계산"
+                            )
+                            
+                            # 실제 사용할 종료 시간 저장
+                            calculated_end_time = auto_end_time
+                            
+                        except Exception as e:
+                            st.error(f"시간 계산 오류: {e}")
+                            calculated_end_time = "선택안함"
                     else:
-                        time_range_str = f"{selected_date} {start_time}~{end_time}"
+                        # 면접자가 없거나 시작 시간 미선택 시 안내 메시지
+                        if candidate_count == 0:
+                            st.text_input(
+                                "종료 시간",
+                                value="면접자를 먼저 추가해주세요",
+                                disabled=True,
+                                key=f"end_time_display_{key_suffix}"
+                            )
+                        else:
+                            st.text_input(
+                                "종료 시간",
+                                value="시작 시간을 선택해주세요",
+                                disabled=True,
+                                key=f"end_time_display_{key_suffix}"
+                            )
+                        calculated_end_time = "선택안함"
+
+                with col4:
+                    st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
+                    add_clicked = st.button(
+                        "➕ 시간대 추가",
+                        disabled=(
+                            selected_date == "선택안함" or 
+                            start_time == "선택안함" or 
+                            calculated_end_time == "선택안함" or
+                            candidate_count == 0
+                        ),
+                        key=f"add_range_btn_{key_suffix}"
+                    )
+
+                if add_clicked:
+                    if selected_date != "선택안함" and start_time != "선택안함" and calculated_end_time != "선택안함":
+                        # ✅ 자동 계산된 종료 시간 사용
+                        time_range_str = f"{selected_date} {start_time}~{calculated_end_time}"
                         
                         if time_range_str not in st.session_state.selected_slots:
                             if len(st.session_state.selected_slots) < 5:
                                 st.session_state.selected_slots.append(time_range_str)
+                                st.success(f"✅ 시간대 추가: {format_date_korean(selected_date)} {start_time}~{calculated_end_time} (면접자 {candidate_count}명)")
+                                time.sleep(0.5)
                                 st.rerun()
                             else:
                                 st.warning("⚠️ 최대 5개까지 선택 가능합니다.")
                         else:
                             st.warning("⚠️ 이미 선택된 시간대입니다.")
 
-            # ✅ 선택된 시간대를 테이블로 표시 (중복 제거)
-            if st.session_state.selected_slots:
-                st.markdown("**📋 선택된 면접 가능 시간대**")
-                
-                table_data = []
-                for i, slot in enumerate(st.session_state.selected_slots, 1):
-                    parts = slot.split(' ')
-                    date_part = parts[0]
-                    time_range = parts[1] if len(parts) > 1 else "시간 미정"
+                # ✅ 선택된 시간대를 테이블로 표시
+                if st.session_state.selected_slots:
+                    st.markdown("**📋 선택된 면접 가능 시간대**")
                     
-                    # 30분 단위 슬롯 개수 계산
-                    if '~' in time_range:
-                        start, end = time_range.split('~')
-                        start_parts = start.split(':')
-                        end_parts = end.split(':')
-                        start_hour = int(start_parts[0])
-                        start_min = int(start_parts[1]) if len(start_parts) > 1 else 0
-                        end_hour = int(end_parts[0])
-                        end_min = int(end_parts[1]) if len(end_parts) > 1 else 0
+                    table_data = []
+                    for i, slot in enumerate(st.session_state.selected_slots, 1):
+                        parts = slot.split(' ')
+                        date_part = parts[0]
+                        time_range = parts[1] if len(parts) > 1 else "시간 미정"
                         
-                        # 분 단위로 계산
-                        total_minutes = (end_hour * 60 + end_min) - (start_hour * 60 + start_min)
-                        slot_count = total_minutes // 30
-                        slot_info = f"(약 {slot_count}개 면접 가능)"
-                    else:
-                        slot_info = ""
+                        # 30분 단위 슬롯 개수 계산
+                        if '~' in time_range:
+                            start, end = time_range.split('~')
+                            start_parts = start.split(':')
+                            end_parts = end.split(':')
+                            start_hour = int(start_parts[0])
+                            start_min = int(start_parts[1]) if len(start_parts) > 1 else 0
+                            end_hour = int(end_parts[0])
+                            end_min = int(end_parts[1]) if len(end_parts) > 1 else 0
+                            
+                            # 분 단위로 계산
+                            total_minutes = (end_hour * 60 + end_min) - (start_hour * 60 + start_min)
+                            slot_count = total_minutes // 30
+                            slot_info = f"(약 {slot_count}개 면접 가능)"
+                        else:
+                            slot_info = ""
+                        
+                        table_data.append({
+                            "번호": i,
+                            "날짜": format_date_korean(date_part),
+                            "시간대": time_range,
+                            "비고": slot_info
+                        })
                     
-                    table_data.append({
-                        "번호": i,
-                        "날짜": format_date_korean(date_part),
-                        "시간대": time_range,
-                        "비고": slot_info
-                    })
-                
-                df = pd.DataFrame(table_data)
-                for col in df.columns:
-                    df[col] = df[col].astype(str)
-                
-                st.dataframe(df, use_container_width=True, hide_index=True)
-                
-                # ✅ 초기화 버튼 (중복 제거 - 하나만 유지)
-                col1, col2 = st.columns([10, 1])
-                with col2:
-                    if st.button("시간대 초기화", key=f"clear_slots_{key_suffix}"):
-                        st.session_state.selected_slots = []
-                        st.success("✅ 모든 시간대가 삭제되었습니다.")
-                        st.rerun()
+                    df = pd.DataFrame(table_data)
+                    for col in df.columns:
+                        df[col] = df[col].astype(str)
+                    
+                    st.dataframe(df, use_container_width=True, hide_index=True)
+                    
+                    # 초기화 버튼
+                    col1, col2 = st.columns([10, 1])
+                    with col2:
+                        if st.button("시간대 초기화", key=f"clear_slots_{key_suffix}"):
+                            st.session_state.selected_slots = []
+                            st.success("✅ 모든 시간대가 삭제되었습니다.")
+                            st.rerun()
             
             # ✅ 최종 제출 섹션
             st.markdown("---")
