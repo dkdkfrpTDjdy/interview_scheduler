@@ -718,7 +718,7 @@ def main():
                     if '제안일시목록' in df.columns:
                         display_columns.append('제안일시목록')
                     if '면접자명' in df.columns:
-                        display_columns.append('면접자이름')
+                        display_columns.append('면접자명')
                     if '면접자전화번호' in df.columns:
                         display_columns.append('면접자전화번호')
                     if '면접자이메일' in df.columns:
