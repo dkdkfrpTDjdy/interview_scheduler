@@ -349,7 +349,6 @@ def main():
                 # ✅ 면접자 수에 따른 자동 종료 시간 계산
                 candidate_count = len(st.session_state.selected_candidates)
                 
-                # 시작 시간이 선택되었고 면접자가 있으면 자동 계산
                 if start_time != "선택안함" and candidate_count > 0:
                     try:
                         # 시작 시간 파싱
@@ -365,37 +364,25 @@ def main():
                         end_min = end_total_minutes % 60
                         auto_end_time = f"{end_hour:02d}:{end_min:02d}"
                         
-                        # 종료 시간 표시 (비활성화)
-                        st.text_input(
-                            "종료 시간",
-                            value=f"{auto_end_time} (자동계산: {candidate_count}명 × 30분)",
-                            disabled=True,
-                            key=f"end_time_display_{key_suffix}",
-                            help=f"면접자 {candidate_count}명 기준 자동 계산"
+                        # ✅ 종료 시간 표시
+                        st.metric(
+                            label="종료 시간",
+                            value=auto_end_time,
+                            delta=f"{candidate_count}명 × 30분"
                         )
                         
-                        # 실제 사용할 종료 시간 저장
                         calculated_end_time = auto_end_time
                         
                     except Exception as e:
                         st.error(f"시간 계산 오류: {e}")
                         calculated_end_time = "선택안함"
                 else:
-                    # 면접자가 없거나 시작 시간 미선택 시 안내 메시지
-                    if candidate_count == 0:
-                        st.text_input(
-                            "종료 시간",
-                            value="면접자를 먼저 추가해주세요",
-                            disabled=True,
-                            key=f"end_time_display_{key_suffix}"
-                        )
-                    else:
-                        st.text_input(
-                            "종료 시간",
-                            value="시작 시간을 선택해주세요",
-                            disabled=True,
-                            key=f"end_time_display_{key_suffix}"
-                        )
+                    # 안내 메시지
+                    st.metric(
+                        label="종료 시간",
+                        value="--:--",
+                        delta="면접자 추가 필요" if candidate_count == 0 else "시작 시간 선택 필요"
+                    )
                     calculated_end_time = "선택안함"
 
             with col4:
