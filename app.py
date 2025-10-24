@@ -116,13 +116,8 @@ def render_interviewer_selection(key_suffix, org_data):
     """면접관 선택 섹션 렌더링 (최대 3명)"""
     st.markdown("**👨‍💼 면접관 선택 (최대 3명)**")
     
-    # ✅ 추가 버튼 클릭 시 입력 필드 초기화를 위한 플래그
-    if f"interviewer_added_{key_suffix}" in st.session_state:
-        if st.session_state[f"interviewer_added_{key_suffix}"]:
-            st.session_state[f"interviewer_added_{key_suffix}"] = False
-            # 입력 필드 key를 변경하여 강제 초기화
-            st.session_state.form_reset_counter += 1
-            st.rerun()
+    # ✅ 동적 key 생성 (카운터 사용)
+    input_key = f"interviewer_input_{key_suffix}_{st.session_state.interviewer_input_counter}"
     
     col1, col2 = st.columns([3, 1])
     
@@ -132,8 +127,7 @@ def render_interviewer_selection(key_suffix, org_data):
                 "면접관 사번",
                 placeholder="예: 223286",
                 help="면접관의 사번을 입력해주세요",
-                key=f"new_interviewer_id_{key_suffix}",
-                value=""  # ✅ 명시적으로 빈 값 설정
+                key=f"new_interviewer_id_{input_key}"
             )
         else:
             interviewer_options = [f"{emp['employee_id']} - {emp['name']} ({emp['department']})" 
@@ -142,8 +136,7 @@ def render_interviewer_selection(key_suffix, org_data):
                 "면접관 선택",
                 options=["선택해주세요"] + interviewer_options,
                 help="면접관을 선택해주세요 (최대 3명)",
-                key=f"new_interviewer_select_{key_suffix}",
-                index=0  # ✅ 항상 첫 번째 옵션 선택
+                key=f"new_interviewer_select_{input_key}"
             )
             new_interviewer_id = selected_interviewer.split(' - ')[0] if selected_interviewer != "선택해주세요" else ""
     
@@ -152,17 +145,19 @@ def render_interviewer_selection(key_suffix, org_data):
         add_interviewer_clicked = st.button(
             "➕ 면접관 추가",
             disabled=(not new_interviewer_id.strip() or len(st.session_state.selected_interviewers) >= 3),
-            key=f"add_interviewer_{key_suffix}"
+            key=f"add_interviewer_{input_key}"
         )
     
     if add_interviewer_clicked and new_interviewer_id.strip():
         if new_interviewer_id not in st.session_state.selected_interviewers:
             if len(st.session_state.selected_interviewers) < 3:
                 st.session_state.selected_interviewers.append(new_interviewer_id)
-                st.success(f"✅ 면접관 {new_interviewer_id}이(가) 추가되었습니다.")
                 
-                # ✅ 플래그 설정 후 rerun
-                st.session_state[f"interviewer_added_{key_suffix}"] = True
+                # ✅ 카운터 증가 → 입력 필드 key 변경 → 강제 초기화
+                st.session_state.interviewer_input_counter += 1
+                
+                st.success(f"✅ 면접관 {new_interviewer_id}이(가) 추가되었습니다.")
+                time.sleep(0.5)
                 st.rerun()
             else:
                 st.warning("⚠️ 최대 3명까지만 선택 가능합니다.")
@@ -191,20 +186,23 @@ def render_candidate_selection(key_suffix):
     """면접자 선택 섹션 렌더링 (n명)"""
     st.markdown("**👤 면접자 선택**")
     
+    # ✅ 동적 key 생성 (카운터 사용)
+    input_key = f"candidate_input_{key_suffix}_{st.session_state.candidate_input_counter}"
+    
     col1, col2, col3 = st.columns([2, 2, 1])
     
     with col1:
         new_candidate_name = st.text_input(
             "면접자 이름",
             placeholder="정면접",
-            key=f"new_candidate_name_{key_suffix}"
+            key=f"new_candidate_name_{input_key}"
         )
     
     with col2:
         new_candidate_email = st.text_input(
             "면접자 이메일",
             placeholder="candidate@example.com",
-            key=f"new_candidate_email_{key_suffix}"
+            key=f"new_candidate_email_{input_key}"
         )
     
     with col3:
@@ -212,7 +210,7 @@ def render_candidate_selection(key_suffix):
         add_candidate_clicked = st.button(
             "➕ 면접자 추가",
             disabled=(not new_candidate_name.strip() or not new_candidate_email.strip()),
-            key=f"add_candidate_{key_suffix}"
+            key=f"add_candidate_{input_key}"
         )
     
     if add_candidate_clicked:
@@ -226,10 +224,12 @@ def render_candidate_selection(key_suffix):
                 existing_emails = [c['email'] for c in st.session_state.selected_candidates]
                 if new_candidate_email not in existing_emails:
                     st.session_state.selected_candidates.append(candidate_info)
-                    st.success(f"✅ 면접자 {new_candidate_name}이(가) 추가되었습니다.")
                     
-                    # ✅ 폼 내부 위젯 값은 직접 수정하지 않음
-                    # 대신 페이지 새로고침으로 자동 초기화
+                    # ✅ 카운터 증가 → 입력 필드 key 변경 → 강제 초기화
+                    st.session_state.candidate_input_counter += 1
+                    
+                    st.success(f"✅ 면접자 {new_candidate_name}이(가) 추가되었습니다.")
+                    time.sleep(0.5)
                     st.rerun()
                 else:
                     st.warning("⚠️ 이미 등록된 이메일입니다.")
@@ -251,6 +251,23 @@ def main():
     st.title("📅 AI 면접 일정 조율 시스템")
 
     init_session_state()
+    """세션 상태 초기화"""
+    if "form_reset_counter" not in st.session_state:
+        st.session_state.form_reset_counter = 0
+    if "selected_interviewers" not in st.session_state:
+        st.session_state.selected_interviewers = []
+    if "selected_candidates" not in st.session_state:
+        st.session_state.selected_candidates = []
+    if "selected_slots" not in st.session_state:
+        st.session_state.selected_slots = []
+    if "submission_done" not in st.session_state:
+        st.session_state.submission_done = False
+    
+    # ✅ 입력 필드 초기화용 카운터 추가
+    if "interviewer_input_counter" not in st.session_state:
+        st.session_state.interviewer_input_counter = 0
+    if "candidate_input_counter" not in st.session_state:
+        st.session_state.candidate_input_counter = 0
     
     db, email_service, sync_manager = init_services()
     org_data = load_organization_data()
