@@ -151,10 +151,8 @@ def render_interviewer_selection(key_suffix, org_data):
                 st.session_state.selected_interviewers.append(new_interviewer_id)
                 st.success(f"✅ 면접관 {new_interviewer_id}이(가) 추가되었습니다.")
                 
-                # ✅ 입력 필드 초기화
-                st.session_state[f"new_interviewer_id_{key_suffix}"] = ""
-                st.session_state[f"new_interviewer_select_{key_suffix}"] = "선택해주세요"
-                
+                # ✅ 폼 내부 위젯 값은 직접 수정하지 않음
+                # 대신 페이지 새로고침으로 자동 초기화
                 st.rerun()
             else:
                 st.warning("⚠️ 최대 3명까지만 선택 가능합니다.")
@@ -220,10 +218,8 @@ def render_candidate_selection(key_suffix):
                     st.session_state.selected_candidates.append(candidate_info)
                     st.success(f"✅ 면접자 {new_candidate_name}이(가) 추가되었습니다.")
                     
-                    # ✅ 입력 필드 초기화
-                    st.session_state[f"new_candidate_name_{key_suffix}"] = ""
-                    st.session_state[f"new_candidate_email_{key_suffix}"] = ""
-                    
+                    # ✅ 폼 내부 위젯 값은 직접 수정하지 않음
+                    # 대신 페이지 새로고침으로 자동 초기화
                     st.rerun()
                 else:
                     st.warning("⚠️ 이미 등록된 이메일입니다.")
