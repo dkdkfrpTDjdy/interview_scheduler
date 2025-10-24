@@ -364,12 +364,9 @@ def main():
                         end_min = end_total_minutes % 60
                         auto_end_time = f"{end_hour:02d}:{end_min:02d}"
                         
-                        # ✅ 종료 시간 표시
-                        st.metric(
-                            label="종료 시간",
-                            value=auto_end_time,
-                            delta=f"{candidate_count}명 × 30분"
-                        )
+                        # ✅ 종료 시간 표시 (라벨 + 값)
+                        st.markdown("**종료 시간**")
+                        st.markdown(f"### {auto_end_time}")
                         
                         calculated_end_time = auto_end_time
                         
@@ -378,11 +375,13 @@ def main():
                         calculated_end_time = "선택안함"
                 else:
                     # 안내 메시지
-                    st.metric(
-                        label="종료 시간",
-                        value="--:--",
-                        delta="면접자 추가 필요" if candidate_count == 0 else "시작 시간 선택 필요"
-                    )
+                    st.markdown("**종료 시간**")
+                    if candidate_count == 0:
+                        st.markdown("### --:--")
+                        st.caption("면접자를 추가해주세요")
+                    else:
+                        st.markdown("### --:--")
+                        st.caption("시작 시간을 선택해주세요")
                     calculated_end_time = "선택안함"
 
             with col4:
