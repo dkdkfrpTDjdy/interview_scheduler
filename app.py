@@ -710,19 +710,19 @@ def main():
                     
                     display_columns = []
                     if '포지션명' in df.columns:
-                        display_columns.append('공고명')
+                        display_columns.append('포지션명')
                     if '상세공고명' in df.columns:
                         display_columns.append('상세공고명')
                     if '면접관이름' in df.columns:
                         display_columns.append('면접관이름')
                     if '제안일시목록' in df.columns:
-                        display_columns.append('면접관 희망 일시')
+                        display_columns.append('제안일시목록')
                     if '면접자명' in df.columns:
-                        display_columns.append('면접자 이름')
+                        display_columns.append('면접자이름')
                     if '면접자전화번호' in df.columns:
                         display_columns.append('면접자전화번호')
                     if '면접자이메일' in df.columns:
-                        display_columns.append('면접자 메일')
+                        display_columns.append('면접자이메일')
                     if '상태' in df.columns:
                         display_columns.append('상태')
                     if '확정일시' in df.columns:
