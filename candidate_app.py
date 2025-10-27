@@ -285,7 +285,41 @@ def find_candidate_requests(name: str, email: str):
 
                     # ✅ 선택 가능한 슬롯 필터링
                     if request_obj['status'] == '면접자_선택대기':
-                        request_obj['available_slots_filtered'] = parse_proposed_slots(request_obj.get('proposed_slots', ''))
+                        try:
+                            # DatabaseManager 초기화
+                            from database import DatabaseManager
+                            db = DatabaseManager()
+                            
+                            # DB에서 InterviewRequest 객체 가져오기
+                            db_request = db.get_interview_request(clean_id)
+                            
+                            if db_request:
+                                # ✅ 예약된 슬롯을 제외한 슬롯 조회
+                                available_slots = db.get_available_slots_for_candidate(db_request)
+                                
+                                # InterviewSlot → dict 변환
+                                request_obj['available_slots_filtered'] = [
+                                    {
+                                        'date': slot.date,
+                                        'time': slot.time,
+                                        'duration': slot.duration
+                                    }
+                                    for slot in available_slots
+                                ]
+                                
+                                logger.info(f"✅ {request_obj['candidate_name']} - 필터링 후 {len(available_slots)}개 슬롯")
+                            else:
+                                # DB에 없으면 기존 방식 사용
+                                logger.warning(f"⚠️ DB에서 요청을 찾을 수 없음: {clean_id}")
+                                request_obj['available_slots_filtered'] = parse_proposed_slots(
+                                    request_obj.get('proposed_slots', '')
+                                )
+                        except Exception as e:
+                            logger.error(f"❌ 슬롯 필터링 오류: {e}")
+                            # 오류 시 기존 방식 사용
+                            request_obj['available_slots_filtered'] = parse_proposed_slots(
+                                request_obj.get('proposed_slots', '')
+                            )
                     else:
                         request_obj['available_slots_filtered'] = []
 
@@ -732,11 +766,9 @@ def show_request_detail(request, index):
     if st.button("✅ 면접 일정 선택 완료", key=f"submit_{index}", use_container_width=True, type="primary"):
         # ✅ 전화번호 유효성 체크
         if not phone_number or not phone_valid:
-            st.markdown("""
-            <div style="background-color: #f8d7da; border-left: 5px solid #EF3340; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                <p style="color: #721c24; margin: 0; font-weight: bold;">❌ 올바른 전화번호를 입력해주세요.</p>
-            </div>
-            """, unsafe_allow_html=True)
+            # ✅ 세션 상태에 경고 메시지 저장
+            st.session_state.warning_message = "올바른 전화번호를 입력해주세요. (숫자 11자리)"
+            st.rerun()
             return
         
         if 'row_number' not in request:
@@ -798,12 +830,10 @@ def show_request_detail(request, index):
                 st.session_state.candidate_requests = updated
                 st.rerun()
             else:
-                st.markdown("""
-                <div style="background-color: #f8d7da; border-left: 5px solid #EF3340; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                    <p style="color: #721c24; margin: 0; font-weight: bold;">❌ 해당 일정이 이미 선택되었습니다.</p>
-                    <p style="color: #721c24; margin: 5px 0 0 0; font-size: 14px;">다른 일정을 선택해주세요.</p>
-                </div>
-                """, unsafe_allow_html=True)
+                # ✅ 세션 상태에 경고 메시지 저장
+                st.session_state.warning_message = "해당 일정이 이미 선택되었습니다. 다른 일정을 선택해주세요."
+                
+                # 데이터 새로고침
                 st.session_state.candidate_requests = force_refresh_candidate_data(
                     st.session_state.authenticated_candidate['name'],
                     st.session_state.authenticated_candidate['email']
@@ -843,7 +873,25 @@ def show_confirmed_schedule(request):
 def main():
     hide_pages()
 
-    # ✅ DB 동기화 (최초 1회만)
+    # ✅ 경고 메시지 표시 (최상단)
+    if 'warning_message' in st.session_state and st.session_state.warning_message:
+        col1, col2 = st.columns([10, 1])
+        
+        with col1:
+            st.markdown(f"""
+            <div style="background-color: #f8d7da; border-left: 5px solid #EF3340; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <p style="color: #721c24; margin: 0; font-weight: bold; font-size: 16px;">
+                    ⚠️ {st.session_state.warning_message}
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            if st.button("✖", key="close_warning", help="닫기"):
+                st.session_state.warning_message = None
+                st.rerun()
+
+    # DB 동기화 (최초 1회만)
     if 'db_synced' not in st.session_state:
         with st.spinner("📊 데이터 동기화 중..."):
             from database import DatabaseManager

@@ -502,12 +502,13 @@ def main():
                                     candidate_email=candidate['email'],
                                     candidate_name=candidate['name'],
                                     position_name=st.session_state.basic_info['position_name'],
+                                    detailed_position_name=st.session_state.basic_info.get('detailed_position_name', ''),  # ✅ 추가
                                     preferred_datetime_slots=st.session_state.selected_slots.copy()
                                 )
                                 
                                 # ✅ 생성 후 확인
                                 st.write(f"  - 생성된 객체의 detailed_position_name: '{request.detailed_position_name}'")
-                                
+
                                 db.save_interview_request(request)
                                 all_requests.append(request)
                                 
@@ -603,7 +604,6 @@ def main():
             if db.sheet:
                 sheet_data = db.sheet.get_all_records()
                 
-                # "면접자_선택대기" 상태만 필터링
                 pending_candidates = [
                     row for row in sheet_data 
                     if str(row.get('상태', '')).strip() == '면접자_선택대기'
@@ -614,69 +614,140 @@ def main():
                 else:
                     st.success(f"📊 총 {len(pending_candidates)}명의 면접자가 메일 발송 대기 중입니다.")
                     
-                    # 테이블 표시
-                    df = pd.DataFrame(pending_candidates)
+                    # ✅ 개별 선택을 위한 세션 상태 초기화
+                    if 'selected_candidate_indices' not in st.session_state:
+                        st.session_state.selected_candidate_indices = set()
                     
-                    display_columns = []
-                    if '공고명' in df.columns:
-                        display_columns.append('공고명')
-                    if '상세공고명' in df.columns:
-                        display_columns.append('상세공고명')
-                    if '면접자명' in df.columns:
-                        display_columns.append('면접자명')
-                    if '면접자이메일' in df.columns:
-                        display_columns.append('면접자이메일')
-                    if '제안일시목록' in df.columns:
-                        display_columns.append('제안일시목록')
+                    st.markdown("### 📋 발송할 면접자 선택")
                     
-                    if display_columns:
-                        display_df = df[display_columns].copy()
-                        st.dataframe(display_df, use_container_width=True, hide_index=True)
+                    # ✅ 전체 선택 체크박스
+                    col_select_all, col_spacer = st.columns([1, 5])
+                    with col_select_all:
+                        select_all = st.checkbox("전체 선택", key="select_all_candidates")
                     
-                    # 일괄 발송 버튼
-                    if st.button("📧 선택된 면접자들에게 메일 일괄 발송", type="primary", use_container_width=True):
-                        success_count = 0
-                        fail_count = 0
+                    if select_all:
+                        st.session_state.selected_candidate_indices = set(range(len(pending_candidates)))
+                    elif not select_all and len(st.session_state.selected_candidate_indices) == len(pending_candidates):
+                        # 전체 선택 해제
+                        st.session_state.selected_candidate_indices = set()
+                    
+                    st.markdown("---")
+                    
+                    # ✅ 테이블 헤더
+                    header_cols = st.columns([0.5, 2, 2.5, 2.5, 1.5])
+                    with header_cols[0]:
+                        st.markdown("**선택**")
+                    with header_cols[1]:
+                        st.markdown("**공고명**")
+                    with header_cols[2]:
+                        st.markdown("**면접자**")
+                    with header_cols[3]:
+                        st.markdown("**이메일**")
+                    with header_cols[4]:
+                        st.markdown("**제안 슬롯**")
+                    
+                    st.markdown("---")
+                    
+                    # ✅ 개별 선택 체크박스 + 데이터 표시
+                    for i, row in enumerate(pending_candidates):
+                        cols = st.columns([0.5, 2, 2.5, 2.5, 1.5])
                         
-                        progress_bar = st.progress(0)
-                        status_text = st.empty()
-                        
-                        for i, row in enumerate(pending_candidates):
-                            try:
-                                request_id = row.get('요청ID', '')
-                                if not request_id:
-                                    continue
-                                
-                                status_text.text(f"📧 메일 발송 중... {i+1}/{len(pending_candidates)}")
-                                
-                                # DB에서 요청 조회
-                                request = db.get_interview_request(request_id)
-                                if request:
-                                    result = email_service.send_candidate_invitation(request)
-                                    if result:
-                                        success_count += 1
-                                    else:
-                                        fail_count += 1
-                                else:
-                                    fail_count += 1
-                                
-                                progress_bar.progress((i + 1) / len(pending_candidates))
-                                time.sleep(0.5)
-                                
-                            except Exception as e:
-                                fail_count += 1
-                                st.error(f"❌ {row.get('면접자명', '알 수 없음')} 발송 실패: {e}")
-                        
-                        progress_bar.empty()
-                        status_text.empty()
-                        
-                        if success_count > 0:
-                            st.success(f"✅ 메일 발송 완료: {success_count}명 성공, {fail_count}명 실패")
-                            time.sleep(2)
-                            st.rerun()
-                        else:
-                            st.error(f"❌ 모든 메일 발송 실패: {fail_count}명")
+                        with cols[0]:
+                            is_selected = st.checkbox(
+                                "선택",
+                                value=i in st.session_state.selected_candidate_indices,
+                                key=f"candidate_check_{i}",
+                                label_visibility="collapsed"
+                            )
                             
+                            if is_selected:
+                                st.session_state.selected_candidate_indices.add(i)
+                            elif i in st.session_state.selected_candidate_indices:
+                                st.session_state.selected_candidate_indices.discard(i)
+                        
+                        with cols[1]:
+                            st.text(row.get('공고명', ''))
+                        
+                        with cols[2]:
+                            st.text(row.get('면접자명', ''))
+                        
+                        with cols[3]:
+                            st.text(row.get('면접자이메일', ''))
+                        
+                        with cols[4]:
+                            slots_str = row.get('제안일시목록', '')
+                            slots_count = len(slots_str.split('|')) if slots_str else 0
+                            st.text(f"{slots_count}개")
+                    
+                    st.markdown("---")
+                    
+                    # ✅ 선택된 면접자 수 표시 및 발송 버튼
+                    selected_count = len(st.session_state.selected_candidate_indices)
+                    
+                    if selected_count > 0:
+                        st.info(f"✅ **{selected_count}명** 선택됨")
+                        
+                        col1, col2, col3 = st.columns([1, 2, 1])
+                        
+                        with col2:
+                            if st.button(
+                                f"📧 선택된 {selected_count}명에게 메일 발송",
+                                type="primary",
+                                use_container_width=True
+                            ):
+                                success_count = 0
+                                fail_count = 0
+                                
+                                progress_bar = st.progress(0)
+                                status_text = st.empty()
+                                
+                                # ✅ 선택된 면접자만 가져오기
+                                selected_candidates = [
+                                    pending_candidates[i] 
+                                    for i in sorted(st.session_state.selected_candidate_indices)
+                                ]
+                                
+                                for i, row in enumerate(selected_candidates):
+                                    try:
+                                        request_id = row.get('요청ID', '')
+                                        if not request_id:
+                                            fail_count += 1
+                                            continue
+                                        
+                                        status_text.text(f"📧 메일 발송 중... {i+1}/{selected_count} - {row.get('면접자명', '')}")
+                                        
+                                        request = db.get_interview_request(request_id)
+                                        if request:
+                                            result = email_service.send_candidate_invitation(request)
+                                            if result:
+                                                success_count += 1
+                                            else:
+                                                fail_count += 1
+                                        else:
+                                            fail_count += 1
+                                        
+                                        progress_bar.progress((i + 1) / selected_count)
+                                        time.sleep(0.5)
+                                        
+                                    except Exception as e:
+                                        fail_count += 1
+                                        st.error(f"❌ {row.get('면접자명', '알 수 없음')} 발송 실패: {e}")
+                                
+                                progress_bar.empty()
+                                status_text.empty()
+                                
+                                if success_count > 0:
+                                    st.success(f"✅ 메일 발송 완료: {success_count}명 성공, {fail_count}명 실패")
+                                    
+                                    # ✅ 선택 초기화
+                                    st.session_state.selected_candidate_indices = set()
+                                    time.sleep(2)
+                                    st.rerun()
+                                else:
+                                    st.error(f"❌ 모든 메일 발송 실패: {fail_count}명")
+                    else:
+                        st.warning("⚠️ 발송할 면접자를 선택해주세요.")
+                                
         except Exception as e:
             st.error(f"데이터 로드 실패: {e}")
 
