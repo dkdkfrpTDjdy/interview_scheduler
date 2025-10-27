@@ -370,19 +370,25 @@ def normalize_text(text: str) -> str:
 
 import re
 
+# ✅ 개선된 코드
 def parse_proposed_slots(raw_slots: str) -> List[dict]:
     """
-    🔧 개선된 제안 일정 파싱
+    제안 일정 파싱 (다양한 형식 지원)
     
-    문제점: 다양한 형식의 일정 문자열 파싱 실패
-    해결책: 정규식 패턴을 확장하여 다양한 형식 지원
+    지원 형식:
+    - "2025-01-15 14:00(30분)"
+    - "2025-01-15 14:00~14:30"
+    - "2025-01-15 14:00"
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     if not raw_slots:
         return []
     
     slots = []
     try:
-        # 구분자로 분할 (|, 쉼표, 세미콜론, 줄바꿈 등)
+        # 구분자로 분할
         parts = re.split(r'[|,;/\n\r]+', str(raw_slots))
         
         for part in parts:
@@ -399,9 +405,32 @@ def parse_proposed_slots(raw_slots: str) -> List[dict]:
                     "time": time_str,
                     "duration": int(duration_str)
                 })
+                logger.debug(f"✅ 패턴1 매칭: {part}")
                 continue
             
-            # 패턴 2: "2025-01-15 14:00" (괄호 없음)
+            # 패턴 2: "2025-01-15 14:00~14:30"
+            match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})~(\d{2}:\d{2})', part)
+            if match:
+                date_str, start_time, end_time = match.groups()
+                
+                # 시간 차이 계산
+                try:
+                    from datetime import datetime
+                    start = datetime.strptime(start_time, '%H:%M')
+                    end = datetime.strptime(end_time, '%H:%M')
+                    duration = int((end - start).total_seconds() / 60)
+                except:
+                    duration = 30
+                
+                slots.append({
+                    "date": date_str,
+                    "time": start_time,
+                    "duration": duration
+                })
+                logger.debug(f"✅ 패턴2 매칭: {part}")
+                continue
+            
+            # 패턴 3: "2025-01-15 14:00" (괄호 없음)
             match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})', part)
             if match:
                 date_str, time_str = match.groups()
@@ -410,13 +439,18 @@ def parse_proposed_slots(raw_slots: str) -> List[dict]:
                     "time": time_str,
                     "duration": 30  # 기본값
                 })
+                logger.debug(f"✅ 패턴3 매칭: {part}")
                 continue
+            
+            # 매칭 실패
+            logger.warning(f"⚠️ 파싱 실패: {part}")
                 
     except Exception as e:
-        print(f"❌ 제안 일정 파싱 오류: {e}")
+        logger.error(f"❌ 제안 일정 파싱 오류: {e}")
     
-    print(f"📅 파싱 결과: {len(slots)}개 슬롯 추출")
+    logger.info(f"📅 최종 파싱 결과: {len(slots)}개 슬롯")
     return slots
+
         
 def normalize_request_id(request_id: str) -> str:
     """

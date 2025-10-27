@@ -285,42 +285,62 @@ def find_candidate_requests(name: str, email: str):
 
                     # ✅ 선택 가능한 슬롯 필터링
                     if request_obj['status'] == '면접자_선택대기':
+                        proposed_slots_raw = request_obj.get('제안일시목록', '')
+                        
+                        if not proposed_slots_raw:
+                            logger.warning(f"⚠️ {row_name} - 제안일시목록이 비어있음")
+                            request_obj['available_slots_filtered'] = []
+                            matching_requests.append(request_obj)
+                            continue
+                        
+                        # 2단계: 기본 슬롯 파싱
+                        base_slots = parse_proposed_slots(proposed_slots_raw)
+                        
+                        if not base_slots:
+                            logger.warning(f"⚠️ {request_obj['candidate_name']} - 슬롯 파싱 실패: {proposed_slots_raw}")
+                            request_obj['available_slots_filtered'] = []
+                            matching_requests.append(request_obj)
+                            continue
+                        
+                        logger.info(f"📋 {request_obj['candidate_name']} - 파싱된 슬롯: {len(base_slots)}개")
+                        
+                        # 3단계: 실시간 필터링 시도 (선택사항)
                         try:
-                            # DatabaseManager 초기화
                             from database import DatabaseManager
                             db = DatabaseManager()
                             
-                            # DB에서 InterviewRequest 객체 가져오기
                             db_request = db.get_interview_request(clean_id)
                             
                             if db_request:
-                                # ✅ 예약된 슬롯을 제외한 슬롯 조회
-                                available_slots = db.get_available_slots_for_candidate(db_request)
+                                # DB에서 예약된 슬롯 제외
+                                filtered_slots = db.get_available_slots_for_candidate(db_request)
                                 
-                                # InterviewSlot → dict 변환
-                                request_obj['available_slots_filtered'] = [
-                                    {
-                                        'date': slot.date,
-                                        'time': slot.time,
-                                        'duration': slot.duration
-                                    }
-                                    for slot in available_slots
-                                ]
-                                
-                                logger.info(f"✅ {request_obj['candidate_name']} - 필터링 후 {len(available_slots)}개 슬롯")
+                                if filtered_slots:
+                                    # 필터링 성공
+                                    request_obj['available_slots_filtered'] = [
+                                        {
+                                            'date': slot.date,
+                                            'time': slot.time,
+                                            'duration': slot.duration
+                                        }
+                                        for slot in filtered_slots
+                                    ]
+                                    logger.info(f"✅ {request_obj['candidate_name']} - 필터링 후 {len(filtered_slots)}개 슬롯")
+                                else:
+                                    # 필터링 결과가 비어있으면 기본 슬롯 사용
+                                    logger.warning(f"⚠️ {request_obj['candidate_name']} - 필터링 결과 없음, 기본 슬롯 사용")
+                                    request_obj['available_slots_filtered'] = base_slots
                             else:
-                                # DB에 없으면 기존 방식 사용
-                                logger.warning(f"⚠️ DB에서 요청을 찾을 수 없음: {clean_id}")
-                                request_obj['available_slots_filtered'] = parse_proposed_slots(
-                                    request_obj.get('proposed_slots', '')
-                                )
+                                # DB에 요청이 없으면 기본 슬롯 사용
+                                logger.info(f"ℹ️ {request_obj['candidate_name']} - DB에 없음, 기본 슬롯 사용")
+                                request_obj['available_slots_filtered'] = base_slots
+                                
                         except Exception as e:
-                            logger.error(f"❌ 슬롯 필터링 오류: {e}")
-                            # 오류 시 기존 방식 사용
-                            request_obj['available_slots_filtered'] = parse_proposed_slots(
-                                request_obj.get('proposed_slots', '')
-                            )
+                            # 오류 발생 시 기본 슬롯 사용
+                            logger.error(f"❌ {request_obj['candidate_name']} - 필터링 오류: {e}, 기본 슬롯 사용")
+                            request_obj['available_slots_filtered'] = base_slots
                     else:
+                        # 상태가 "면접자_선택대기"가 아닌 경우
                         request_obj['available_slots_filtered'] = []
 
                     matching_requests.append(request_obj)
