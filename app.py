@@ -634,23 +634,25 @@ def main():
                     st.markdown("---")
                     
                     # ✅ 테이블 헤더
-                    header_cols = st.columns([0.5, 2, 2.5, 2.5, 1.5])
+                    header_cols = st.columns([0.5, 1.5, 2.5, 1.5, 2, 2])
                     with header_cols[0]:
                         st.markdown("**선택**")
                     with header_cols[1]:
                         st.markdown("**공고명**")
                     with header_cols[2]:
-                        st.markdown("**면접자**")
+                        st.markdown("**상세공고명**")
                     with header_cols[3]:
-                        st.markdown("**이메일**")
+                        st.markdown("**면접자**")
                     with header_cols[4]:
-                        st.markdown("**제안 슬롯**")
+                        st.markdown("**이메일**")
+                    with header_cols[5]:
+                        st.markdown("**제안 시간**")
                     
                     st.markdown("---")
                     
                     # ✅ 개별 선택 체크박스 + 데이터 표시
                     for i, row in enumerate(pending_candidates):
-                        cols = st.columns([0.5, 2, 2.5, 2.5, 1.5])
+                        cols = st.columns([0.5, 1.5, 2.5, 1.5, 2, 2])
                         
                         with cols[0]:
                             is_selected = st.checkbox(
@@ -667,17 +669,29 @@ def main():
                         
                         with cols[1]:
                             st.text(row.get('공고명', ''))
-                        
+
                         with cols[2]:
-                            st.text(row.get('면접자명', ''))
+                            st.text(row.get('상세공고명', ''))
                         
                         with cols[3]:
-                            st.text(row.get('면접자이메일', ''))
+                            st.text(row.get('면접자명', ''))
                         
                         with cols[4]:
+                            st.text(row.get('면접자이메일', ''))
+                        
+                        with cols[5]:
                             slots_str = row.get('제안일시목록', '')
-                            slots_count = len(slots_str.split('|')) if slots_str else 0
-                            st.text(f"{slots_count}개")
+                            if slots_str:
+                                # 파이프(|)로 구분된 일정을 줄바꿈으로 표시
+                                slots_list = [slot.strip() for slot in slots_str.split('|') if slot.strip()]
+                                # 최대 3개만 표시하고 나머지는 "외 N개"로 표시
+                                if len(slots_list) <= 3:
+                                    st.text('\n'.join(slots_list))
+                                else:
+                                    display_slots = slots_list[:3]
+                                    st.text('\n'.join(display_slots) + f'\n외 {len(slots_list)-3}개')
+                            else:
+                                st.text("일정 없음")
                     
                     st.markdown("---")
                     
