@@ -297,44 +297,43 @@ def find_candidate_requests(name: str, email: str):
                         base_slots = parse_proposed_slots(proposed_slots_raw)
                         
                         if not base_slots:
-                            logger.warning(f"⚠️ {request_obj['candidate_name']} - 슬롯 파싱 실패: {proposed_slots_raw}")
+                            logger.warning(f"⚠️ {request_obj['candidate_name']} - 슬롯 파싱 실패")
                             request_obj['available_slots_filtered'] = []
                             matching_requests.append(request_obj)
                             continue
                         
                         logger.info(f"📋 {request_obj['candidate_name']} - 파싱된 슬롯: {len(base_slots)}개")
                         
-                        # 3단계: 실시간 필터링 시도 (선택사항)
+                        # ✅ 3단계: 실시간 예약 슬롯 제외 (강화된 필터링)
                         try:
                             from database import DatabaseManager
                             db = DatabaseManager()
                             
-                            db_request = db.get_interview_request(clean_id)
+                            # ✅ 동일 공고의 모든 확정된 슬롯 조회
+                            reserved_slot_keys = set()
+                            all_requests_db = db.get_all_requests()
                             
-                            if db_request:
-                                # DB에서 예약된 슬롯 제외
-                                filtered_slots = db.get_available_slots_for_candidate(db_request)
-                                
-                                if filtered_slots:
-                                    # 필터링 성공
-                                    request_obj['available_slots_filtered'] = [
-                                        {
-                                            'date': slot.date,
-                                            'time': slot.time,
-                                            'duration': slot.duration
-                                        }
-                                        for slot in filtered_slots
-                                    ]
-                                    logger.info(f"✅ {request_obj['candidate_name']} - 필터링 후 {len(filtered_slots)}개 슬롯")
-                                else:
-                                    # 필터링 결과가 비어있으면 기본 슬롯 사용
-                                    logger.warning(f"⚠️ {request_obj['candidate_name']} - 필터링 결과 없음, 기본 슬롯 사용")
-                                    request_obj['available_slots_filtered'] = base_slots
-                            else:
-                                # DB에 요청이 없으면 기본 슬롯 사용
-                                logger.info(f"ℹ️ {request_obj['candidate_name']} - DB에 없음, 기본 슬롯 사용")
-                                request_obj['available_slots_filtered'] = base_slots
-                                
+                            for req in all_requests_db:
+                                if (req.position_name == request_obj['position_name'] 
+                                    and req.status == Config.Status.CONFIRMED 
+                                    and req.selected_slot 
+                                    and req.id != clean_id):
+                                    
+                                    key = f"{req.selected_slot.date}_{req.selected_slot.time}"
+                                    reserved_slot_keys.add(key)
+                            
+                            logger.info(f"🚫 {request_obj['candidate_name']} - 예약된 슬롯: {len(reserved_slot_keys)}개")
+                            
+                            # ✅ 예약되지 않은 슬롯만 필터링
+                            filtered_slots = []
+                            for slot in base_slots:
+                                slot_key = f"{slot['date']}_{slot['time']}"
+                                if slot_key not in reserved_slot_keys:
+                                    filtered_slots.append(slot)
+                            
+                            request_obj['available_slots_filtered'] = filtered_slots
+                            logger.info(f"✅ {request_obj['candidate_name']} - 선택 가능한 슬롯: {len(filtered_slots)}개")
+                            
                         except Exception as e:
                             # 오류 발생 시 기본 슬롯 사용
                             logger.error(f"❌ {request_obj['candidate_name']} - 필터링 오류: {e}, 기본 슬롯 사용")

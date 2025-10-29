@@ -346,36 +346,50 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                                 interviewer_id=current_interviewer_id,
                                 slots=all_slots
                             )
-                            st.write(f"✅ {request.candidate_name} 요청에 응답 저장 완료")
                         except Exception as e:
                             st.error(f"❌ {request.candidate_name} 응답 저장 실패: {e}")
                     
-                    # ✅ 모든 면접관이 응답했는지 확인
-                    for request in requests:
-                        try:
-                            all_responded, responded_count, total_count = db.check_all_interviewers_responded(request)
-                            
-                            if all_responded:
-                                # 공통 슬롯 계산
-                                common_slots = db.get_common_available_slots(request)
-                                
-                                if common_slots:
-                                    # 요청 업데이트
-                                    request.available_slots = common_slots.copy()
-                                    request.status = Config.Status.PENDING_CANDIDATE
-                                    request.updated_at = datetime.now()
-                                    
-                                    # DB 및 구글시트 저장
-                                    db.save_interview_request(request)
-                                    db.update_google_sheet(request)
-                                    
-                                    st.write(f"  - ✅ {request.candidate_name} 공통 슬롯 저장 완료")
-                        
-                        except Exception as e:
-                            st.error(f"  - ❌ {request.candidate_name} 처리 오류: {e}")
-                            continue
+                    # ✅ 단일 면접관 처리 개선
+                    interviewer_ids = [id.strip() for id in first_request.interviewer_id.split(',')]
                     
-                    # ✅ HR 팀에 알림 메일 발송 (면접자 메일은 발송하지 않음)
+                    if len(interviewer_ids) == 1:
+                        # ✅ 단일 면접관: 즉시 상태 변경
+                        for request in requests:
+                            try:
+                                request.available_slots = all_slots.copy()
+                                request.status = Config.Status.PENDING_CANDIDATE
+                                request.updated_at = datetime.now()
+                                
+                                # DB 및 구글시트 저장
+                                db.save_interview_request(request)
+                                db.update_google_sheet(request)
+                                
+                                st.write(f"✅ {request.candidate_name} 상태 변경 완료")
+                            except Exception as e:
+                                st.error(f"❌ {request.candidate_name} 처리 오류: {e}")
+                    else:
+                        # ✅ 복수 면접관: 모두 응답했는지 확인
+                        for request in requests:
+                            try:
+                                all_responded, responded_count, total_count = db.check_all_interviewers_responded(request)
+                                
+                                if all_responded:
+                                    # 공통 슬롯 계산
+                                    common_slots = db.get_common_available_slots(request)
+                                    
+                                    if common_slots:
+                                        request.available_slots = common_slots.copy()
+                                        request.status = Config.Status.PENDING_CANDIDATE
+                                        request.updated_at = datetime.now()
+                                        
+                                        db.save_interview_request(request)
+                                        db.update_google_sheet(request)
+                                        
+                                        st.write(f"✅ {request.candidate_name} 공통 슬롯 저장 완료")
+                            except Exception as e:
+                                st.error(f"❌ {request.candidate_name} 처리 오류: {e}")
+                    
+                    # ✅ HR 팀에 알림 메일 발송
                     try:
                         email_service.send_hr_notification_on_interviewer_completion(
                             position_name=position_name,

@@ -481,34 +481,27 @@ def main():
                         all_requests = []
                         failed_candidates = []
 
-                        # ✅ 디버깅: basic_info 확인
-                        st.write("🔍 **디버깅 정보:**")
-                        st.write(f"- 공고명: {st.session_state.basic_info.get('position_name', 'N/A')}")
-                        st.write(f"- 상세공고명: {st.session_state.basic_info.get('detailed_position_name', 'N/A')}")
-
                         for candidate in st.session_state.selected_candidates:
                             try:
-                                # ✅ 명시적으로 값 추출
+                                # ✅ 명시적으로 값 추출 (안전한 처리)
                                 position_name = st.session_state.basic_info['position_name']
-                                detailed_position_name = st.session_state.basic_info.get('detailed_position_name', '')
+                                detailed_position_name = st.session_state.basic_info.get('detailed_position_name', '').strip()
                                 
-                                # ✅ 디버깅 로그
-                                st.write(f"📝 {candidate['name']} 요청 생성 중...")
-                                st.write(f"  - 공고명: {position_name}")
-                                st.write(f"  - 상세공고명: '{detailed_position_name}'")
-                    
-                                request = InterviewRequest.create_new(
-                                    interviewer_id=",".join(st.session_state.selected_interviewers),
-                                    candidate_email=candidate['email'],
-                                    candidate_name=candidate['name'],
-                                    position_name=st.session_state.basic_info['position_name'],
-                                    detailed_position_name=st.session_state.basic_info.get('detailed_position_name', ''),  # ✅ 추가
-                                    preferred_datetime_slots=st.session_state.selected_slots.copy()
-                                )
+                                # ✅ 빈 문자열이 아닌 경우에만 전달
+                                request_kwargs = {
+                                    'interviewer_id': ",".join(st.session_state.selected_interviewers),
+                                    'candidate_email': candidate['email'],
+                                    'candidate_name': candidate['name'],
+                                    'position_name': position_name,
+                                    'preferred_datetime_slots': st.session_state.selected_slots.copy()
+                                }
                                 
-                                # ✅ 생성 후 확인
-                                st.write(f"  - 생성된 객체의 detailed_position_name: '{request.detailed_position_name}'")
-
+                                # ✅ 상세공고명이 있는 경우에만 추가
+                                if detailed_position_name:
+                                    request_kwargs['detailed_position_name'] = detailed_position_name
+                                
+                                request = InterviewRequest.create_new(**request_kwargs)
+                                
                                 db.save_interview_request(request)
                                 all_requests.append(request)
                                 
