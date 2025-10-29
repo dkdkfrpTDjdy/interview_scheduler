@@ -106,17 +106,25 @@ class InterviewRequest:
                 preferred_dates: List[str] = None,
                 preferred_datetime_slots: List[str] = None,
                 preferred_time_ranges: List[TimeRange] = None,
-                detailed_position_name: str = "",  # ✅ 매개변수 있음
+                detailed_position_name: str = "",
                 candidate_phone: str = ""):
-        from utils import generate_request_id
+        from utils import generate_request_id, normalize_request_id  # ✅ normalize_request_id 추가
         
-        # ✅ 디버깅 로그 추가
         import logging
         logger = logging.getLogger(__name__)
-        logger.info(f"📝 create_new 호출 - detailed_position_name: '{detailed_position_name}'")
+        
+        # ✅ ID 생성 후 즉시 정규화
+        raw_id = generate_request_id()
+        normalized_id = normalize_request_id(raw_id)
+        
+        logger.info(f"📝 create_new 호출")
+        logger.info(f"  - 원본 ID: {raw_id}")
+        logger.info(f"  - 정규화 ID: {normalized_id}")
+        logger.info(f"  - detailed_position_name: '{detailed_position_name}'")
+        logger.info(f"  - candidate_phone: '{candidate_phone}'")
         
         return cls(
-            id=generate_request_id(),
+            id=normalized_id,  # ✅ 정규화된 ID 사용
             interviewer_id=interviewer_id,
             candidate_email=candidate_email,
             candidate_name=candidate_name,
@@ -127,6 +135,6 @@ class InterviewRequest:
             preferred_dates=preferred_dates or [],
             preferred_datetime_slots=preferred_datetime_slots or [],
             preferred_time_ranges=preferred_time_ranges or [],
-            detailed_position_name=detailed_position_name,  # ✅ 반드시 포함
+            detailed_position_name=detailed_position_name,
             candidate_phone=candidate_phone
         )

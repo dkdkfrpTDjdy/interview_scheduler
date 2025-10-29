@@ -240,15 +240,21 @@ class DatabaseManager:
     def save_interview_request(self, request: InterviewRequest):
         """면접 요청 저장"""
         try:
-            # ✅ 디버깅: 저장 전 확인
+            from utils import normalize_request_id  # ✅ 추가
+            
+            # ✅ ID 정규화
+            normalized_id = normalize_request_id(request.id)
+            
             detailed_name = getattr(request, 'detailed_position_name', '')
             phone = getattr(request, 'candidate_phone', '')
             
             logger.info(f"💾 DB 저장 시도")
-            logger.info(f"  - ID: {request.id}")
+            logger.info(f"  - 원본 ID: {request.id}")
+            logger.info(f"  - 정규화 ID: {normalized_id}")
             logger.info(f"  - 공고명: {request.position_name}")
             logger.info(f"  - 상세공고명: '{detailed_name}'")
             logger.info(f"  - 전화번호: '{phone}'")
+            
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute("""
                     INSERT OR REPLACE INTO interview_requests 
@@ -257,12 +263,12 @@ class DatabaseManager:
                     preferred_datetime_slots, selected_slot, candidate_note, candidate_phone)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    request.id,
+                    normalized_id,  # ✅ 정규화된 ID 저장
                     request.interviewer_id,
                     request.candidate_email,
                     request.candidate_name,
                     request.position_name,
-                    detailed_name,  # ✅ 명시적 사용
+                    detailed_name,
                     request.status,
                     request.created_at.isoformat(),
                     (request.updated_at or datetime.now()).isoformat(),
@@ -274,7 +280,7 @@ class DatabaseManager:
                     request.candidate_note or "",
                     phone
                 ))
-                logger.info(f"면접 요청 저장 완료: {request.id[:8]}...")
+                logger.info(f"✅ 면접 요청 저장 완료: {normalized_id}")
             
             try:
                 self.update_google_sheet(request)
@@ -654,39 +660,20 @@ class DatabaseManager:
 
         try:
             with sqlite3.connect(self.db_path) as conn:
-                # 1차: 정확한 매칭
+                # ✅ 정규화된 ID로 직접 조회 (부분 매칭 제거)
                 cursor = conn.execute(
                     "SELECT * FROM interview_requests WHERE id = ?", 
                     (clean_id,)
                 )
                 row = cursor.fetchone()
                 
-                # 2차: 부분 매칭
-                if not row:
-                    cursor = conn.execute(
-                        "SELECT * FROM interview_requests WHERE id LIKE ? OR id LIKE ?", 
-                        (f"{clean_id}%", f"%{clean_id}%")
-                    )
-                    row = cursor.fetchone()
-                
-                # 3차: 정규화된 ID로 재검색
-                if not row:
-                    cursor = conn.execute("SELECT * FROM interview_requests")
-                    all_rows = cursor.fetchall()
-                    
-                    for r in all_rows:
-                        stored_id = normalize_request_id(r[0])
-                        if stored_id == clean_id:
-                            row = r
-                            break
-                    
                 if not row:
                     logger.warning(f"요청을 찾을 수 없음: {clean_id}")
                     return None
 
-                # ✅ JSON 파싱
+                # JSON 파싱
                 available_slots = []
-                if row[9]:  # available_slots
+                if row[9]:
                     try:
                         slots_data = json.loads(row[9])
                         available_slots = [InterviewSlot(**slot) for slot in slots_data]
@@ -694,36 +681,36 @@ class DatabaseManager:
                         logger.warning(f"available_slots 파싱 실패: {e}")
                 
                 preferred_datetime_slots = []
-                if row[10]:  # preferred_datetime_slots
+                if row[10]:
                     try:
                         preferred_datetime_slots = json.loads(row[10])
                     except json.JSONDecodeError as e:
                         logger.warning(f"preferred_datetime_slots 파싱 실패: {e}")
                 
                 selected_slot = None
-                if row[11]:  # selected_slot
+                if row[11]:
                     try:
                         slot_data = json.loads(row[11])
                         selected_slot = InterviewSlot(**slot_data)
                     except json.JSONDecodeError as e:
                         logger.warning(f"selected_slot 파싱 실패: {e}")
                 
-                # ✅ InterviewRequest 객체 생성 (전화번호 포함)
+                # InterviewRequest 객체 생성
                 return InterviewRequest(
-                    id=row[0],
+                    id=row[0],  # ✅ 정규화된 ID 그대로 사용
                     interviewer_id=row[1],
                     candidate_email=row[2],
                     candidate_name=row[3],
                     position_name=row[4],
-                    detailed_position_name=row[5] if len(row) > 5 else "",
-                    status=row[6] if len(row) > 6 else row[5],
-                    created_at=datetime.fromisoformat(row[7] if len(row) > 7 else row[6]),
-                    updated_at=datetime.fromisoformat(row[8]) if (len(row) > 8 and row[8]) else None,
+                    detailed_position_name=row[5] or "",
+                    status=row[6],
+                    created_at=datetime.fromisoformat(row[7]),
+                    updated_at=datetime.fromisoformat(row[8]) if row[8] else None,
                     available_slots=available_slots,
                     preferred_datetime_slots=preferred_datetime_slots,
                     selected_slot=selected_slot,
-                    candidate_note=row[12] if len(row) > 12 else "",
-                    candidate_phone=row[13] if len(row) > 13 else ""  # ✅ 전화번호 추가
+                    candidate_note=row[12] or "",
+                    candidate_phone=row[13] or ""
                 )
 
         except Exception as e:
@@ -824,8 +811,10 @@ class DatabaseManager:
     
     def _prepare_sheet_row_data(self, request: InterviewRequest, interviewer_info: dict = None) -> list:
         """시트 행 데이터 준비"""
-        from utils import normalize_request_id
-        from utils import get_employee_info
+        from utils import normalize_request_id, get_employee_info
+        
+        # ✅ ID 정규화 (구글시트와 DB 일치)
+        normalized_id = normalize_request_id(request.id)
         
         interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
         interviewer_names = []
@@ -840,9 +829,7 @@ class DatabaseManager:
         interviewer_name_str = ", ".join(interviewer_names)
         interviewer_dept_str = ", ".join(set(interviewer_departments))
         
-        preferred_datetime_str = ""
-        if request.preferred_datetime_slots:
-            preferred_datetime_str = " | ".join(request.preferred_datetime_slots)
+        preferred_datetime_str = " | ".join(request.preferred_datetime_slots) if request.preferred_datetime_slots else ""
         
         proposed_slots_str = ""
         if request.available_slots:
@@ -865,9 +852,8 @@ class DatabaseManager:
         
         remarks = f"담당부서: {interviewer_dept_str}" if len(interviewer_ids) > 1 else ""
         
-        # ✅ 전화번호를 면접자이메일 바로 다음에 배치
         return [
-            normalize_request_id(request.id),
+            normalized_id,  # ✅ 정규화된 ID 사용
             request.created_at.strftime('%Y-%m-%d %H:%M'),
             request.position_name,
             getattr(request, 'detailed_position_name', ''),
@@ -875,7 +861,7 @@ class DatabaseManager:
             interviewer_name_str,
             request.candidate_name,
             request.candidate_email,
-            getattr(request, 'candidate_phone', ''),  # ✅ 전화번호 추가 (9번째)
+            getattr(request, 'candidate_phone', ''),
             request.status,
             status_changed_at,
             preferred_datetime_str,
