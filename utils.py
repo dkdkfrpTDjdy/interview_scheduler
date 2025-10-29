@@ -454,26 +454,39 @@ def parse_proposed_slots(raw_slots: str) -> List[dict]:
         
 def normalize_request_id(request_id: str) -> str:
     """
-    🔧 개선된 요청 ID 정규화
+    🔧 통일된 ID 정규화
     
-    문제점: 기존 코드는 "..." 제거 후 8자리만 추출했으나 DB 검색 시 불일치
-    해결책: 일관된 정규화 규칙 적용
+    규칙:
+    1. 공백 제거
+    2. 대문자 변환
+    3. 특수문자 제거
+    4. 원본 길이 유지 (8자리 자르기 제거)
+    
+    예시:
+    - "TL2AUIKZ" → "TL2AUIKZ"
+    - "tl2auikz" → "TL2AUIKZ"
+    - "TL2A UIKZ" → "TL2AUIKZ"
+    - "TL2AUIKZ..." → "TL2AUIKZ"
     """
     if not request_id:
         return ""
     
-    # 공백 및 특수문자 제거
-    clean_id = re.sub(r'[^a-zA-Z0-9]', '', str(request_id).strip())
+    # 공백 및 특수문자 제거, 대문자 변환
+    clean_id = re.sub(r'[^A-Z0-9]', '', str(request_id).strip().upper())
     
-    # 8자리 이상이면 앞 8자리 반환, 미만이면 그대로 반환
-    return clean_id[:8] if len(clean_id) >= 8 else clean_id
+    # ✅ 원본 ID 그대로 반환 (8자리 제한 제거)
+    return clean_id
 
 def generate_request_id() -> str:
-    """8자리 요청 ID 생성 (영문+숫자 조합)"""
+    """
+    8자리 요청 ID 생성 (대문자+숫자만 사용)
+    
+    예시: "TL2AUIKZ", "9JO1ZIPS"
+    """
     import string
     import random
     
-    # 더 읽기 쉬운 8자리 ID 생성 (숫자 + 대문자)
+    # ✅ 대문자 + 숫자만 사용 (소문자 제외)
     chars = string.ascii_uppercase + string.digits
     return ''.join(random.choices(chars, k=8))
 
