@@ -284,7 +284,7 @@ def find_candidate_requests(name: str, email: str):
                     })
 
                     # ✅ 선택 가능한 슬롯 필터링
-                    if request_obj['status'] == '면접자_선택대기':
+                    if request_obj['status'] in ['면접자_선택대기', '면접자_메일발송']:  # ✅ 두 상태 모두 허용
                         proposed_slots_raw = request_obj.get('제안일시목록', '')
                         
                         if not proposed_slots_raw:

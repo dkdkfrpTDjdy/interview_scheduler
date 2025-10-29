@@ -941,6 +941,7 @@ class DatabaseManager:
             color_map = {
                 Config.Status.PENDING_INTERVIEWER: {'red': 1.0, 'green': 0.9, 'blue': 0.8},
                 Config.Status.PENDING_CANDIDATE: {'red': 0.8, 'green': 0.9, 'blue': 1.0},
+                Config.Status.CANDIDATE_EMAIL_SENT: {'red': 0.9, 'green': 0.85, 'blue': 1.0},    # ✅ 연보라색 (새로 추가)
                 Config.Status.CONFIRMED: {'red': 0.8, 'green': 1.0, 'blue': 0.8},
                 Config.Status.PENDING_CONFIRMATION: {'red': 1.0, 'green': 1.0, 'blue': 0.8},
                 Config.Status.CANCELLED: {'red': 0.9, 'green': 0.9, 'blue': 0.9},
@@ -1042,3 +1043,60 @@ class DatabaseManager:
             status['google_sheet'] = False  # ❗반환은 계속됨
 
         return status
+    
+    def update_request_status_after_email(self, request_id: str, new_status: str = None) -> bool:
+        """
+        면접자 메일 발송 후 상태 업데이트
+        
+        Args:
+            request_id: 요청 ID
+            new_status: 새로운 상태 (기본값: "면접자_메일발송")
+        
+        Returns:
+            bool: 업데이트 성공 여부
+        """
+        try:
+            from utils import normalize_request_id
+            clean_id = normalize_request_id(request_id)
+            
+            # 기본 상태 설정
+            if new_status is None:
+                new_status = Config.Status.CANDIDATE_EMAIL_SENT
+            
+            # 1. SQLite DB 업데이트
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    UPDATE interview_requests 
+                    SET status = ?, updated_at = ?
+                    WHERE id = ?
+                """, (new_status, datetime.now().isoformat(), clean_id))
+            
+            logger.info(f"✅ DB 상태 업데이트 완료: {clean_id} → {new_status}")
+            
+            # 2. 구글시트 업데이트
+            if self.sheet:
+                row_index = self._find_request_row(clean_id)
+                
+                if row_index:
+                    # J열: 상태, K열: 상태변경일시
+                    updates = [
+                        {'range': f'J{row_index}', 'values': [[new_status]]},
+                        {'range': f'K{row_index}', 'values': [[datetime.now().strftime('%Y-%m-%d %H:%M')]]}
+                    ]
+                    
+                    self.sheet.batch_update(updates)
+                    
+                    # 상태별 색상 적용
+                    self._apply_status_formatting(row_index, new_status)
+                    
+                    logger.info(f"✅ 구글시트 상태 업데이트 완료: {clean_id}")
+                else:
+                    logger.warning(f"⚠️ 구글시트에서 행을 찾을 수 없음: {clean_id}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ 상태 업데이트 실패: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return False

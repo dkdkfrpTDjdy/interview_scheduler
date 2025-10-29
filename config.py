@@ -69,13 +69,14 @@ class Config:
     class Status:
         PENDING_INTERVIEWER = "면접관_일정대기"
         PENDING_CANDIDATE = "면접자_선택대기" 
+        CANDIDATE_EMAIL_SENT = "면접자_메일발송"  # ✅ 새로운 상태 추가
         PENDING_CONFIRMATION = "재조율_대기"
         CONFIRMED = "확정완료"
         CANCELLED = "취소됨"
     
-    # 인사팀 이메일 주소 (고정)
+    # 인사팀 이메일 주소 (변경필요)
     HR_EMAILS = [
-        "hr@ajnet.co.kr"
+        "jyjeong@ajnet.co.kr"
     ]
     
     # 구글 시트 설정

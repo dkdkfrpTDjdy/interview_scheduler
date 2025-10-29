@@ -725,9 +725,21 @@ def main():
                                         
                                         request = db.get_interview_request(request_id)
                                         if request:
+                                            # ✅ 1. 메일 발송
                                             result = email_service.send_candidate_invitation(request)
+                                            
                                             if result:
                                                 success_count += 1
+                                                
+                                                # ✅ 2. 메일 발송 성공 시 상태 업데이트
+                                                try:
+                                                    db.update_request_status_after_email(
+                                                        request_id=request.id,
+                                                        new_status=Config.Status.CANDIDATE_EMAIL_SENT
+                                                    )
+                                                    logger.info(f"✅ {row.get('면접자명', '')} 상태 업데이트 완료")
+                                                except Exception as e:
+                                                    logger.warning(f"⚠️ 상태 업데이트 실패 (메일은 발송됨): {e}")
                                             else:
                                                 fail_count += 1
                                         else:
@@ -773,6 +785,7 @@ def main():
                         "일정재조율요청": 0,
                         "면접관_일정대기": 0,
                         "면접자_선택대기": 0,
+                        "면접자_메일발송": 0,  # ✅ 새로운 상태 추가
                         "확정완료": 0
                     }
                     
@@ -781,11 +794,12 @@ def main():
                         if status in status_counts:
                             status_counts[status] += 1
                     
-                    col1, col2, col3, col4 = st.columns(4)
+                    col1, col2, col3, col4, col5 = st.columns(4)
                     
                     total_count = len(sheet_data)
                     interviewer_waiting = status_counts["면접관_일정대기"]
                     candidate_waiting = status_counts["면접자_선택대기"]
+                    email_sent = status_counts["면접자_메일발송"]  # ✅ 새로운 메트릭
                     confirmed = status_counts["확정완료"]
                     
                     with col1:
@@ -795,6 +809,8 @@ def main():
                     with col3:
                         st.metric("면접자 대기", candidate_waiting)
                     with col4:
+                        st.metric("메일 발송", email_sent)  # ✅ 새로운 메트릭
+                    with col5:
                         st.metric("확정 완료", confirmed)
                     
                     st.subheader("📋 상세 현황")
@@ -834,6 +850,8 @@ def main():
                                 return 'background-color: #fff3cd; color: #856404'
                             elif val == "면접자_선택대기":
                                 return 'background-color: #cce7ff; color: #004085'
+                            elif val == "면접자_메일발송":  # ✅ 새로운 상태 색상
+                                return 'background-color: #e8daff; color: #5a1f99'
                             elif val == "일정재조율요청":
                                 return 'background-color: #f8d7da; color: #721c24'
                             return ''
