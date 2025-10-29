@@ -689,10 +689,6 @@ def show_request_detail(request, index):
                 <td style="padding: 12px 0; color: #1A1A1A; font-size: 1.15rem; font-weight: 500;">{request['position_name']}</td>
             </tr>
             <tr style="border-top: 1px solid #efeff1;">
-                <td style="padding: 12px 0; font-weight: 500; color: #737272;">면접관</td>
-                <td style="padding: 12px 0; color: #1A1A1A;">{request['interviewer_name']}</td>
-            </tr>
-            <tr style="border-top: 1px solid #efeff1;">
                 <td style="padding: 12px 0; font-weight: 500; color: #737272;">신청일</td>
                 <td style="padding: 12px 0; color: #1A1A1A;">{request['created_at']}</td>
             </tr>
@@ -873,7 +869,6 @@ def show_confirmed_schedule(request):
         <div style="background: white; padding: 35px; border-radius: 12px; margin: 30px 0; text-align: center; border: 2px solid #4caf50; box-shadow: 0 2px 10px rgba(76, 175, 80, 0.1);">
             <h4 style="color: #737272; margin: 0 0 15px 0; font-weight: 400; font-size: 1rem;">📅 확정된 면접 일정</h4>
             <p style="color: #1A1A1A; font-size: 1.4rem; font-weight: 500; margin: 15px 0;">{request['confirmed_datetime']}</p>
-            <p style="color: #737272; margin: 15px 0 0 0; font-size: 1rem;">면접관: <strong style="color: #1A1A1A;">{request['interviewer_name']}</strong></p>
         </div>
         """, unsafe_allow_html=True)
     
