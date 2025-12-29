@@ -863,7 +863,7 @@ class EmailService:
                     # ✅ 개별 면접자에게 이메일 발송
                     result = self.send_email(
                         to_emails=[request.candidate_email],
-                        cc_emails=Config.HR_EMAILS,
+                        # cc_emails=Config.HR_EMAILS,
                         subject=subject,
                         body=body,
                         is_html=True,
@@ -1176,4 +1176,5 @@ class EmailService:
         except Exception as e:
             logger.error(f"❌ HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
