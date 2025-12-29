@@ -298,7 +298,7 @@ def main():
                     key=f"detailed_position_name_input_{key_suffix}"
                 )
             
-            basic_info_submitted = st.form_submit_button("💾 기본 정보 저장", width=True)
+            basic_info_submitted = st.form_submit_button("💾 기본 정보 저장", width="stretch")
             
             if basic_info_submitted:
                 if not position_name.strip():
@@ -448,11 +448,11 @@ def main():
                 col_table, col_button = st.columns([10, 1])
                 
                 with col_table:
-                    st.dataframe(df, width=True, hide_index=True)
+                    st.dataframe(df, width="stretch", hide_index=True)
                 
                 with col_button:
                     st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
-                    if st.button("🗑️", key=f"clear_slots_{key_suffix}", help="전체 삭제", width=True):
+                    if st.button("🗑️", key=f"clear_slots_{key_suffix}", help="전체 삭제", width="stretch"):
                         st.session_state.selected_slots = []
                         st.success("✅ 모든 시간대가 삭제되었습니다.")
                         st.rerun()
@@ -463,12 +463,12 @@ def main():
             if st.session_state.submission_done:
                 st.success(f"✅ 면접 요청이 생성되었습니다!")
                 
-                if st.button("새로운 면접 요청", type="primary", width=True):
+                if st.button("새로운 면접 요청", type="primary", width="stretch"):
                     reset_interview_request_tab()
                     st.rerun()
                     
             else:
-                if st.button("면접 일정 조율 시작", type="primary", width=True):
+                if st.button("면접 일정 조율 시작", type="primary", width="stretch"):
                     # 유효성 검사
                     if not st.session_state.selected_interviewers:
                         st.error("최소 1명의 면접관을 선택해주세요.")
@@ -700,7 +700,7 @@ def main():
                             if st.button(
                                 f"📧 선택된 {selected_count}명에게 메일 발송",
                                 type="primary",
-                                width=True
+                                width="stretch"
                             ):
                                 success_count = 0
                                 fail_count = 0
@@ -858,18 +858,18 @@ def main():
                         
                         if '상태' in display_df.columns:
                             styled_df = display_df.style.map(highlight_status, subset=['상태'])
-                            st.dataframe(styled_df, width=True)
+                            st.dataframe(styled_df, width="stretch")
                         else:
-                            st.dataframe(display_df, width=True)
+                            st.dataframe(display_df, width="stretch")
                     else:
-                        st.dataframe(df, width=True)
+                        st.dataframe(df, width="stretch")
                     
                     st.subheader("🔧 관리 기능")
                     
                     col1, col2, col3 = st.columns(3)
                     
                     with col1:
-                        if st.button("🔄 데이터 새로고침", width=True):
+                        if st.button("🔄 데이터 새로고침", width="stretch"):
                             st.cache_resource.clear()
                             st.rerun()
                     
@@ -878,14 +878,14 @@ def main():
                             st.link_button(
                                 "📋 구글 시트 열기",
                                 Config.GOOGLE_SHEET_URL,
-                                width=True
+                                width="stretch"
                             )
                         else:
-                            st.button("📋 구글 시트 열기", disabled=True, width=True)
+                            st.button("📋 구글 시트 열기", disabled=True, width="stretch")
                             st.error("구글 시트 ID가 설정되지 않았습니다.")
                     
                     with col3:
-                        if st.button("📊 전체 동기화", width=True):
+                        if st.button("📊 전체 동기화", width="stretch"):
                             try:
                                 requests = db.get_all_requests()
                                 success_count = 0
@@ -911,4 +911,5 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
