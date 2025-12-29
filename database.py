@@ -23,6 +23,40 @@ from functools import wraps
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def migrate_database_schema(self):
+    """데이터베이스 스키마 마이그레이션"""
+    try:
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # 현재 테이블 구조 확인
+            cursor.execute("PRAGMA table_info(interview_requests)")
+            columns = [column[1] for column in cursor.fetchall()]
+            
+            logger.info(f"현재 테이블 컬럼: {columns}")
+            
+            # detailed_position_name 컬럼이 없으면 추가
+            if 'detailed_position_name' not in columns:
+                cursor.execute("""
+                    ALTER TABLE interview_requests 
+                    ADD COLUMN detailed_position_name TEXT DEFAULT ''
+                """)
+                logger.info("✅ detailed_position_name 컬럼 추가 완료")
+            
+            # candidate_phone 컬럼이 없으면 추가
+            if 'candidate_phone' not in columns:
+                cursor.execute("""
+                    ALTER TABLE interview_requests 
+                    ADD COLUMN candidate_phone TEXT DEFAULT ''
+                """)
+                logger.info("✅ candidate_phone 컬럼 추가 완료")
+            
+            conn.commit()
+            logger.info("🎉 데이터베이스 마이그레이션 완료")
+            
+    except Exception as e:
+        logger.error(f"❌ 데이터베이스 마이그레이션 실패: {e}")
+
 def retry_on_failure(max_retries=3, delay=1):
     """API 실패 시 재시도 데코레이터"""
     def decorator(func):
@@ -52,6 +86,7 @@ class DatabaseManager:
         self.sheet = None
         self.init_database()
         self.init_google_sheet()
+        self.migrate_database_schema()
     
     def init_database(self):
         """데이터베이스 초기화"""
@@ -654,20 +689,12 @@ class DatabaseManager:
             return False
     
     def get_interview_request(self, request_id: str) -> Optional[InterviewRequest]:
-        """면접 요청 조회"""
+        """면접 요청 조회 (스키마 호환성 보장)"""
         from utils import normalize_request_id
         clean_id = normalize_request_id(request_id)
-        
-        logger.info(f"🔍 요청 ID 조회 시작: 원본='{request_id}' → 정규화='{clean_id}'")
     
         try:
             with sqlite3.connect(self.db_path) as conn:
-                # ✅ 먼저 모든 ID를 확인해보자
-                cursor = conn.execute("SELECT id FROM interview_requests")
-                existing_ids = [row[0] for row in cursor.fetchall()]
-                logger.info(f"📋 DB에 저장된 요청 ID들: {existing_ids}")
-                
-                # ✅ 정규화된 ID로 직접 조회 (부분 매칭 제거)
                 cursor = conn.execute(
                     "SELECT * FROM interview_requests WHERE id = ?", 
                     (clean_id,)
@@ -675,25 +702,21 @@ class DatabaseManager:
                 row = cursor.fetchone()
                 
                 if not row:
-                    logger.warning(f"❌ 요청을 찾을 수 없음: '{clean_id}'")
-                    logger.info(f"💡 유사한 ID가 있는지 확인...")
-                    
-                    # ✅ 유사한 ID 찾기 (대소문자 무시, 부분 매칭)
-                    cursor = conn.execute(
-                        "SELECT id FROM interview_requests WHERE UPPER(id) LIKE ?", 
-                        (f"%{clean_id.upper()}%",)
-                    )
-                    similar_ids = [row[0] for row in cursor.fetchall()]
-                    if similar_ids:
-                        logger.info(f"🔍 유사한 ID 발견: {similar_ids}")
-                    else:
-                        logger.info("🔍 유사한 ID도 없음")
-                        
+                    logger.warning(f"요청을 찾을 수 없음: {clean_id}")
                     return None
     
-                logger.info(f"✅ 요청 ID {clean_id} 찾음!")
-                
-                # JSON 파싱
+                # ✅ 컬럼 수에 따른 호환성 처리
+                if len(row) == 12:  # 기존 스키마
+                    detailed_position_name = ""
+                    candidate_phone = ""
+                    row = list(row) + [detailed_position_name, candidate_phone]
+                elif len(row) == 14:  # 새 스키마
+                    pass  # 그대로 사용
+                else:
+                    logger.warning(f"알 수 없는 스키마: {len(row)}개 컬럼")
+                    return None
+    
+                # JSON 파싱 (기존 코드와 동일)
                 available_slots = []
                 if row[9]:
                     try:
@@ -717,26 +740,26 @@ class DatabaseManager:
                     except json.JSONDecodeError as e:
                         logger.warning(f"selected_slot 파싱 실패: {e}")
                 
-                # InterviewRequest 객체 생성
+                # ✅ 호환성을 고려한 InterviewRequest 객체 생성
                 return InterviewRequest(
-                    id=row[0],  # ✅ 정규화된 ID 그대로 사용
+                    id=row[0],
                     interviewer_id=row[1],
                     candidate_email=row[2],
                     candidate_name=row[3],
                     position_name=row[4],
-                    detailed_position_name=row[5] or "",
+                    detailed_position_name=row[5] if len(row) > 12 else "",  # ✅ 안전한 접근
                     status=row[6],
                     created_at=datetime.fromisoformat(row[7]),
                     updated_at=datetime.fromisoformat(row[8]) if row[8] else None,
                     available_slots=available_slots,
                     preferred_datetime_slots=preferred_datetime_slots,
                     selected_slot=selected_slot,
-                    candidate_note=row[12] or "",
-                    candidate_phone=row[13] or ""
+                    candidate_note=row[12] if len(row) > 12 else "",  # ✅ 안전한 접근
+                    candidate_phone=row[13] if len(row) > 13 else ""   # ✅ 안전한 접근
                 )
     
         except Exception as e:
-            logger.error(f"❌ 면접 요청 조회 실패: {e}")
+            logger.error(f"면접 요청 조회 실패: {e}")
             return None
 
     def get_all_requests(self) -> List[InterviewRequest]:
@@ -955,6 +978,7 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"배치 업데이트 데이터 준비 실패: {e}")
             return []
+
     
     def _apply_status_formatting(self, row_index: int, status: str):
         """상태별 행 색상 적용"""
@@ -1121,4 +1145,5 @@ class DatabaseManager:
             import traceback
             logger.error(traceback.format_exc())
             return False
+
 
