@@ -657,9 +657,16 @@ class DatabaseManager:
         """면접 요청 조회"""
         from utils import normalize_request_id
         clean_id = normalize_request_id(request_id)
-
+        
+        logger.info(f"🔍 요청 ID 조회 시작: 원본='{request_id}' → 정규화='{clean_id}'")
+    
         try:
             with sqlite3.connect(self.db_path) as conn:
+                # ✅ 먼저 모든 ID를 확인해보자
+                cursor = conn.execute("SELECT id FROM interview_requests")
+                existing_ids = [row[0] for row in cursor.fetchall()]
+                logger.info(f"📋 DB에 저장된 요청 ID들: {existing_ids}")
+                
                 # ✅ 정규화된 ID로 직접 조회 (부분 매칭 제거)
                 cursor = conn.execute(
                     "SELECT * FROM interview_requests WHERE id = ?", 
@@ -668,9 +675,24 @@ class DatabaseManager:
                 row = cursor.fetchone()
                 
                 if not row:
-                    logger.warning(f"요청을 찾을 수 없음: {clean_id}")
+                    logger.warning(f"❌ 요청을 찾을 수 없음: '{clean_id}'")
+                    logger.info(f"💡 유사한 ID가 있는지 확인...")
+                    
+                    # ✅ 유사한 ID 찾기 (대소문자 무시, 부분 매칭)
+                    cursor = conn.execute(
+                        "SELECT id FROM interview_requests WHERE UPPER(id) LIKE ?", 
+                        (f"%{clean_id.upper()}%",)
+                    )
+                    similar_ids = [row[0] for row in cursor.fetchall()]
+                    if similar_ids:
+                        logger.info(f"🔍 유사한 ID 발견: {similar_ids}")
+                    else:
+                        logger.info("🔍 유사한 ID도 없음")
+                        
                     return None
-
+    
+                logger.info(f"✅ 요청 ID {clean_id} 찾음!")
+                
                 # JSON 파싱
                 available_slots = []
                 if row[9]:
@@ -712,11 +734,10 @@ class DatabaseManager:
                     candidate_note=row[12] or "",
                     candidate_phone=row[13] or ""
                 )
-
+    
         except Exception as e:
-            logger.error(f"면접 요청 조회 실패: {e}")
+            logger.error(f"❌ 면접 요청 조회 실패: {e}")
             return None
-
 
     def get_all_requests(self) -> List[InterviewRequest]:
         """모든 면접 요청 조회"""
@@ -1100,3 +1121,4 @@ class DatabaseManager:
             import traceback
             logger.error(traceback.format_exc())
             return False
+
