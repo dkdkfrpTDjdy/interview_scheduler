@@ -794,7 +794,7 @@ def main():
                         if status in status_counts:
                             status_counts[status] += 1
                     
-                    col1, col2, col3, col4, col5 = st.columns(4)
+                    col1, col2, col3, col4, col5 = st.columns(5)
                     
                     total_count = len(sheet_data)
                     interviewer_waiting = status_counts["면접관_일정대기"]
@@ -909,4 +909,5 @@ def main():
             st.info("구글 시트 연결을 확인해주세요.")
 
 if __name__ == "__main__":
+
     main()
