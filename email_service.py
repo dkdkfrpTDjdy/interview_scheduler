@@ -923,7 +923,7 @@ class EmailService:
             }
     
     def _parse_slots_from_sheet(self, request_id: str, db) -> list:
-        """구글시트에서 직접 제안일시목록 파싱"""
+        """구글시트에서 직접 면접관확정일시 파싱"""
         try:
             if not db.sheet:
                 return []
@@ -932,7 +932,7 @@ class EmailService:
             
             for record in records:
                 if record.get('요청ID', '').strip() == request_id:
-                    proposed_str = record.get('제안일시목록', '')
+                    proposed_str = record.get('면접관확정일시', '')
                     if proposed_str:
                         from models import InterviewSlot
                         import re
@@ -1234,6 +1234,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
