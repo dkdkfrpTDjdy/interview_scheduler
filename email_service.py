@@ -922,7 +922,7 @@ class EmailService:
                 'total': len(requests) if isinstance(requests, list) else 1
             }
     
-    def _parse_slots_from_sheet(self, request_id: str, db) -&gt; list:
+    def _parse_slots_from_sheet(self, request_id: str, db) -> list:
         """구글시트에서 직접 제안일시목록 파싱"""
         try:
             if not db.sheet:
