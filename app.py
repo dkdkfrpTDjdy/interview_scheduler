@@ -34,43 +34,28 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 전역 객체 초기화
 @st.cache_resource
 def init_services():
     try:
-        # ✅ 단계별 초기화로 어디서 실패하는지 확인
-        st.write("🔧 데이터베이스 초기화 중...")
         db = DatabaseManager()
-        st.write("✅ 데이터베이스 초기화 완료")
-        
-        st.write("🔧 이메일 서비스 초기화 중...")
         email_service = EmailService()
-        st.write("✅ 이메일 서비스 초기화 완료")
         
         sync_manager = None
         try:
-            st.write("🔧 동기화 매니저 초기화 중...")
             from sync_manager import SyncManager
             sync_manager = SyncManager(db, email_service)
             sync_manager.start_monitoring()
-            st.write("✅ 동기화 매니저 초기화 완료")
         except ImportError:
             st.warning("⚠️ 자동 모니터링 모듈을 찾을 수 없습니다. 수동 모드로 실행됩니다.")
         except Exception as e:
-            st.warning(f"⚠️ 자동 모니터링 시작 실패: {str(e)}")
+            st.warning(f"⚠️ 자동 모니터링 시작 실패: {e}")
         
+        # ✅ 반드시 3개의 값을 반환해야 함
         return db, email_service, sync_manager
         
     except Exception as e:
-        st.error(f"❌ 서비스 초기화 실패: {str(e)}")
-        st.error(f"오류 타입: {type(e).__name__}")
-        
-        # ✅ 더 자세한 에러 정보 출력
-        import traceback
-        st.code(traceback.format_exc())
-        
+        st.error(f"❌ 서비스 초기화 실패: {e}")
         st.stop()
-
 @st.cache_data
 def load_organization_data():
     """조직도 데이터 로드"""
@@ -951,6 +936,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
