@@ -738,7 +738,6 @@ class EmailService:
                         <p style="margin: 0; color: #856404; font-weight: bold;">⚠️ 안내사항</p>
                         <p style="margin: 5px 0 0 0; color: #856404; font-size: 14px;">
                             • "면접자 메일 발송" 탭에서 일괄 발송 가능합니다<br>
-                            • 면접자들이 선착순으로 일정을 선택합니다
                         </p>
                     </div>
                 </div>
@@ -832,13 +831,13 @@ class EmailService:
                     body = self._create_gmail_safe_html({
                         'company_name': 'AJ네트웍스',
                         'recipient_name': request.candidate_name,
-                        'main_message': f'{request.position_name} 포지션 지원에 감사드립니다.<br>면접관들이 가능한 시간 중에서 원하시는 <strong style="color:#EF3340;">시간</strong>을 선택해주세요.<br><strong style="color:#EF3340;">⚠️ 선착순으로 마감됩니다!</strong>',
+                        'main_message': f'{request.position_name} 포지션 지원에 감사드립니다.<br>면접관들이 가능한 시간 중에서 원하시는 <strong style="color:#EF3340;">시간</strong>을 선택해주세요.',
                         'position': request.position_name,
                         'interviewer': interviewer_display,
                         'action_link': candidate_link,
                         'button_text': '✅ 면접 일정 선택하기',
                         'additional_content': f"""
-                        <h4 style="color: #EF3340; margin: 0 0 20px 0; font-size:16px;">🗓️ 선택 가능한 면접 시간 ({len(overlapping_slots)}개 슬롯)</h4>
+                        <h4 style="color: #EF3340; margin: 0 0 20px 0; font-size:16px;">🗓️ 선택 가능한 면접 시간</h4>
                         <table style="width: 100%; border-collapse: collapse; border: 2px solid #EF3340; border-radius: 8px; overflow: hidden;">
                             <thead>
                                 <tr style="background: linear-gradient(135deg, #EF3340 0%, #e0752e 100%); color: white;">
@@ -853,8 +852,8 @@ class EmailService:
                             </tbody>
                         </table>
                         <div style="background-color:#fff3cd;padding:15px;border-radius:8px;margin-top:20px;border-left:5px solid #ffc107;">
-                            <p style="margin:0;color:#856404;font-weight:bold;">⚠️ 선착순 마감 안내</p>
-                            <p style="margin:5px 0 0 0;color:#856404;">• 각 면접은 <strong>30분</strong>으로 진행됩니다<br>• 다른 면접자가 먼저 선택한 시간은 자동으로 제외됩니다<br>• 빠른 선택을 권장합니다</p>
+                            <p style="margin:0;color:#856404;font-weight:bold;">⚠️ 안내 사항</p>
+                            <p style="margin:5px 0 0 0;color:#856404;">• 각 면접은 <strong>30분</strong>으로 진행됩니다<br>• 다른 면접자가 먼저 선택한 시간은 자동으로 제외됩니다<br></p>
                         </div>
                         """,
                         'contact_email': Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'
@@ -1176,5 +1175,6 @@ class EmailService:
         except Exception as e:
             logger.error(f"❌ HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
