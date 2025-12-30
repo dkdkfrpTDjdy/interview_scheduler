@@ -622,7 +622,7 @@ def main():
                     col_select_all, col_spacer = st.columns([1, 5])
                     with col_select_all:
                         # 현재 전체 선택 상태 계산
-                        current_all_selected = len(st.session_state.email_selected_indices) == len(pending_candidates) and len(pending_candidates) &gt; 0
+                        current_all_selected = len(st.session_state.email_selected_indices) == len(pending_candidates) and len(pending_candidates) > 0
                         
                         # 전체 선택 체크박스
                         select_all_clicked = st.checkbox(
@@ -702,7 +702,7 @@ def main():
                             slots_str = row.get('제안일시목록', '')
                             if slots_str:
                                 slots_list = [slot.strip() for slot in slots_str.split('|') if slot.strip()]
-                                if len(slots_list) &lt;= 3:
+                                if len(slots_list) <= 3:
                                     st.text('\n'.join(slots_list))
                                 else:
                                     display_slots = slots_list[:3]
@@ -715,7 +715,7 @@ def main():
                     # 선택된 면접자 수 표시 및 발송 버튼
                     selected_count = len(st.session_state.email_selected_indices)
                     
-                    if selected_count &gt; 0:
+                    if selected_count > 0:
                         if selected_count == len(pending_candidates):
                             st.success(f"**전체 {selected_count}명** 선택됨")
                         else:
@@ -783,7 +783,7 @@ def main():
                             progress_bar.empty()
                             status_text.empty()
                             
-                            if success_count &gt; 0:
+                            if success_count > 0:
                                 st.success(f"메일 발송 완료: {success_count}명 성공, {fail_count}명 실패")
                                 st.session_state.email_selected_indices = set()
                                 time.sleep(2)
@@ -942,6 +942,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
