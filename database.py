@@ -222,14 +222,14 @@ class DatabaseManager:
                 "요청ID", "생성일시", "공고명", "상세공고명",
                 "면접관ID", "면접관이름", "면접자명", 
                 "면접자이메일", "면접자전화번호", 
-                "상태", "상태변경일시", "희망일시목록", "제안일시목록", 
-                "확정일시", "면접자요청사항", "마지막업데이트", "처리소요시간", "비고"
+                "상태", "상태변경일시", "인사팀제안일시", "면접관확정일시",  # ✅ 변경
+                "면접자확정일시", "면접자요청사항", "마지막업데이트", "처리소요시간", "비고"  # ✅ 변경
             ]
             
             try:
                 existing_headers = self.sheet.row_values(1)
                 
-                if not existing_headers or "면접자전화번호" not in existing_headers:
+                if not existing_headers or "면접자확정일시" not in existing_headers:  # ✅ 변경
                     self._setup_sheet_headers(headers)
                 else:
                     logger.info("구글시트 헤더 이미 존재함")
@@ -819,13 +819,13 @@ class DatabaseManager:
 
             # 제안 일시 목록 파싱
             preferred_slots = []
-            preferred_str = record.get('희망일시목록', '')
+            preferred_str = record.get('인사팀제안일시', '')  # ✅ 변경
             if preferred_str:
                 preferred_slots = [slot.strip() for slot in preferred_str.split('|') if slot.strip()]
 
             # 제안 슬롯 파싱
             available_slots = []
-            proposed_str = record.get('제안일시목록', '')
+            proposed_str = record.get('면접관확정일시', '')  # ✅ 변경
             if proposed_str:
                 from utils import parse_proposed_slots
                 try:
@@ -836,7 +836,7 @@ class DatabaseManager:
 
             # 확정 슬롯 파싱
             selected_slot = None
-            confirmed_str = record.get('확정일시', '')
+            confirmed_str = record.get('면접자확정일시', '')
             if confirmed_str:
                 try:
                     import re
@@ -1100,17 +1100,17 @@ class DatabaseManager:
             logger.info(f"📝 배치 업데이트 - candidate_phone: '{phone}'") 
             
             updates = [
-                {'range': f'D{row_index}', 'values': [[detailed_name]]},  # ✅ D열: 상세공고명
+                {'range': f'D{row_index}', 'values': [[detailed_name]]},  # D열: 상세공고명
                 {'range': f'F{row_index}', 'values': [[interviewer_name_str]]},  # F열: 면접관이름
-                {'range': f'I{row_index}', 'values': [[phone]]},  # ✅ I열: 전화번호
+                {'range': f'I{row_index}', 'values': [[phone]]},  # I열: 면접자전화번호
                 {'range': f'J{row_index}', 'values': [[request.status]]},  # J열: 상태
-                {'range': f'K{row_index}', 'values': [[request.updated_at.strftime('%Y-%m-%d %H:%M') if request.updated_at else ""]]},
-                {'range': f'L{row_index}', 'values': [[preferred_datetime_str]]},
-                {'range': f'M{row_index}', 'values': [[proposed_slots_str]]},
-                {'range': f'N{row_index}', 'values': [[confirmed_datetime]]},
-                {'range': f'O{row_index}', 'values': [[request.candidate_note or ""]]},
-                {'range': f'P{row_index}', 'values': [[datetime.now().strftime('%Y-%m-%d %H:%M')]]},
-                {'range': f'Q{row_index}', 'values': [[processing_time]]},
+                {'range': f'K{row_index}', 'values': [[request.updated_at.strftime('%Y-%m-%d %H:%M') if request.updated_at else ""]]},  # K열: 상태변경일시
+                {'range': f'L{row_index}', 'values': [[preferred_datetime_str]]},  # ✅ L열: 인사팀제안일시
+                {'range': f'M{row_index}', 'values': [[proposed_slots_str]]},  # ✅ M열: 면접관확정일시
+                {'range': f'N{row_index}', 'values': [[confirmed_datetime]]},  # ✅ N열: 면접자확정일시
+                {'range': f'O{row_index}', 'values': [[request.candidate_note or ""]]},  # O열: 면접자요청사항
+                {'range': f'P{row_index}', 'values': [[datetime.now().strftime('%Y-%m-%d %H:%M')]]},  # P열: 마지막업데이트
+                {'range': f'Q{row_index}', 'values': [[processing_time]]},  # Q열: 처리소요시간
             ]
             
             return updates
@@ -1360,4 +1360,5 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ 강제 동기화 실패: {e}")
             return False
+
 
