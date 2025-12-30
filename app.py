@@ -37,24 +37,34 @@ st.set_page_config(
 # 전역 객체 초기화
 @st.cache_resource
 def init_services():
+    """서비스 초기화 - 구글시트 연결 체크 강화"""
     try:
         db = DatabaseManager()
         email_service = EmailService()
         
-        sync_manager = None
-        try:
-            from sync_manager import SyncManager
-            sync_manager = SyncManager(db, email_service)
-            sync_manager.start_monitoring()
-        except ImportError:
-            st.warning("⚠️ 자동 모니터링 모듈을 찾을 수 없습니다. 수동 모드로 실행됩니다.")
-        except Exception as e:
-            st.warning(f"⚠️ 자동 모니터링 시작 실패: {e}")
+        # ✅ 구글시트 연결 강제 체크
+        if db.sheet is None:
+            st.warning("⚠️ 구글 시트 연결 중... 잠시만 기다려주세요.")
+            
+            # 재시도 로직
+            for i in range(3):
+                try:
+                    db.init_google_sheet()
+                    if db.sheet:
+                        break
+                    time.sleep(2)
+                except Exception as e:
+                    if i == 2:  # 마지막 시도
+                        st.error(f"❌ 구글 시트 연결 실패: {e}")
+                        st.error("진행 현황에서 '🔄 데이터 새로고침'을 눌러주세요.")
+                        st.stop()
+                    time.sleep(2)
         
-        return db, email_service, sync_manager
+        return db, email_service
         
     except Exception as e:
         st.error(f"❌ 서비스 초기화 실패: {e}")
+        st.error("메인 대시보드에서 '🔄 데이터 새로고침'을 눌러주세요.")
         st.stop()
 
 @st.cache_data
@@ -911,5 +921,6 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
