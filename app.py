@@ -709,7 +709,7 @@ def main():
                     selected_count = len(st.session_state.email_selected_indices)
                     
                     # 선택 현황 표시 개선
-                    if selected_count &gt; 0:
+                    if selected_count > 0:
                         if selected_count == len(pending_candidates):
                             st.success(f"**전체 {selected_count}명** 선택됨")
                         else:
@@ -781,7 +781,7 @@ def main():
                                 progress_bar.empty()
                                 status_text.empty()
                                 
-                                if success_count &gt; 0:
+                                if success_count > 0:
                                     st.success(f"메일 발송 완료: {success_count}명 성공, {fail_count}명 실패")
                                     
                                     # 선택 초기화
@@ -943,6 +943,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
