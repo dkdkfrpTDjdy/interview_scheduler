@@ -375,24 +375,29 @@ class DatabaseManager:
             return {}
     
     def check_all_interviewers_responded(self, request: InterviewRequest) -> Tuple[bool, int, int]:
-        """
-        모든 면접관이 일정을 입력했는지 확인
-        
-        Returns:
-            Tuple[bool, int, int]: (전체 응답 여부, 응답한 면접관 수, 전체 면접관 수)
-        """
+        """모든 면접관이 일정을 입력했는지 확인 (수정된 버전)"""
         try:
             interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
             total_count = len(interviewer_ids)
             
-            # 단일 면접관인 경우
+            logger.info(f"🔍 면접관 응답 확인 시작: {total_count}명 면접관")
+            logger.info(f"  - 면접관 ID: {interviewer_ids}")
+            logger.info(f"  - available_slots 수: {len(request.available_slots) if request.available_slots else 0}")
+            
+            # ✅ 단일 면접관인 경우
             if total_count == 1:
                 has_slots = request.available_slots and len(request.available_slots) > 0
                 responded_count = 1 if has_slots else 0
                 logger.info(f"단일 면접관 응답 확인: {responded_count}/{total_count}")
                 return (has_slots, responded_count, total_count)
             
-            # 복수 면접관인 경우 - interviewer_responses 테이블 확인
+            # ✅ 복수 면접관인 경우 - 로직 개선
+            # 1차: available_slots이 있으면 모든 면접관이 응답했다고 간주
+            if request.available_slots and len(request.available_slots) > 0:
+                logger.info(f"✅ available_slots 존재 → 모든 면접관 응답 완료로 간주")
+                return (True, total_count, total_count)
+            
+            # 2차: interviewer_responses 테이블 확인
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.execute(
                     "SELECT COUNT(DISTINCT interviewer_id) FROM interviewer_responses WHERE request_id = ?",
@@ -401,15 +406,14 @@ class DatabaseManager:
                 result = cursor.fetchone()
                 responded_count = result[0] if result else 0
             
+            logger.info(f"interviewer_responses 테이블 확인: {responded_count}/{total_count}")
+            
+            # 3차: available_slots이 없고 개별 응답도 부족한 경우
             all_responded = (responded_count == total_count)
-            
-            logger.info(f"면접관 응답 현황: {responded_count}/{total_count} (request_id: {request.id[:8]}...)")
-            
             return (all_responded, responded_count, total_count)
-            
+                
         except Exception as e:
             logger.error(f"면접관 응답 확인 실패: {e}")
-            # 에러 발생 시에도 안전한 기본값 반환
             try:
                 interviewer_count = len(request.interviewer_id.split(','))
             except Exception:
@@ -1356,3 +1360,4 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ 강제 동기화 실패: {e}")
             return False
+
