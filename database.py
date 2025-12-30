@@ -145,7 +145,6 @@ class DatabaseManager:
             raise
     
     @retry_on_failure(max_retries=3, delay=2)
-    
     def init_google_sheet(self):
         """구글 시트 초기화"""
         try:
@@ -264,14 +263,6 @@ class DatabaseManager:
             logger.info("시트 헤더 설정 완료")
         except Exception as e:
             logger.error(f"헤더 설정 실패: {e}")
-
-    # init_google_sheet() 함수 내 헤더 수정
-
-    headers = [
-        "요청ID", "생성일시", "공고명", "상세공고명", "면접관ID", "면접관이름", "면접자명", 
-        "면접자이메일", "상태", "상태변경일시", "희망일시목록", "제안일시목록", 
-        "확정일시", "면접자요청사항", "마지막업데이트", "처리소요시간", "비고"
-    ]
     
     def save_interview_request(self, request: InterviewRequest):
         """면접 요청 저장"""
@@ -421,7 +412,7 @@ class DatabaseManager:
             # 에러 발생 시에도 안전한 기본값 반환
             try:
                 interviewer_count = len(request.interviewer_id.split(','))
-            except Exception:  # ✅
+            except Exception:
                 interviewer_count = 1
             return (False, 0, interviewer_count)
         
@@ -471,7 +462,7 @@ class DatabaseManager:
                     if confirmed_str:
                         # "2025-01-15 14:00(30분)" 형식 파싱
                         import re
-                        match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})$(\d+)분$', confirmed_str)
+                        match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\$(\d+)분\$', confirmed_str)
                         if match:
                             selected_slot = InterviewSlot(
                                 date=match.group(1),
@@ -690,11 +681,14 @@ class DatabaseManager:
             return False
     
     def get_interview_request(self, request_id: str) -> Optional[InterviewRequest]:
-        """면접 요청 조회 (스키마 호환성 보장)"""
+        """요청 ID로 면접 요청 조회 (강화된 버전)"""
         from utils import normalize_request_id
-        clean_id = normalize_request_id(request_id)
-    
+        
         try:
+            clean_id = normalize_request_id(request_id)
+            logger.info(f"🔍 요청 조회 시작: 원본={request_id}, 정규화={clean_id}")
+            
+            # 1차: SQLite DB에서 검색
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.execute(
                     "SELECT * FROM interview_requests WHERE id = ?", 
@@ -702,65 +696,206 @@ class DatabaseManager:
                 )
                 row = cursor.fetchone()
                 
-                if not row:
-                    logger.warning(f"요청을 찾을 수 없음: {clean_id}")
-                    return None
-    
-                # ✅ 컬럼 수에 따른 호환성 처리
-                if len(row) == 12:  # 기존 스키마
-                    detailed_position_name = ""
-                    candidate_phone = ""
-                    row = list(row) + [detailed_position_name, candidate_phone]
-                elif len(row) == 14:  # 새 스키마
-                    pass  # 그대로 사용
-                else:
-                    logger.warning(f"알 수 없는 스키마: {len(row)}개 컬럼")
-                    return None
-    
-                # JSON 파싱 (기존 코드와 동일)
-                available_slots = []
-                if row[9]:
-                    try:
-                        slots_data = json.loads(row[9])
-                        available_slots = [InterviewSlot(**slot) for slot in slots_data]
-                    except json.JSONDecodeError as e:
-                        logger.warning(f"available_slots 파싱 실패: {e}")
+                if row:
+                    logger.info(f"✅ SQLite에서 요청 발견: {clean_id}")
+                    return self._row_to_request(row)
+            
+            # 2차: 구글 시트에서 직접 검색 + 동기화
+            logger.warning(f"⚠️ SQLite에서 찾지 못함, 구글 시트 검색: {clean_id}")
+            
+            if not self.sheet:
+                logger.error("❌ 구글 시트 연결 없음")
+                return None
+            
+            try:
+                records = self.sheet.get_all_records()
+                logger.info(f"📊 구글 시트 레코드 수: {len(records)}")
                 
-                preferred_datetime_slots = []
-                if row[10]:
-                    try:
-                        preferred_datetime_slots = json.loads(row[10])
-                    except json.JSONDecodeError as e:
-                        logger.warning(f"preferred_datetime_slots 파싱 실패: {e}")
+                for i, record in enumerate(records):
+                    sheet_id = normalize_request_id(record.get('요청ID', ''))
+                    if sheet_id == clean_id:
+                        logger.info(f"✅ 구글 시트에서 요청 발견: {clean_id} (행: {i+2})")
+                        
+                        # 구글 시트 → InterviewRequest 변환
+                        request = self._convert_sheet_record_to_request(record)
+                        if request:
+                            # SQLite와 동기화
+                            self.save_interview_request(request)
+                            logger.info(f"🔄 구글시트 → SQLite 동기화 완료: {clean_id}")
+                            return request
                 
-                selected_slot = None
-                if row[11]:
-                    try:
-                        slot_data = json.loads(row[11])
-                        selected_slot = InterviewSlot(**slot_data)
-                    except json.JSONDecodeError as e:
-                        logger.warning(f"selected_slot 파싱 실패: {e}")
+                logger.error(f"❌ 구글 시트에서도 요청을 찾지 못함: {clean_id}")
                 
-                # ✅ 호환성을 고려한 InterviewRequest 객체 생성
-                return InterviewRequest(
-                    id=row[0],
-                    interviewer_id=row[1],
-                    candidate_email=row[2],
-                    candidate_name=row[3],
-                    position_name=row[4],
-                    detailed_position_name=row[5] if len(row) > 12 else "",  # ✅ 안전한 접근
-                    status=row[6],
-                    created_at=datetime.fromisoformat(row[7]),
-                    updated_at=datetime.fromisoformat(row[8]) if row[8] else None,
-                    available_slots=available_slots,
-                    preferred_datetime_slots=preferred_datetime_slots,
-                    selected_slot=selected_slot,
-                    candidate_note=row[12] if len(row) > 12 else "",  # ✅ 안전한 접근
-                    candidate_phone=row[13] if len(row) > 13 else ""   # ✅ 안전한 접근
-                )
-    
+                # 디버깅: 구글시트 내 모든 요청ID 출력
+                all_ids = [normalize_request_id(r.get('요청ID', '')) for r in records[:10]]
+                logger.info(f"🔍 구글시트 샘플 ID들: {all_ids}")
+                
+            except Exception as sheet_error:
+                logger.error(f"❌ 구글 시트 조회 중 오류: {sheet_error}")
+                
+            return None
+            
         except Exception as e:
-            logger.error(f"면접 요청 조회 실패: {e}")
+            logger.error(f"❌ 요청 조회 중 예외 발생: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return None
+
+    def _row_to_request(self, row) -> Optional[InterviewRequest]:
+        """SQLite 행을 InterviewRequest 객체로 변환 (호환성 보장)"""
+        try:
+            # 컬럼 수에 따른 호환성 처리
+            if len(row) == 12:  # 기존 스키마
+                row = list(row) + ["", ""]  # detailed_position_name, candidate_phone 추가
+            elif len(row) != 14:  # 예상과 다른 스키마
+                logger.warning(f"⚠️ 예상과 다른 스키마: {len(row)}개 컬럼")
+                return None
+
+            # JSON 파싱
+            available_slots = []
+            if row[9]:
+                try:
+                    slots_data = json.loads(row[9])
+                    available_slots = [InterviewSlot(**slot) for slot in slots_data]
+                except json.JSONDecodeError as e:
+                    logger.warning(f"available_slots 파싱 실패: {e}")
+
+            preferred_datetime_slots = []
+            if row[10]:
+                try:
+                    preferred_datetime_slots = json.loads(row[10])
+                except json.JSONDecodeError as e:
+                    logger.warning(f"preferred_datetime_slots 파싱 실패: {e}")
+
+            selected_slot = None
+            if row[11]:
+                try:
+                    slot_data = json.loads(row[11])
+                    selected_slot = InterviewSlot(**slot_data)
+                except json.JSONDecodeError as e:
+                    logger.warning(f"selected_slot 파싱 실패: {e}")
+
+            return InterviewRequest(
+                id=row[0],
+                interviewer_id=row[1],
+                candidate_email=row[2],
+                candidate_name=row[3],
+                position_name=row[4],
+                detailed_position_name=row[5] or "",
+                status=row[6],
+                created_at=datetime.fromisoformat(row[7]),
+                updated_at=datetime.fromisoformat(row[8]) if row[8] else None,
+                available_slots=available_slots,
+                preferred_datetime_slots=preferred_datetime_slots,
+                selected_slot=selected_slot,
+                candidate_note=row[12] or "",
+                candidate_phone=row[13] or ""
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ 행 변환 실패: {e}")
+            return None
+
+    def _convert_sheet_record_to_request(self, record: dict) -> Optional[InterviewRequest]:
+        """구글 시트 레코드를 InterviewRequest 객체로 변환 (강화)"""
+        try:
+            from utils import normalize_request_id
+            
+            # 필수 필드 확인
+            required_fields = ['요청ID', '면접관ID', '면접자명', '면접자이메일', '공고명']
+            missing_fields = []
+            
+            for field in required_fields:
+                if not str(record.get(field, '')).strip():
+                    missing_fields.append(field)
+            
+            if missing_fields:
+                logger.warning(f"⚠️ 필수 필드 누락: {missing_fields}")
+                return None
+
+            # 제안 일시 목록 파싱
+            preferred_slots = []
+            preferred_str = record.get('희망일시목록', '')
+            if preferred_str:
+                preferred_slots = [slot.strip() for slot in preferred_str.split('|') if slot.strip()]
+
+            # 제안 슬롯 파싱
+            available_slots = []
+            proposed_str = record.get('제안일시목록', '')
+            if proposed_str:
+                from utils import parse_proposed_slots
+                try:
+                    slot_data = parse_proposed_slots(proposed_str)
+                    available_slots = [InterviewSlot(**slot) for slot in slot_data]
+                except Exception as slot_error:
+                    logger.warning(f"제안슬롯 파싱 실패: {slot_error}")
+
+            # 확정 슬롯 파싱
+            selected_slot = None
+            confirmed_str = record.get('확정일시', '')
+            if confirmed_str:
+                try:
+                    import re
+                    # "2025-01-15 14:00(30분)" 형식 파싱
+                    match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})$(\d+)분$', confirmed_str)
+                    if match:
+                        selected_slot = InterviewSlot(
+                            date=match.group(1),
+                            time=match.group(2),
+                            duration=int(match.group(3))
+                        )
+                except Exception as slot_error:
+                    logger.warning(f"확정슬롯 파싱 실패: {slot_error}")
+
+            # 생성일시 파싱
+            created_at = datetime.now()
+            created_str = record.get('생성일시', '')
+            if created_str:
+                try:
+                    created_at = datetime.strptime(created_str, '%Y-%m-%d %H:%M')
+                except ValueError:
+                    try:
+                        created_at = datetime.fromisoformat(created_str.replace(' ', 'T'))
+                    except:
+                        pass
+
+            # 상태 매핑
+            status_map = {
+                '면접관_일정대기': Config.Status.PENDING_INTERVIEWER,
+                '면접자_선택대기': Config.Status.PENDING_CANDIDATE,
+                '면접자_메일발송': Config.Status.CANDIDATE_EMAIL_SENT,
+                '확정완료': Config.Status.CONFIRMED,
+                '일정재조율요청': Config.Status.PENDING_CONFIRMATION,
+                '취소': Config.Status.CANCELLED
+            }
+            
+            status = status_map.get(record.get('상태', ''), Config.Status.PENDING_INTERVIEWER)
+
+            # InterviewRequest 객체 생성
+            request = InterviewRequest(
+                id=normalize_request_id(record['요청ID']),  # 정규화 적용
+                interviewer_id=record['면접관ID'],
+                candidate_email=record['면접자이메일'],
+                candidate_name=record['면접자명'],
+                position_name=record['공고명'],
+                detailed_position_name=record.get('상세공고명', ''),
+                status=status,
+                created_at=created_at,
+                updated_at=datetime.now(),
+                available_slots=available_slots,
+                preferred_datetime_slots=preferred_slots,
+                selected_slot=selected_slot,
+                candidate_note=record.get('면접자요청사항', ''),
+                candidate_phone=record.get('면접자전화번호', '')
+            )
+
+            logger.info(f"✅ 구글시트 레코드 변환 완료: {request.id}")
+            return request
+
+        except Exception as e:
+            logger.error(f"❌ 시트 레코드 변환 중 오류: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None
 
     def get_all_requests(self) -> List[InterviewRequest]:
@@ -1147,5 +1282,77 @@ class DatabaseManager:
             logger.error(traceback.format_exc())
             return False
 
+    def debug_request_search(self, request_id: str) -> dict:
+        """요청 ID 검색 디버깅 정보"""
+        from utils import normalize_request_id
+        
+        debug_info = {
+            'original_id': request_id,
+            'normalized_id': normalize_request_id(request_id),
+            'sqlite_found': False,
+            'sheet_found': False,
+            'sqlite_total': 0,
+            'sheet_total': 0,
+            'similar_ids': []
+        }
+        
+        try:
+            clean_id = debug_info['normalized_id']
+            
+            # SQLite 검색
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute("SELECT COUNT(*) FROM interview_requests")
+                debug_info['sqlite_total'] = cursor.fetchone()[0]
+                
+                cursor = conn.execute("SELECT id FROM interview_requests WHERE id = ?", (clean_id,))
+                debug_info['sqlite_found'] = cursor.fetchone() is not None
+                
+                # 유사한 ID들 찾기
+                cursor = conn.execute("SELECT id FROM interview_requests LIMIT 10")
+                all_ids = [row[0] for row in cursor.fetchall()]
+                debug_info['similar_ids'] = all_ids
 
+            # 구글 시트 검색
+            if self.sheet:
+                records = self.sheet.get_all_records()
+                debug_info['sheet_total'] = len(records)
+                
+                for record in records:
+                    sheet_id = normalize_request_id(record.get('요청ID', ''))
+                    if sheet_id == clean_id:
+                        debug_info['sheet_found'] = True
+                        break
+            
+            return debug_info
+            
+        except Exception as e:
+            debug_info['error'] = str(e)
+            return debug_info
 
+    def force_sync_specific_request(self, request_id: str) -> bool:
+        """특정 요청의 강제 동기화"""
+        try:
+            from utils import normalize_request_id
+            clean_id = normalize_request_id(request_id)
+            
+            if not self.sheet:
+                logger.error("구글 시트 연결 없음")
+                return False
+            
+            records = self.sheet.get_all_records()
+            
+            for record in records:
+                sheet_id = normalize_request_id(record.get('요청ID', ''))
+                if sheet_id == clean_id:
+                    request = self._convert_sheet_record_to_request(record)
+                    if request:
+                        self.save_interview_request(request)
+                        logger.info(f"✅ 강제 동기화 완료: {clean_id}")
+                        return True
+            
+            logger.error(f"❌ 구글시트에서 요청을 찾을 수 없음: {clean_id}")
+            return False
+            
+        except Exception as e:
+            logger.error(f"❌ 강제 동기화 실패: {e}")
+            return False
