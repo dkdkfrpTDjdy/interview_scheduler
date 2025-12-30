@@ -801,7 +801,6 @@ class EmailService:
                     # 3차: 구글시트에서 직접 파싱 (최후의 수단)
                     if not overlapping_slots:
                         try:
-                            # 구글시트에서 제안일시목록 직접 파싱
                             sheet_slots = self._parse_slots_from_sheet(request.id, db)
                             if sheet_slots:
                                 overlapping_slots = sheet_slots
@@ -815,7 +814,7 @@ class EmailService:
                         fail_count += 1
                         continue
                     
-                    # 면접관 정보 처리 (기존 코드와 동일)
+                    # 면접관 정보 처리
                     interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
                     interviewer_names = []
                     
@@ -824,12 +823,11 @@ class EmailService:
                         interviewer_names.append(info.get('name', interviewer_id))
                     
                     interviewer_display = ", ".join(interviewer_names)
-                    
                     candidate_link = f"https://candidate-app.streamlit.app/"
                     
                     logger.info(f"📧 면접자 초대 메일 준비 - {request.candidate_name} ({len(overlapping_slots)}개 타임슬롯)")
                     
-                    # 면접 일정 테이블 HTML 생성 (기존 코드와 동일)
+                    # 면접 일정 테이블 HTML 생성
                     slots_by_date = {}
                     for slot in overlapping_slots:
                         if slot.date not in slots_by_date:
@@ -851,7 +849,6 @@ class EmailService:
                             """
                             slot_number += 1
                     
-                    # 이메일 제목과 본문 생성 (기존과 동일)
                     subject = f"[AJ네트웍스] 면접 일정을 선택해주세요 - {request.position_name}"
                     body = self._create_gmail_safe_html({
                         'company_name': 'AJ네트웍스',
@@ -937,7 +934,6 @@ class EmailService:
                 if record.get('요청ID', '').strip() == request_id:
                     proposed_str = record.get('제안일시목록', '')
                     if proposed_str:
-                        # "2026-01-06 10:00(30분) | 2026-01-06 10:30(30분)" 형식 파싱
                         from models import InterviewSlot
                         import re
                         
@@ -945,7 +941,6 @@ class EmailService:
                         slot_parts = [s.strip() for s in proposed_str.split('|')]
                         
                         for part in slot_parts:
-                            # "2026-01-06 10:00(30분)" 파싱
                             match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})$(\d+)분$', part)
                             if match:
                                 slot = InterviewSlot(
@@ -962,6 +957,8 @@ class EmailService:
         except Exception as e:
             logger.error(f"구글시트 슬롯 파싱 실패: {e}")
             return []
+
+
         
     def send_automatic_confirmation_on_sheet_update(self, request: InterviewRequest):
         """구글 시트 L열 업데이트 시 자동 확정 이메일 발송"""
@@ -1237,6 +1234,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
