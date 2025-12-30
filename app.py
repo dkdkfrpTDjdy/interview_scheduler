@@ -712,7 +712,7 @@ def main():
                                 # 파이프(|)로 구분된 일정을 줄바꿈으로 표시
                                 slots_list = [slot.strip() for slot in slots_str.split('|') if slot.strip()]
                                 # 최대 3개만 표시하고 나머지는 "외 N개"로 표시
-                                if len(slots_list) &lt;= 3:
+                                if len(slots_list) <= 3:
                                     st.text('\n'.join(slots_list))
                                 else:
                                     display_slots = slots_list[:3]
@@ -947,6 +947,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
