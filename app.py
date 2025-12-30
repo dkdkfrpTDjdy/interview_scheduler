@@ -695,7 +695,7 @@ def main():
                             slots_str = row.get('제안일시목록', '')
                             if slots_str:
                                 slots_list = [slot.strip() for slot in slots_str.split('|') if slot.strip()]
-                                if len(slots_list) &lt;= 3:
+                                if len(slots_list) <= 3:
                                     st.text('\n'.join(slots_list))
                                 else:
                                     display_slots = slots_list[:3]
@@ -943,6 +943,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
