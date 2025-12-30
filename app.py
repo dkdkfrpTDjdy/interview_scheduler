@@ -617,22 +617,33 @@ def main():
                 else:
                     st.success(f"📊 총 {len(pending_candidates)}명의 면접자가 메일 발송 대기 중입니다.")
                     
-                    # ✅ 개별 선택을 위한 세션 상태 초기화
-                    if 'selected_candidate_indices' not in st.session_state:
-                        st.session_state.selected_candidate_indices = set()
+                    # ✅ 세션 상태 초기화 (키 이름 변경)
+                    if 'email_selected_indices' not in st.session_state:
+                        st.session_state.email_selected_indices = set()
+                    if 'email_select_all' not in st.session_state:
+                        st.session_state.email_select_all = False
                     
                     st.markdown("### 📋 발송할 면접자 선택")
                     
                     # ✅ 전체 선택 체크박스
                     col_select_all, col_spacer = st.columns([1, 5])
                     with col_select_all:
-                        select_all = st.checkbox("전체 선택", key="select_all_candidates")
+                        select_all = st.checkbox(
+                            "전체 선택", 
+                            key="email_select_all_checkbox",
+                            value=st.session_state.email_select_all
+                        )
                     
-                    if select_all:
-                        st.session_state.selected_candidate_indices = set(range(len(pending_candidates)))
-                    elif not select_all and len(st.session_state.selected_candidate_indices) == len(pending_candidates):
-                        # 전체 선택 해제
-                        st.session_state.selected_candidate_indices = set()
+                    # ✅ 전체 선택 로직 개선
+                    if select_all != st.session_state.email_select_all:
+                        st.session_state.email_select_all = select_all
+                        if select_all:
+                            # 전체 선택
+                            st.session_state.email_selected_indices = set(range(len(pending_candidates)))
+                        else:
+                            # 전체 해제
+                            st.session_state.email_selected_indices = set()
+                        st.rerun()
                     
                     st.markdown("---")
                     
@@ -658,21 +669,34 @@ def main():
                         cols = st.columns([0.5, 1.5, 2.5, 1.5, 2, 2])
                         
                         with cols[0]:
+                            # ✅ 개별 체크박스 상태 관리 개선
+                            current_checked = i in st.session_state.email_selected_indices
+                            
                             is_selected = st.checkbox(
                                 "선택",
-                                value=i in st.session_state.selected_candidate_indices,
-                                key=f"candidate_check_{i}",
+                                value=current_checked,
+                                key=f"email_candidate_check_{i}",
                                 label_visibility="collapsed"
                             )
                             
-                            if is_selected:
-                                st.session_state.selected_candidate_indices.add(i)
-                            elif i in st.session_state.selected_candidate_indices:
-                                st.session_state.selected_candidate_indices.discard(i)
+                            # ✅ 개별 선택 상태 업데이트
+                            if is_selected != current_checked:
+                                if is_selected:
+                                    st.session_state.email_selected_indices.add(i)
+                                else:
+                                    st.session_state.email_selected_indices.discard(i)
+                                
+                                # ✅ 전체 선택 상태도 업데이트
+                                if len(st.session_state.email_selected_indices) == len(pending_candidates):
+                                    st.session_state.email_select_all = True
+                                else:
+                                    st.session_state.email_select_all = False
+                                
+                                st.rerun()
                         
                         with cols[1]:
                             st.text(row.get('공고명', ''))
-
+    
                         with cols[2]:
                             st.text(row.get('상세공고명', ''))
                         
@@ -688,7 +712,7 @@ def main():
                                 # 파이프(|)로 구분된 일정을 줄바꿈으로 표시
                                 slots_list = [slot.strip() for slot in slots_str.split('|') if slot.strip()]
                                 # 최대 3개만 표시하고 나머지는 "외 N개"로 표시
-                                if len(slots_list) <= 3:
+                                if len(slots_list) &lt;= 3:
                                     st.text('\n'.join(slots_list))
                                 else:
                                     display_slots = slots_list[:3]
@@ -699,9 +723,9 @@ def main():
                     st.markdown("---")
                     
                     # ✅ 선택된 면접자 수 표시 및 발송 버튼
-                    selected_count = len(st.session_state.selected_candidate_indices)
+                    selected_count = len(st.session_state.email_selected_indices)
                     
-                    if selected_count > 0:
+                    if selected_count &gt; 0:
                         st.info(f"✅ **{selected_count}명** 선택됨")
                         
                         col1, col2, col3 = st.columns([1, 2, 1])
@@ -710,7 +734,8 @@ def main():
                             if st.button(
                                 f"📧 선택된 {selected_count}명에게 메일 발송",
                                 type="primary",
-                                width="stretch"
+                                key="email_send_button",
+                                use_container_width=True
                             ):
                                 success_count = 0
                                 fail_count = 0
@@ -721,7 +746,7 @@ def main():
                                 # ✅ 선택된 면접자만 가져오기
                                 selected_candidates = [
                                     pending_candidates[i] 
-                                    for i in sorted(st.session_state.selected_candidate_indices)
+                                    for i in sorted(st.session_state.email_selected_indices)
                                 ]
                                 
                                 for i, row in enumerate(selected_candidates):
@@ -765,11 +790,12 @@ def main():
                                 progress_bar.empty()
                                 status_text.empty()
                                 
-                                if success_count > 0:
+                                if success_count &gt; 0:
                                     st.success(f"✅ 메일 발송 완료: {success_count}명 성공, {fail_count}명 실패")
                                     
                                     # ✅ 선택 초기화
-                                    st.session_state.selected_candidate_indices = set()
+                                    st.session_state.email_selected_indices = set()
+                                    st.session_state.email_select_all = False
                                     time.sleep(2)
                                     st.rerun()
                                 else:
@@ -921,6 +947,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
