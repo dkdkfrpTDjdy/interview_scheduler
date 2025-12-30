@@ -47,15 +47,22 @@ def init_services():
             sync_manager.start_monitoring()
         except ImportError:
             st.warning("⚠️ 자동 모니터링 모듈을 찾을 수 없습니다. 수동 모드로 실행됩니다.")
+            sync_manager = None  # ✅ 명시적으로 None 설정
         except Exception as e:
             st.warning(f"⚠️ 자동 모니터링 시작 실패: {e}")
+            sync_manager = None  # ✅ 명시적으로 None 설정
         
-        # ✅ 반드시 3개의 값을 반환해야 함
+        # ✅ 반드시 3개의 값을 반환
         return db, email_service, sync_manager
         
     except Exception as e:
         st.error(f"❌ 서비스 초기화 실패: {e}")
-        st.stop()
+        import traceback
+        st.code(traceback.format_exc())
+        
+        # ✅ st.stop() 대신 None 값들을 반환
+        return None, None, None
+        
 @st.cache_data
 def load_organization_data():
     """조직도 데이터 로드"""
@@ -250,25 +257,21 @@ def main():
     st.title("📅 AI 면접 일정 조율 시스템")
 
     init_session_state()
-    """세션 상태 초기화"""
-    if "form_reset_counter" not in st.session_state:
-        st.session_state.form_reset_counter = 0
-    if "selected_interviewers" not in st.session_state:
-        st.session_state.selected_interviewers = []
-    if "selected_candidates" not in st.session_state:
-        st.session_state.selected_candidates = []
-    if "selected_slots" not in st.session_state:
-        st.session_state.selected_slots = []
-    if "submission_done" not in st.session_state:
-        st.session_state.submission_done = False
     
-    # ✅ 입력 필드 초기화용 카운터 추가
+    # 세션 상태 초기화 (중복 제거)
     if "interviewer_input_counter" not in st.session_state:
         st.session_state.interviewer_input_counter = 0
     if "candidate_input_counter" not in st.session_state:
         st.session_state.candidate_input_counter = 0
     
+    # ✅ 서비스 초기화 및 None 체크
     db, email_service, sync_manager = init_services()
+    
+    if db is None or email_service is None:
+        st.error("❌ 시스템 초기화에 실패했습니다.")
+        st.error("페이지를 새로고침하거나 관리자에게 문의하세요.")
+        return  # ✅ 함수 종료
+    
     org_data = load_organization_data()
         
     # ✅ 탭 구성 변경: 새 탭 추가
@@ -936,6 +939,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
