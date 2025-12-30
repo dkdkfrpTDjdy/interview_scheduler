@@ -699,7 +699,7 @@ def main():
                             st.text(row.get('면접자이메일', ''))
                         
                         with cols[5]:
-                            slots_str = row.get('제안일시목록', '')
+                            slots_str = row.get('면접관확정일시', '')
                             if slots_str:
                                 slots_list = [slot.strip() for slot in slots_str.split('|') if slot.strip()]
                                 if len(slots_list) <= 3:
@@ -855,8 +855,12 @@ def main():
                         display_columns.append('상세공고명')
                     if '면접관이름' in df.columns:
                         display_columns.append('면접관이름')
-                    if '제안일시목록' in df.columns:
-                        display_columns.append('제안일시목록')
+                    if '인사팀제안일시' in df.columns:  # ✅ 변경
+                        display_columns.append('인사팀제안일시')
+                    if '면접관확정일시' in df.columns:  # ✅ 변경  
+                        display_columns.append('면접관확정일시')
+                    if '면접자확정일시' in df.columns:  # ✅ 변경
+                        display_columns.append('면접자확정일시')
                     if '면접자명' in df.columns:
                         display_columns.append('면접자명')
                     if '면접자전화번호' in df.columns:
@@ -865,8 +869,6 @@ def main():
                         display_columns.append('면접자이메일')
                     if '상태' in df.columns:
                         display_columns.append('상태')
-                    if '확정일시' in df.columns:
-                        display_columns.append('확정일시')
                     
                     if display_columns:
                         display_df = df[display_columns].copy()
@@ -942,6 +944,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
