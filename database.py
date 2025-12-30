@@ -23,40 +23,6 @@ from functools import wraps
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def migrate_database_schema(self):
-    """데이터베이스 스키마 마이그레이션"""
-    try:
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            # 현재 테이블 구조 확인
-            cursor.execute("PRAGMA table_info(interview_requests)")
-            columns = [column[1] for column in cursor.fetchall()]
-            
-            logger.info(f"현재 테이블 컬럼: {columns}")
-            
-            # detailed_position_name 컬럼이 없으면 추가
-            if 'detailed_position_name' not in columns:
-                cursor.execute("""
-                    ALTER TABLE interview_requests 
-                    ADD COLUMN detailed_position_name TEXT DEFAULT ''
-                """)
-                logger.info("✅ detailed_position_name 컬럼 추가 완료")
-            
-            # candidate_phone 컬럼이 없으면 추가
-            if 'candidate_phone' not in columns:
-                cursor.execute("""
-                    ALTER TABLE interview_requests 
-                    ADD COLUMN candidate_phone TEXT DEFAULT ''
-                """)
-                logger.info("✅ candidate_phone 컬럼 추가 완료")
-            
-            conn.commit()
-            logger.info("🎉 데이터베이스 마이그레이션 완료")
-            
-    except Exception as e:
-        logger.error(f"❌ 데이터베이스 마이그레이션 실패: {e}")
-
 def retry_on_failure(max_retries=3, delay=1):
     """API 실패 시 재시도 데코레이터"""
     def decorator(func):
@@ -87,6 +53,40 @@ class DatabaseManager:
         self.init_database()
         self.init_google_sheet()
         self.migrate_database_schema()
+
+    def migrate_database_schema(self):
+        """데이터베이스 스키마 마이그레이션"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # 현재 테이블 구조 확인
+                cursor.execute("PRAGMA table_info(interview_requests)")
+                columns = [column[1] for column in cursor.fetchall()]
+                
+                logger.info(f"현재 테이블 컬럼: {columns}")
+                
+                # detailed_position_name 컬럼이 없으면 추가
+                if 'detailed_position_name' not in columns:
+                    cursor.execute("""
+                        ALTER TABLE interview_requests 
+                        ADD COLUMN detailed_position_name TEXT DEFAULT ''
+                    """)
+                    logger.info("✅ detailed_position_name 컬럼 추가 완료")
+                
+                # candidate_phone 컬럼이 없으면 추가
+                if 'candidate_phone' not in columns:
+                    cursor.execute("""
+                        ALTER TABLE interview_requests 
+                        ADD COLUMN candidate_phone TEXT DEFAULT ''
+                    """)
+                    logger.info("✅ candidate_phone 컬럼 추가 완료")
+                
+                conn.commit()
+                logger.info("🎉 데이터베이스 마이그레이션 완료")
+                
+        except Exception as e:
+            logger.error(f"❌ 데이터베이스 마이그레이션 실패: {e}")
     
     def init_database(self):
         """데이터베이스 초기화"""
@@ -145,6 +145,7 @@ class DatabaseManager:
             raise
     
     @retry_on_failure(max_retries=3, delay=2)
+    
     def init_google_sheet(self):
         """구글 시트 초기화"""
         try:
@@ -1145,5 +1146,6 @@ class DatabaseManager:
             import traceback
             logger.error(traceback.format_exc())
             return False
+
 
 
