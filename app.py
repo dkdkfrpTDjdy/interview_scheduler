@@ -622,7 +622,7 @@ def main():
                     col_select_all, col_spacer = st.columns([1, 5])
                     with col_select_all:
                         # 현재 전체 선택 상태 계산
-                        current_all_selected = len(st.session_state.email_selected_indices) == len(pending_candidates) and len(pending_candidates) > 0
+                        current_all_selected = len(st.session_state.email_selected_indices) == len(pending_candidates) and len(pending_candidates) &gt; 0
                         
                         # 전체 선택 체크박스
                         select_all_clicked = st.checkbox(
@@ -702,7 +702,7 @@ def main():
                             slots_str = row.get('제안일시목록', '')
                             if slots_str:
                                 slots_list = [slot.strip() for slot in slots_str.split('|') if slot.strip()]
-                                if len(slots_list) <= 3:
+                                if len(slots_list) &lt;= 3:
                                     st.text('\n'.join(slots_list))
                                 else:
                                     display_slots = slots_list[:3]
@@ -715,7 +715,7 @@ def main():
                     # 선택된 면접자 수 표시 및 발송 버튼
                     selected_count = len(st.session_state.email_selected_indices)
                     
-                    if selected_count > 0:
+                    if selected_count &gt; 0:
                         if selected_count == len(pending_candidates):
                             st.success(f"**전체 {selected_count}명** 선택됨")
                         else:
@@ -734,7 +734,7 @@ def main():
                                 type="primary",
                                 use_container_width=True
                             ):
-                                # 메일 발송 로직 (기존과 동일)
+                                # 메일 발송 로직
                                 success_count = 0
                                 fail_count = 0
                                 
@@ -765,42 +765,42 @@ def main():
                                                     db.update_request_status_after_email(
                                                         request_id=request.id,
                                                         new_status=Config.Status.CANDIDATE_EMAIL_SENT
-                                                )
-                                            except Exception as e:
-                                                st.warning(f"⚠️ {row.get('면접자명', '')} 상태 업데이트 실패: {e}")
+                                                    )
+                                                except Exception as status_error:  # ✅ 수정된 부분
+                                                    st.warning(f"⚠️ {row.get('면접자명', '')} 상태 업데이트 실패: {status_error}")
+                                            else:
+                                                fail_count += 1
                                         else:
                                             fail_count += 1
-                                    else:
+                                        
+                                        progress_bar.progress((i + 1) / selected_count)
+                                        time.sleep(0.5)
+                                        
+                                    except Exception as e:
                                         fail_count += 1
-                                    
-                                    progress_bar.progress((i + 1) / selected_count)
-                                    time.sleep(0.5)
-                                    
-                                except Exception as e:
-                                    fail_count += 1
-                                    st.error(f"{row.get('면접자명', '알 수 없음')} 발송 실패: {e}")
-                            
-                            progress_bar.empty()
-                            status_text.empty()
-                            
-                            if success_count > 0:
-                                st.success(f"메일 발송 완료: {success_count}명 성공, {fail_count}명 실패")
-                                st.session_state.email_selected_indices = set()
-                                time.sleep(2)
+                                        st.error(f"❌ {row.get('면접자명', '알 수 없음')} 발송 실패: {e}")
+                                
+                                progress_bar.empty()
+                                status_text.empty()
+                                
+                                if success_count &gt; 0:
+                                    st.success(f"✅ 메일 발송 완료: {success_count}명 성공, {fail_count}명 실패")
+                                    st.session_state.email_selected_indices = set()
+                                    time.sleep(2)
+                                    st.rerun()
+                                else:
+                                    st.error(f"❌ 모든 메일 발송 실패: {fail_count}명")
+                    else:
+                        st.warning("⚠️ 발송할 면접자를 선택해주세요.")
+                        
+                        col1, col2, col3 = st.columns([2, 1, 2])
+                        with col2:
+                            if st.button("✅ 전체 선택", use_container_width=True):
+                                st.session_state.email_selected_indices = set(range(len(pending_candidates)))
                                 st.rerun()
-                            else:
-                                st.error(f"모든 메일 발송 실패: {fail_count}명")
-                else:
-                    st.warning("⚠️ 발송할 면접자를 선택해주세요.")
-                    
-                    col1, col2, col3 = st.columns([2, 1, 2])
-                    with col2:
-                        if st.button("전체 선택", use_container_width=True):
-                            st.session_state.email_selected_indices = set(range(len(pending_candidates)))
-                            st.rerun()
-                            
-    except Exception as e:
-        st.error(f"데이터 로드 실패: {e}")
+                                
+        except Exception as e:
+            st.error(f"데이터 로드 실패: {e}")
     
     with tab3:
         st.subheader("📊 진행 현황")
@@ -942,6 +942,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
