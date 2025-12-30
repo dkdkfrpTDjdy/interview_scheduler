@@ -25,7 +25,7 @@ class EmailService:
     def __init__(self):
         self.email_config = Config.EmailConfig
         self.company_domain = Config.COMPANY_DOMAIN
-        self.sent_emails_log = set()  # ✅ 중복 발송 방지용 로그
+        self.sent_emails_log = set()  # 중복 발송 방지용 로그
 
     def _generate_email_hash(self, to_emails: List[str], subject: str, request_id: str = None) -> str:
         """
@@ -106,10 +106,10 @@ class EmailService:
             
             server.starttls()
             server.login(self.email_config.EMAIL_USER, self.email_config.EMAIL_PASSWORD)
-            logger.info("✅ SMTP 연결 및 로그인 성공")
+            logger.info("SMTP 연결 및 로그인 성공")
             return server
         except Exception as e:
-            logger.error(f"❌ SMTP 연결 실패: {e}")
+            logger.error(f"SMTP 연결 실패: {e}")
             return None
 
     def _generate_message_id(self):
@@ -269,7 +269,7 @@ class EmailService:
         해결책: 해시 기반 중복 체크로 동일한 이메일 재발송 방지
         """
         try:
-            # ✅ 중복 발송 체크
+            # 중복 발송 체크
             email_hash = self._generate_email_hash(to_emails, subject, request_id)
             if email_hash in self.sent_emails_log:
                 logger.warning(f"⚠️ 중복 이메일 발송 차단: {subject} -> {to_emails}")
@@ -351,25 +351,25 @@ class EmailService:
                     server.sendmail(self.email_config.EMAIL_USER, all_recipients, text)
                     server.quit()
                     
-                    # ✅ 발송 성공 시 로그에 추가
+                    # 발송 성공 시 로그에 추가
                     self.sent_emails_log.add(email_hash)
                     
-                    logger.info(f"✅ 이메일 발송 성공: {', '.join(validated_emails)}")
+                    logger.info(f"이메일 발송 성공: {', '.join(validated_emails)}")
                     return True
                     
                 except Exception as smtp_error:
-                    logger.error(f"❌ SMTP 발송 실패: {smtp_error}")
+                    logger.error(f"SMTP 발송 실패: {smtp_error}")
                     try:
                         server.quit()
                     except:
                         pass
                     return False
             else:
-                logger.error("❌ SMTP 서버 연결 실패")
+                logger.error("SMTP 서버 연결 실패")
                 return False
         
         except Exception as e:
-            logger.error(f"❌ 이메일 발송 실패: {e}")
+            logger.error(f"이메일 발송 실패: {e}")
             return False
 
     def _create_professional_email_body(self, request, interviewer_info, candidate_link, is_gmail_optimized=False):
@@ -394,7 +394,7 @@ class EmailService:
             'position': request.position_name,
             'interviewer': f"{interviewer_info['name']} ({interviewer_info['department']})",
             'action_link': candidate_link,
-            'button_text': '✅ 면접 일정 선택하기',
+            'button_text': '면접 일정 선택하기',
             'additional_content': f"""
             <h4 style="color: #EF3340; margin: 0 0 20px 0; font-size:16px;">🗓️ 제안된 면접 일정</h4>
             <table style="width: 100%; border-collapse: collapse; border: 2px solid #EF3340; border-radius: 8px; overflow: hidden;">
@@ -469,7 +469,7 @@ class EmailService:
             bool: 전체 발송 성공 여부
         """
         try:
-            # ✅ 단일 요청인 경우 리스트로 변환
+            # 단일 요청인 경우 리스트로 변환
             if not isinstance(requests, list):
                 requests = [requests]
             
@@ -477,16 +477,16 @@ class EmailService:
                 logger.warning("발송할 면접 요청이 없습니다.")
                 return False
             
-            # ✅ 첫 번째 요청에서 공통 정보 추출
+            # 첫 번째 요청에서 공통 정보 추출
             first_request = requests[0]
             position_name = first_request.position_name
             
-            # ✅ 복수 면접관 ID 추출
+            # 복수 면접관 ID 추출
             interviewer_ids = [id.strip() for id in first_request.interviewer_id.split(',')]
             
             logger.info(f"📧 면접관 초대 메일 준비 - 면접관 수: {len(interviewer_ids)}, 면접자 수: {len(requests)}")
             
-            # ✅ 면접자 정보 수집 (중복 제거)
+            # 면접자 정보 수집 (중복 제거)
             candidates = []
             seen_emails = set()
             
@@ -498,13 +498,13 @@ class EmailService:
                     })
                     seen_emails.add(request.candidate_email)
             
-            # ✅ 면접 일정 테이블 생성 (번호/날짜/시간)
+            # 면접 일정 테이블 생성 (번호/날짜/시간)
             schedule_html = self._generate_interview_schedule_table(first_request.preferred_datetime_slots)
             
-            # ✅ 면접자 목록 테이블 생성 (번호/이름/이메일)
+            # 면접자 목록 테이블 생성 (번호/이름/이메일)
             candidates_html = self._generate_candidates_table(candidates)
             
-            # ✅ 각 면접관에게 개별 발송
+            # 각 면접관에게 개별 발송
             success_count = 0
             
             for interviewer_id in interviewer_ids:
@@ -515,11 +515,11 @@ class EmailService:
                     
                     logger.info(f"📧 면접관 {interviewer_info['name']}({interviewer_id})에게 메일 발송 중...")
                     
-                    # ✅ 제목 생성
+                    # 제목 생성
                     candidate_count_text = f"{len(candidates)}명" if len(candidates) > 1 else candidates[0]['name']
                     subject = f"[인사팀] 면접 일정 입력 요청드립니다 - {position_name} ({candidate_count_text})"
                     
-                    # ✅ 본문 생성 (개별 면접관 정보 사용)
+                    # 본문 생성 (개별 면접관 정보 사용)
                     if len(candidates) == 1:
                         intro_message = """
                         귀하께서 참여 예정이신 <strong style="color: #1A1A1A;">면접 일정 조율</strong>을 위해 협조를 부탁드립니다.<br>
@@ -623,7 +623,7 @@ class EmailService:
                     </table>
                     """
                     
-                    # ✅ 개별 이메일 발송
+                    # 개별 이메일 발송
                     result = self.send_email(
                         to_emails=[interviewer_email],
                         cc_emails=Config.HR_EMAILS,
@@ -633,18 +633,18 @@ class EmailService:
                     
                     if result:
                         success_count += 1
-                        logger.info(f"✅ 면접관 {interviewer_info['name']}({interviewer_id}) 메일 발송 성공")
+                        logger.info(f"면접관 {interviewer_info['name']}({interviewer_id}) 메일 발송 성공")
                     else:
-                        logger.error(f"❌ 면접관 {interviewer_info['name']}({interviewer_id}) 메일 발송 실패")
+                        logger.error(f"면접관 {interviewer_info['name']}({interviewer_id}) 메일 발송 실패")
                     
                     # API 부하 방지
                     time.sleep(0.5)
                     
                 except Exception as e:
-                    logger.error(f"❌ 면접관 {interviewer_id} 메일 발송 중 오류: {e}")
+                    logger.error(f"면접관 {interviewer_id} 메일 발송 중 오류: {e}")
                     continue
             
-            # ✅ 최종 결과
+            # 최종 결과
             total_interviewers = len(interviewer_ids)
             logger.info(f"📧 면접관 초대 메일 발송 완료: {success_count}/{total_interviewers}명 성공")
             
@@ -652,7 +652,7 @@ class EmailService:
             return success_count > 0
             
         except Exception as e:
-            logger.error(f"❌ 면접관 초대 메일 발송 실패: {e}")
+            logger.error(f"면접관 초대 메일 발송 실패: {e}")
             return False
 
     def _generate_candidates_table(self, candidates: List[dict]) -> str:
@@ -691,7 +691,7 @@ class EmailService:
         </table>
         """
 
-    # ✅ HR 알림 메일 발송 함수 추가
+    # HR 알림 메일 발송 함수 추가
 
     def send_hr_notification_on_interviewer_completion(self, position_name: str, candidate_count: int):
         """
@@ -757,7 +757,7 @@ class EmailService:
             )
             
         except Exception as e:
-            logger.error(f"❌ HR 알림 메일 발송 실패: {e}")
+            logger.error(f"HR 알림 메일 발송 실패: {e}")
             return False
 
     def send_candidate_invitation(self, requests):
@@ -774,7 +774,7 @@ class EmailService:
             from database import DatabaseManager
             db = DatabaseManager()
             
-            # ✅ 단일 요청인 경우 리스트로 변환
+            # 단일 요청인 경우 리스트로 변환
             if not isinstance(requests, list):
                 requests = [requests]
             
@@ -835,7 +835,7 @@ class EmailService:
                         'position': request.position_name,
                         'interviewer': interviewer_display,
                         'action_link': candidate_link,
-                        'button_text': '✅ 면접 일정 선택하기',
+                        'button_text': '면접 일정 선택하기',
                         'additional_content': f"""
                         <h4 style="color: #EF3340; margin: 0 0 20px 0; font-size:16px;">🗓️ 선택 가능한 면접 시간</h4>
                         <table style="width: 100%; border-collapse: collapse; border: 2px solid #EF3340; border-radius: 8px; overflow: hidden;">
@@ -853,13 +853,13 @@ class EmailService:
                         </table>
                         <div style="background-color:#fff3cd;padding:15px;border-radius:8px;margin-top:20px;border-left:5px solid #ffc107;">
                             <p style="margin:0;color:#856404;font-weight:bold;">⚠️ 안내 사항</p>
-                            <p style="margin:5px 0 0 0;color:#856404;">• 각 면접은 <strong>30분</strong>으로 진행됩니다<br>• 다른 면접자가 먼저 선택한 시간은 자동으로 제외됩니다<br></p>
+                            <p style="margin:5px 0 0 0;color:#856404;">• 각 면접은 <strong>30분</strong>으로 진행됩니다<br>• 다른 면접자가 먼저 선택한 시간은 자동으로 제외됩니다</p>
                         </div>
                         """,
                         'contact_email': Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'
                     })
                     
-                    # ✅ 개별 면접자에게 이메일 발송
+                    # 개별 면접자에게 이메일 발송
                     result = self.send_email(
                         to_emails=[request.candidate_email],
                         # cc_emails=Config.HR_EMAILS,
@@ -871,17 +871,17 @@ class EmailService:
                     
                     if result:
                         success_count += 1
-                        logger.info(f"✅ 면접자 {request.candidate_name} 메일 발송 성공")
+                        logger.info(f"면접자 {request.candidate_name} 메일 발송 성공")
                     else:
                         fail_count += 1
-                        logger.error(f"❌ 면접자 {request.candidate_name} 메일 발송 실패")
+                        logger.error(f"면접자 {request.candidate_name} 메일 발송 실패")
                     
                     # API 부하 방지
                     time.sleep(0.5)
                     
                 except Exception as e:
                     fail_count += 1
-                    logger.error(f"❌ 면접자 {request.candidate_name} 메일 발송 중 오류: {e}")
+                    logger.error(f"면접자 {request.candidate_name} 메일 발송 중 오류: {e}")
                     continue
             
             total = len(requests)
@@ -894,7 +894,7 @@ class EmailService:
             }
             
         except Exception as e:
-            logger.error(f"❌ 면접자 초대 메일 발송 실패: {e}")
+            logger.error(f"면접자 초대 메일 발송 실패: {e}")
             return {
                 'success_count': 0,
                 'fail_count': len(requests) if isinstance(requests, list) else 1,
@@ -940,7 +940,7 @@ class EmailService:
 
                     <div style="text-align: center; margin: 40px 0 20px;">
                         <span style="display: inline-block; background: #FF0033; color: white; padding: 12px 24px; border-radius: 5px; font-weight: bold;">
-                            ✅ 면접 일정이 확정되었습니다
+                            면접 일정이 확정되었습니다
                         </span>
                     </div>
 
@@ -1062,7 +1062,7 @@ class EmailService:
             return result
             
         except Exception as e:
-            logger.error(f"❌ 확정 알림 메일 발송 실패: {e}")
+            logger.error(f"확정 알림 메일 발송 실패: {e}")
             return False
 
     def send_interviewer_notification_on_candidate_selection(self, request: InterviewRequest):
@@ -1132,7 +1132,7 @@ class EmailService:
             return result
 
         except Exception as e:
-            logger.error(f"❌ 면접자 선택 완료 알림 발송 실패: {e}")
+            logger.error(f"면접자 선택 완료 알림 발송 실패: {e}")
             return False
 
     def send_automatic_confirmation_email(self, request: InterviewRequest):
@@ -1146,7 +1146,7 @@ class EmailService:
             return candidate_success and interviewer_success
                 
         except Exception as e:
-            logger.error(f"❌ 자동 확정 알림 발송 실패: {e}")
+            logger.error(f"자동 확정 알림 발송 실패: {e}")
             return False
 
     def test_html_email(self):
@@ -1161,7 +1161,7 @@ class EmailService:
                 'interviewer': '테스트 면접관',
                 'action_link': '#',
                 'button_text': '테스트 성공',
-                'additional_content': '<p style="color: #28a745;">✅ HTML 이메일 테스트 성공!</p>',
+                'additional_content': '<p style="color: #28a745;">HTML 이메일 테스트 성공!</p>',
                 'contact_email': 'test@ajnet.co.kr'
             })
             
@@ -1173,8 +1173,9 @@ class EmailService:
             )
             
         except Exception as e:
-            logger.error(f"❌ HTML 테스트 메일 발송 실패: {e}")
+            logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
