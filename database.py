@@ -686,7 +686,7 @@ class DatabaseManager:
             logger.error(f"타임슬롯 예약 실패: {e}")
             return False
     
-    def get_interview_request(self, request_id: str) -&gt; Optional[InterviewRequest]:
+    def get_interview_request(self, request_id: str) -> Optional[InterviewRequest]:
         from utils import normalize_request_id
         
         try:
@@ -695,7 +695,7 @@ class DatabaseManager:
             
             if clean_id in self._request_cache:
                 cached_data, timestamp = self._request_cache[clean_id]
-                if current_time - timestamp &lt; self._cache_timeout:
+                if current_time - timestamp < self._cache_timeout:
                     logger.info(f"📄 캐시 히트: {clean_id}")
                     return cached_data
                 else:
@@ -1379,6 +1379,7 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ 강제 동기화 실패: {e}")
             return False
+
 
 
 
