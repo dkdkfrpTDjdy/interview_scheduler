@@ -1,5 +1,6 @@
 import threading
 import time
+from config import Config
 from datetime import datetime, timedelta
 import logging
 
@@ -20,11 +21,13 @@ class SyncManager:
         def monitor_loop():
             while True:
                 try:
+                    self.check_for_pending_candidate_emails()  # ✅ 추가
                     self.check_for_confirmations()
                     time.sleep(self.check_interval)
                 except Exception as e:
                     self.logger.error(f"모니터링 오류: {e}")
-                    time.sleep(60)  # 오류 시 1분 대기
+                    time.sleep(60)
+
         
         thread = threading.Thread(target=monitor_loop, daemon=True)
         thread.start()
@@ -48,44 +51,63 @@ class SyncManager:
                     
         except Exception as e:
             logger.error(f"주기적 이메일 체크 실패: {e}")
+
+    def _find_confirmed_col_idx(self, headers):
+        """
+        확정일시 컬럼 인덱스를 찾는다.
+        우선순위:
+        1) 면접자확정일시
+        2) 확정일시
+        3) '확정일시'가 포함된 컬럼 (fallback)
+        """
+        # 1) 정확히 일치하는 컬럼 우선
+        priority_headers = ["면접자확정일시", "확정일시"]
+        
+        for target in priority_headers:
+            for i, h in enumerate(headers):
+                if h.strip() == target:
+                    return i
+        
+        # 2) fallback: 포함되어 있으면 반환
+        for i, h in enumerate(headers):
+            if "확정일시" in h:
+                return i
+        
+        return None
+
     
     def check_for_confirmations(self):
-        """L열(확정일시) 변경 감지 및 이메일 발송"""
+        """확정일시 변경 감지 및 이메일 발송"""
         try:
             if not self.db.sheet:
                 return
             
-            # 전체 데이터 조회
             all_values = self.db.sheet.get_all_values()
             if len(all_values) < 2:
                 return
             
             headers = all_values[0]
-            confirmed_col_idx = None
-            
-            # L열(확정일시) 인덱스 찾기
-            for i, header in enumerate(headers):
-                if '확정일시' in header:
-                    confirmed_col_idx = i
-                    break
-            
+    
+            # ✅ 확정일시 컬럼 찾기 (개선된 방식)
+            confirmed_col_idx = self._find_confirmed_col_idx(headers)
+    
             if confirmed_col_idx is None:
+                self.logger.warning("⚠️ 확정일시 컬럼을 찾을 수 없습니다. 헤더를 확인하세요.")
+                self.logger.warning(f"현재 헤더: {headers}")
                 return
-            
+    
             # 데이터 행 체크
             for row_idx, row in enumerate(all_values[1:], start=2):
                 if len(row) > confirmed_col_idx and row[confirmed_col_idx]:
-                    # 확정일시가 있는 경우
                     request_id_short = row[0] if len(row) > 0 else ""
-                    
-                    # 해당 요청 찾기
+    
                     request = self.find_request_by_short_id(request_id_short)
-                    if request and request.status != "확정완료":
-                        # 상태 업데이트 및 이메일 발송
+                    if request and request.status != Config.Status.CONFIRMED:
                         self.process_confirmation(request, row[confirmed_col_idx])
-                        
+    
         except Exception as e:
             self.logger.error(f"확정 체크 실패: {e}")
+
     
     def find_request_by_short_id(self, short_id):
         """짧은 ID로 요청 찾기"""
@@ -104,7 +126,10 @@ class SyncManager:
             # 확정일시 파싱
             # "2025-01-15 14:00(60분)" 형식 처리
             import re
-            match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})$(\d+)분$', confirmed_datetime_str)
+            match = re.match(
+                r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\((\d+)분\)',
+                confirmed_datetime_str.strip()
+            )
             
             if match:
                 date_str, time_str, duration_str = match.groups()
@@ -119,7 +144,7 @@ class SyncManager:
                 
                 # 요청 업데이트
                 request.selected_slot = selected_slot
-                request.status = "확정완료"
+                request.status = Config.Status.CONFIRMED
                 request.updated_at = datetime.now()
                 
                 # 데이터베이스 저장
@@ -153,3 +178,4 @@ class SyncManager:
                 
         except Exception as e:
             self.logger.error(f"확정 알림 이메일 발송 실패: {e}")
+
