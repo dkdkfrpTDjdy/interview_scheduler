@@ -29,9 +29,9 @@ class EmailService:
         self.daily_send_count = 0  # ✅ 추가
         self.max_daily_sends = 450  # ✅ Gmail 안전 한도
 
-    def _check_daily_limit(self) -&gt; bool:
+    def _check_daily_limit(self) -> bool:
         """일일 발송 한도 체크"""
-        if self.daily_send_count &gt;= self.max_daily_sends:
+        if self.daily_send_count >= self.max_daily_sends:
             logger.error(f"❌ 일일 발송 한도 초과: {self.daily_send_count}/{self.max_daily_sends}")
             return False
         return True
@@ -279,14 +279,14 @@ class EmailService:
         """
         try:
             # ✅ 1. 일일 발송 한도 체크
-            if self.daily_send_count &gt;= self.max_daily_sends:
+            if self.daily_send_count >= self.max_daily_sends:
                 logger.error(f"❌ 일일 발송 한도 초과: {self.daily_send_count}/{self.max_daily_sends}")
                 return False
             
             # ✅ 2. 중복 발송 체크
             email_hash = self._generate_email_hash(to_emails, subject, request_id)
             if email_hash in self.sent_emails_log:
-                logger.warning(f"⚠️ 중복 이메일 발송 차단: {subject} -&gt; {to_emails}")
+                logger.warning(f"⚠️ 중복 이메일 발송 차단: {subject} -> {to_emails}")
                 return True  # 이미 발송했으므로 성공으로 처리
             
             # 3. 이메일 주소 검증
@@ -296,7 +296,7 @@ class EmailService:
                 if self._check_email_deliverability(corrected_email):
                     validated_emails.append(corrected_email)
                     if was_corrected:
-                        logger.info(f"이메일 오타 교정: {email} -&gt; {corrected_email}")
+                        logger.info(f"이메일 오타 교정: {email} -> {corrected_email}")
                 else:
                     logger.error(f"전송 불가능한 이메일: {email}")
             
@@ -1261,6 +1261,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
