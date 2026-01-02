@@ -50,11 +50,84 @@ class DatabaseManager:
         self.db_path = db_path
         self.gc = None
         self.sheet = None
+        
+        # ✅ 개선된 캐시 설정
+        self._cache_timeout = 300  # 5분으로 단축 (기존 1000초 → 300초)
+        self._max_cache_size = 100  # 최대 캐시 항목 수 제한
+        self._request_cache = OrderedDict()  # LRU 캐시를 위한 OrderedDict
+        self._cache_lock = threading.Lock()  # 스레드 안전성
+        self._last_cleanup = time.time()
+        self._cleanup_interval = 60  # 1분마다 캐시 정리
+        
         self.init_database()
         self.init_google_sheet()
-        self._cache_timeout = 1000  
-        self._request_cache = {}  
         self.migrate_database_schema()
+
+    def _cleanup_expired_cache(self):
+        """만료된 캐시 항목 정리 (스레드 안전)"""
+        with self._cache_lock:
+            current_time = time.time()
+            
+            # 정리 간격 체크
+            if current_time - self._last_cleanup < self._cleanup_interval:
+                return
+            
+            # 만료된 항목 찾기
+            expired_keys = []
+            for key, (cached_data, timestamp) in self._request_cache.items():
+                if current_time - timestamp > self._cache_timeout:
+                    expired_keys.append(key)
+            
+            # 만료된 항목 삭제
+            for key in expired_keys:
+                del self._request_cache[key]
+            
+            # 크기 제한 적용 (LRU 방식)
+            while len(self._request_cache) > self._max_cache_size:
+                # 가장 오래된 항목 제거
+                oldest_key = next(iter(self._request_cache))
+                del self._request_cache[oldest_key]
+            
+            self._last_cleanup = current_time
+            
+            if expired_keys:
+                logger.info(f"🧹 캐시 정리 완료: {len(expired_keys)}개 만료 항목 삭제")
+
+    def _get_from_cache(self, clean_id: str) -> Optional[Any]:
+        """캐시에서 안전하게 조회"""
+        with self._cache_lock:
+            current_time = time.time()
+            
+            if clean_id in self._request_cache:
+                cached_data, timestamp = self._request_cache[clean_id]
+                
+                if current_time - timestamp < self._cache_timeout:
+                    # LRU 업데이트 (최근 사용된 항목을 맨 뒤로)
+                    self._request_cache.move_to_end(clean_id)
+                    logger.info(f"📄 캐시 히트: {clean_id}")
+                    return cached_data
+                else:
+                    # 만료된 캐시 삭제
+                    del self._request_cache[clean_id]
+                    logger.info(f"⏰ 캐시 만료: {clean_id}")
+            
+            return None
+
+    def _set_to_cache(self, clean_id: str, request_data: Any):
+        """캐시에 안전하게 저장"""
+        with self._cache_lock:
+            current_time = time.time()
+            
+            # 캐시 크기 제한 체크
+            if len(self._request_cache) >= self._max_cache_size:
+                # 가장 오래된 항목 제거
+                oldest_key = next(iter(self._request_cache))
+                del self._request_cache[oldest_key]
+                logger.info(f"🗑️ 캐시 크기 제한으로 제거: {oldest_key}")
+            
+            # 새 데이터 저장
+            self._request_cache[clean_id] = (request_data, current_time)
+            logger.info(f"💾 캐시 저장: {clean_id} (총 {len(self._request_cache)}개)")
 
     def migrate_database_schema(self):
         """데이터베이스 스키마 마이그레이션"""
@@ -691,18 +764,16 @@ class DatabaseManager:
         
         try:
             clean_id = normalize_request_id(request_id)
-            current_time = time.time()
             
-            if clean_id in self._request_cache:
-                cached_data, timestamp = self._request_cache[clean_id]
-                if current_time - timestamp < self._cache_timeout:
-                    logger.info(f"📄 캐시 히트: {clean_id}")
-                    return cached_data
-                else:
-                    # 만료된 캐시 삭제
-                    del self._request_cache[clean_id]
+            # 캐시 정리 (주기적)
+            self._cleanup_expired_cache()
             
-            logger.info(f"🔍 요청 조회 시작: {clean_id}")
+            # 캐시에서 먼저 조회
+            cached_request = self._get_from_cache(clean_id)
+            if cached_request is not None:
+                return cached_request
+            
+            logger.info(f"🔍 DB 조회 시작: {clean_id}")
             
             # SQLite에서 조회
             with sqlite3.connect(self.db_path) as conn:
@@ -763,6 +834,35 @@ class DatabaseManager:
             import traceback
             logger.error(traceback.format_exc())
             return None
+
+    def clear_cache(self):
+        """캐시 완전 초기화"""
+        with self._cache_lock:
+            cleared_count = len(self._request_cache)
+            self._request_cache.clear()
+            logger.info(f"🧽 캐시 완전 초기화: {cleared_count}개 항목 삭제")
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """캐시 통계 정보"""
+        with self._cache_lock:
+            current_time = time.time()
+            active_count = 0
+            expired_count = 0
+            
+            for _, (cached_data, timestamp) in self._request_cache.items():
+                if current_time - timestamp < self._cache_timeout:
+                    active_count += 1
+                else:
+                    expired_count += 1
+            
+            return {
+                'total_items': len(self._request_cache),
+                'active_items': active_count,
+                'expired_items': expired_count,
+                'cache_timeout': self._cache_timeout,
+                'max_cache_size': self._max_cache_size,
+                'last_cleanup': datetime.fromtimestamp(self._last_cleanup).isoformat()
+            }
 
     def _row_to_request(self, row) -> Optional[InterviewRequest]:
         """SQLite 행을 InterviewRequest 객체로 변환 (호환성 보장)"""
@@ -964,6 +1064,33 @@ class DatabaseManager:
             return False
     
     @retry_on_failure(max_retries=3, delay=1)
+
+    def health_check(self) -> dict:
+        """시스템 상태 체크 (캐시 정보 포함)"""
+        status = {
+            'database': False,
+            'google_sheet': False,
+            'cache_stats': self.get_cache_stats(),
+            'last_check': datetime.now().isoformat()
+        }
+        
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("SELECT 1").fetchone()
+            status['database'] = True
+        except Exception as e:
+            logger.error(f"데이터베이스 체크 실패: {e}")
+        
+        try:
+            if self.sheet:
+                self.sheet.row_values(1)
+                status['google_sheet'] = True
+        except Exception as e:
+            logger.error(f"구글 시트 체크 실패: {e}")
+            status['google_sheet'] = False
+
+        return status
+
     def update_google_sheet(self, request: InterviewRequest):
         """구글 시트 실시간 업데이트"""
         if not self.sheet:
@@ -1379,6 +1506,7 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ 강제 동기화 실패: {e}")
             return False
+
 
 
 
