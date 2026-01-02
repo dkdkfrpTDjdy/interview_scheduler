@@ -52,6 +52,8 @@ class DatabaseManager:
         self.sheet = None
         self.init_database()
         self.init_google_sheet()
+        self._cache_timeout = 1000  
+        self._request_cache = {}  
         self.migrate_database_schema()
 
     def migrate_database_schema(self):
@@ -684,28 +686,41 @@ class DatabaseManager:
             logger.error(f"타임슬롯 예약 실패: {e}")
             return False
     
-    def get_interview_request(self, request_id: str) -> Optional[InterviewRequest]:
-        """요청 ID로 면접 요청 조회 (강화된 버전)"""
+    def get_interview_request(self, request_id: str) -&gt; Optional[InterviewRequest]:
         from utils import normalize_request_id
         
         try:
             clean_id = normalize_request_id(request_id)
-            logger.info(f"🔍 요청 조회 시작: 원본={request_id}, 정규화={clean_id}")
+            current_time = time.time()
             
-            # 1차: SQLite DB에서 검색
+            if clean_id in self._request_cache:
+                cached_data, timestamp = self._request_cache[clean_id]
+                if current_time - timestamp &lt; self._cache_timeout:
+                    logger.info(f"📄 캐시 히트: {clean_id}")
+                    return cached_data
+                else:
+                    # 만료된 캐시 삭제
+                    del self._request_cache[clean_id]
+            
+            logger.info(f"🔍 요청 조회 시작: {clean_id}")
+            
+            # SQLite에서 조회
             with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.execute(
-                    "SELECT * FROM interview_requests WHERE id = ?", 
-                    (clean_id,)
-                )
+                cursor = conn.execute("SELECT * FROM interview_requests WHERE id = ?", (clean_id,))
                 row = cursor.fetchone()
                 
                 if row:
-                    logger.info(f"✅ SQLite에서 요청 발견: {clean_id}")
-                    return self._row_to_request(row)
+                    logger.info(f"✅ SQLite에서 발견: {clean_id}")
+                    request = self._row_to_request(row)
+                    
+                    # ✅ 캐시에 저장 (현재 시간과 함께)
+                    if request:
+                        self._request_cache[clean_id] = (request, current_time)
+                    
+                    return request
             
-            # 2차: 구글 시트에서 직접 검색 + 동기화
-            logger.warning(f"⚠️ SQLite에서 찾지 못함, 구글 시트 검색: {clean_id}")
+            # 구글시트에서 조회 (필요한 경우에만)
+            logger.warning(f"⚠️ SQLite에서 못 찾음: {clean_id}")
             
             if not self.sheet:
                 logger.error("❌ 구글 시트 연결 없음")
@@ -725,6 +740,10 @@ class DatabaseManager:
                         if request:
                             # SQLite와 동기화
                             self.save_interview_request(request)
+                            
+                            # ✅ 캐시에도 저장 (추가된 부분!)
+                            self._request_cache[clean_id] = (request, current_time)
+                            
                             logger.info(f"🔄 구글시트 → SQLite 동기화 완료: {clean_id}")
                             return request
                 
@@ -1360,5 +1379,6 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ 강제 동기화 실패: {e}")
             return False
+
 
 
