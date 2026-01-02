@@ -793,7 +793,8 @@ class DatabaseManager:
                     
                     # ✅ 캐시에 저장 (현재 시간과 함께)
                     if request:
-                        self._request_cache[clean_id] = (request, current_time)
+                        current_time = time.time()
+                        self._set_to_cache(clean_id, request)
                     
                     return request
             
@@ -820,7 +821,7 @@ class DatabaseManager:
                             self.save_interview_request(request)
                             
                             # ✅ 캐시에도 저장 (추가된 부분!)
-                            self._request_cache[clean_id] = (request, current_time)
+                            self._set_to_cache(clean_id, request)
                             
                             logger.info(f"🔄 구글시트 → SQLite 동기화 완료: {clean_id}")
                             return request
@@ -1513,6 +1514,7 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ 강제 동기화 실패: {e}")
             return False
+
 
 
 
