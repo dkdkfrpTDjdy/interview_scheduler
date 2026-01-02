@@ -348,30 +348,24 @@ class DatabaseManager:
     def save_interview_request(self, request: InterviewRequest):
         """면접 요청 저장"""
         try:
-            from utils import normalize_request_id  # ✅ 추가
-            
+            from utils import normalize_request_id
+    
             # ✅ ID 정규화
-            normalized_id = normalize_request_id(request.id)
-            
-            detailed_name = getattr(request, 'detailed_position_name', '')
-            phone = getattr(request, 'candidate_phone', '')
-            
-            logger.info(f"💾 DB 저장 시도")
-            logger.info(f"  - 원본 ID: {request.id}")
-            logger.info(f"  - 정규화 ID: {normalized_id}")
-            logger.info(f"  - 공고명: {request.position_name}")
-            logger.info(f"  - 상세공고명: '{detailed_name}'")
-            logger.info(f"  - 전화번호: '{phone}'")
-            
+            clean_id = normalize_request_id(request.id)
+    
+            # ✅ request 객체에서 안전하게 가져오기
+            detailed_name = getattr(request, "detailed_position_name", "") or ""
+            phone = getattr(request, "candidate_phone", "") or ""
+    
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute("""
-                    INSERT OR REPLACE INTO interview_requests 
-                    (id, interviewer_id, candidate_email, candidate_name, position_name, 
-                    detailed_position_name, status, created_at, updated_at, available_slots, 
-                    preferred_datetime_slots, selected_slot, candidate_note, candidate_phone)
+                    INSERT OR REPLACE INTO interview_requests
+                    (id, interviewer_id, candidate_email, candidate_name, position_name,
+                     detailed_position_name, status, created_at, updated_at, available_slots,
+                     preferred_datetime_slots, selected_slot, candidate_note, candidate_phone)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    normalized_id,  # ✅ 정규화된 ID 저장
+                    clean_id,
                     request.interviewer_id,
                     request.candidate_email,
                     request.candidate_name,
@@ -380,24 +374,27 @@ class DatabaseManager:
                     request.status,
                     request.created_at.isoformat(),
                     (request.updated_at or datetime.now()).isoformat(),
-                    json.dumps([{"date": slot.date, "time": slot.time, "duration": slot.duration} 
-                            for slot in request.available_slots]),
+                    json.dumps([{"date": slot.date, "time": slot.time, "duration": slot.duration}
+                                for slot in (request.available_slots or [])]),
                     json.dumps(request.preferred_datetime_slots) if request.preferred_datetime_slots else None,
-                    json.dumps({"date": request.selected_slot.date, "time": request.selected_slot.time, 
-                            "duration": request.selected_slot.duration}) if request.selected_slot else None,
+                    json.dumps({"date": request.selected_slot.date, "time": request.selected_slot.time,
+                                "duration": request.selected_slot.duration}) if request.selected_slot else None,
                     request.candidate_note or "",
                     phone
                 ))
-                logger.info(f"✅ 면접 요청 저장 완료: {normalized_id}")
-            
+    
+            logger.info(f"✅ 면접 요청 저장 완료: {clean_id}")
+    
+            # 구글시트 업데이트
             try:
                 self.update_google_sheet(request)
             except Exception as e:
                 logger.warning(f"구글 시트 업데이트 실패: {e}")
-                
+    
         except Exception as e:
             logger.error(f"면접 요청 저장 실패: {e}")
             raise
+
     
     def save_interviewer_response(self, request_id: str, interviewer_id: str, slots: List[InterviewSlot]):
         """개별 면접관의 일정 응답 저장"""
@@ -514,7 +511,8 @@ class DatabaseManager:
             for record in all_records:
                 try:
                     # 구글시트 데이터를 InterviewRequest 객체로 변환
-                    request_id = record.get('요청ID', '')
+                    from utils import normalize_request_id
+                    request_id = normalize_request_id(record.get('요청ID', ''))
                     if not request_id:
                         continue
                     
@@ -529,7 +527,7 @@ class DatabaseManager:
                     
                     # available_slots 파싱
                     available_slots = []
-                    proposed_slots_str = record.get('제안일시목록', '')
+                    proposed_slots_str = record.get('면접관확정일시', '')
                     if proposed_slots_str:
                         from utils import parse_proposed_slots
                         slot_data = parse_proposed_slots(proposed_slots_str)
@@ -537,17 +535,17 @@ class DatabaseManager:
                     
                     # preferred_datetime_slots 파싱
                     preferred_slots = []
-                    preferred_str = record.get('희망일시목록', '')
+                    preferred_str = record.get('인사팀제안일시', '')
                     if preferred_str:
                         preferred_slots = [slot.strip() for slot in preferred_str.split('|')]
                     
                     # selected_slot 파싱
                     selected_slot = None
-                    confirmed_str = record.get('확정일시', '')
+                    confirmed_str = record.get('면접자확정일시', '')
                     if confirmed_str:
                         # "2025-01-15 14:00(30분)" 형식 파싱
                         import re
-                        match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\$(\d+)분\$', confirmed_str)
+                        match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\((\d+)분\)', confirmed_str.strip())
                         if match:
                             selected_slot = InterviewSlot(
                                 date=match.group(1),
@@ -582,6 +580,8 @@ class DatabaseManager:
                         candidate_email=record.get('면접자이메일', ''),
                         candidate_name=record.get('면접자명', ''),
                         position_name=record.get('공고명', ''),
+                        detailed_position_name=record.get('상세공고명', ''),      
+                        candidate_phone=record.get('면접자전화번호', ''),        
                         status=status,
                         created_at=created_at,
                         updated_at=datetime.now(),
@@ -590,30 +590,40 @@ class DatabaseManager:
                         selected_slot=selected_slot,
                         candidate_note=record.get('면접자요청사항', '')
                     )
+
                     
                     # SQLite에 저장 (구글시트 업데이트는 하지 않음)
+                    from utils import normalize_request_id
+                    
+                    clean_id = normalize_request_id(request.id)
+                    
+                    detailed_name = request.detailed_position_name or ""
+                    phone = request.candidate_phone or ""
+                    
                     with sqlite3.connect(self.db_path) as conn:
                         conn.execute("""
-                            INSERT OR REPLACE INTO interview_requests 
-                            (id, interviewer_id, candidate_email, candidate_name, position_name, 
-                            status, created_at, updated_at, available_slots, preferred_datetime_slots, 
-                            selected_slot, candidate_note)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            INSERT OR REPLACE INTO interview_requests
+                            (id, interviewer_id, candidate_email, candidate_name, position_name,
+                             detailed_position_name, status, created_at, updated_at, available_slots,
+                             preferred_datetime_slots, selected_slot, candidate_note, candidate_phone)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (
-                            request.id,
+                            clean_id,
                             request.interviewer_id,
                             request.candidate_email,
                             request.candidate_name,
                             request.position_name,
+                            detailed_name,
                             request.status,
                             request.created_at.isoformat(),
                             request.updated_at.isoformat(),
-                            json.dumps([{"date": slot.date, "time": slot.time, "duration": slot.duration} 
-                                    for slot in request.available_slots]),
+                            json.dumps([{"date": slot.date, "time": slot.time, "duration": slot.duration}
+                                        for slot in (request.available_slots or [])]),
                             json.dumps(request.preferred_datetime_slots) if request.preferred_datetime_slots else None,
-                            json.dumps({"date": request.selected_slot.date, "time": request.selected_slot.time, 
-                                    "duration": request.selected_slot.duration}) if request.selected_slot else None,
-                            request.candidate_note or ""
+                            json.dumps({"date": request.selected_slot.date, "time": request.selected_slot.time,
+                                        "duration": request.selected_slot.duration}) if request.selected_slot else None,
+                            request.candidate_note or "",
+                            phone
                         ))
                     
                     logger.info(f"구글시트 → DB 동기화 완료: {request_id}")
@@ -968,7 +978,7 @@ class DatabaseManager:
                 try:
                     import re
                     # "2025-01-15 14:00(30분)" 형식 파싱
-                    match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})$(\d+)분$', confirmed_str)
+                    match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\((\d+)분\)', confirmed_str)
                     if match:
                         selected_slot = InterviewSlot(
                             date=match.group(1),
@@ -992,14 +1002,26 @@ class DatabaseManager:
 
             # 상태 매핑
             status_map = {
+                # 면접관 대기 (표현 2개 모두 대응)
+                '면접관_일정입력대기': Config.Status.PENDING_INTERVIEWER,
                 '면접관_일정대기': Config.Status.PENDING_INTERVIEWER,
+            
+                # 면접자 선택 대기
                 '면접자_선택대기': Config.Status.PENDING_CANDIDATE,
+            
+                # 메일 발송
                 '면접자_메일발송': Config.Status.CANDIDATE_EMAIL_SENT,
+            
+                # 확정
                 '확정완료': Config.Status.CONFIRMED,
+            
+                # 조율
                 '일정재조율요청': Config.Status.PENDING_CONFIRMATION,
+            
+                # 취소
                 '취소': Config.Status.CANCELLED
             }
-            
+
             status = status_map.get(record.get('상태', ''), Config.Status.PENDING_INTERVIEWER)
 
             # InterviewRequest 객체 생성
@@ -1358,30 +1380,7 @@ class DatabaseManager:
                 'avg_processing_time': 0
             }
     
-    def health_check(self) -> dict:
-        """시스템 상태 체크"""
-        status = {
-            'database': False,
-            'google_sheet': False,
-            'last_check': datetime.now().isoformat()
-        }
-        
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute("SELECT 1").fetchone()
-            status['database'] = True
-        except Exception as e:
-            logger.error(f"데이터베이스 체크 실패: {e}")
-        
-        try:
-            if self.sheet:
-                self.sheet.row_values(1)
-                status['google_sheet'] = True
-        except Exception as e:
-            logger.error(f"구글 시트 체크 실패: {e}")
-            status['google_sheet'] = False  # ❗반환은 계속됨
 
-        return status
     
     def update_request_status_after_email(self, request_id: str, new_status: str = None) -> bool:
         """
@@ -1514,6 +1513,7 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ 강제 동기화 실패: {e}")
             return False
+
 
 
 
