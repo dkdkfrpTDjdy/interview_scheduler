@@ -25,16 +25,9 @@ class EmailService:
     def __init__(self):
         self.email_config = Config.EmailConfig
         self.company_domain = Config.COMPANY_DOMAIN
-        self.sent_emails_log = set()  # 중복 발송 방지용 로그
-        self.daily_send_count = 0  # ✅ 추가
-        self.max_daily_sends = 1000  # ✅ Gmail 안전 한도
+        self.sent_emails_log = set()
+        
 
-    def _check_daily_limit(self) -> bool:
-        """일일 발송 한도 체크"""
-        if self.daily_send_count >= self.max_daily_sends:
-            logger.error(f"❌ 일일 발송 한도 초과: {self.daily_send_count}/{self.max_daily_sends}")
-            return False
-        return True
 
     def _generate_email_hash(self, to_emails: List[str], subject: str, request_id: str = None) -> str:
         """
@@ -272,31 +265,26 @@ class EmailService:
                    attachment_mime_type: Optional[str] = None,
                    request_id: str = None):
         """
-        🔧 개선된 이메일 발송 (중복 방지 + 발송 한도 체크)
+        🔧 한도 체크 제거한 이메일 발송 (중복 방지 + 발송 한도 체크)
         
         문제점: 동일한 내용의 이메일이 중복 발송됨 + Gmail 한도 초과
-        해결책: 해시 기반 중복 체크 + 일일 발송 한도 관리
+        해결책: 해시 기반 중복 체크만 유지, 인위적 한도 체크 제거
         """
         try:
-            # ✅ 1. 일일 발송 한도 체크
-            if self.daily_send_count >= self.max_daily_sends:
-                logger.error(f"❌ 일일 발송 한도 초과: {self.daily_send_count}/{self.max_daily_sends}")
-                return False
-            
-            # ✅ 2. 중복 발송 체크
+            # ✅ 중복 발송 체크만 유지 (이건 필요함)
             email_hash = self._generate_email_hash(to_emails, subject, request_id)
             if email_hash in self.sent_emails_log:
-                logger.warning(f"⚠️ 중복 이메일 발송 차단: {subject} -> {to_emails}")
+                logger.info(f"⚠️ 중복 이메일 발송 차단: {subject} -&gt; {to_emails}")
                 return True  # 이미 발송했으므로 성공으로 처리
             
-            # 3. 이메일 주소 검증
+            # 이메일 주소 검증
             validated_emails = []
             for email in (to_emails if isinstance(to_emails, list) else [to_emails]):
                 corrected_email, was_corrected = self.validate_and_correct_email(email)
                 if self._check_email_deliverability(corrected_email):
                     validated_emails.append(corrected_email)
                     if was_corrected:
-                        logger.info(f"이메일 오타 교정: {email} -> {corrected_email}")
+                        logger.info(f"이메일 오타 교정: {email} -&gt; {corrected_email}")
                 else:
                     logger.error(f"전송 불가능한 이메일: {email}")
             
@@ -306,12 +294,12 @@ class EmailService:
     
             logger.info(f"📧 이메일 발송 시작 - TO: {validated_emails}")
             
-            # 4. Gmail 수신자 감지
+            # Gmail 수신자 감지
             has_gmail = self._has_gmail_recipients(validated_emails, cc_emails, bcc_emails)
             
             optimized_subject = subject
     
-            # 5. 컨텐츠 최적화
+            # 컨텐츠 최적화
             if has_gmail and is_html:
                 text_body = self._html_to_text(body)
                 html_body = body
@@ -319,7 +307,7 @@ class EmailService:
                 text_body = self._html_to_text(body) if is_html else body
                 html_body = body if is_html else f"<pre>{body}</pre>"
             
-            # 6. MIME 구조 생성
+            # MIME 구조 생성
             if is_html:
                 msg = self._create_mime_structure(
                     text_body=text_body,
@@ -339,7 +327,7 @@ class EmailService:
                     attachment.add_header('Content-Disposition', f'attachment; filename="{attachment_name}"')
                     msg.attach(attachment)
             
-            # 7. 헤더 설정
+            # 헤더 설정
             primary_email = validated_emails[0]
             msg = self._add_headers(msg, primary_email)
             msg['To'] = ', '.join(validated_emails)
@@ -350,14 +338,14 @@ class EmailService:
             if bcc_emails:
                 msg['Bcc'] = ', '.join(bcc_emails)
             
-            # 8. 모든 수신자 목록 생성
+            # 모든 수신자 목록 생성
             all_recipients = validated_emails.copy()
             if cc_emails:
                 all_recipients.extend(cc_emails)
             if bcc_emails:
                 all_recipients.extend(bcc_emails)
             
-            # 9. SMTP 연결 및 발송
+            # SMTP 연결 및 발송
             server = self._create_smtp_connection()
             if server:
                 try:
@@ -365,20 +353,18 @@ class EmailService:
                     server.sendmail(self.email_config.EMAIL_USER, all_recipients, text)
                     server.quit()
                     
-                    # ✅ 10. 발송 성공 시 로그 및 카운터 업데이트
+                    # ✅ 발송 성공 시 중복 방지용 로그만 추가
                     self.sent_emails_log.add(email_hash)
-                    self.daily_send_count += len(all_recipients)  # 실제 수신자 수만큼 증가
                     
-                    logger.info(f"✅ 이메일 발송 성공: {', '.join(validated_emails)} (총 발송: {self.daily_send_count}/{self.max_daily_sends})")
+                    logger.info(f"✅ 이메일 발송 성공: {', '.join(validated_emails)} (총 {len(all_recipients)}명)")
                     return True
                     
                 except Exception as smtp_error:
                     logger.error(f"SMTP 발송 실패: {smtp_error}")
                     
-                    # ✅ Gmail 한도 초과 감지
+                    # ✅ Gmail 한도 초과 메시지만 로깅 (인위적 카운터 없음)
                     if "Daily user sending limit exceeded" in str(smtp_error):
-                        logger.error("❌ Gmail 일일 발송 한도 초과 감지")
-                        self.daily_send_count = self.max_daily_sends  # 더 이상 시도하지 않도록
+                        logger.error("❌ Gmail 실제 일일 발송 한도 초과 - Gmail 측에서 차단됨")
                     
                     try:
                         server.quit()
@@ -392,10 +378,9 @@ class EmailService:
         except Exception as e:
             logger.error(f"이메일 발송 실패: {e}")
             
-            # ✅ Gmail 한도 초과 에러 처리
+            # ✅ Gmail 한도 초과 에러 처리 (로깅만)
             if "Daily user sending limit exceeded" in str(e):
                 logger.error("❌ Gmail 일일 발송 한도 초과")
-                self.daily_send_count = self.max_daily_sends
             
             return False
 
@@ -1261,6 +1246,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
