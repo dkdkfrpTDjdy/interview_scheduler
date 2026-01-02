@@ -6,6 +6,7 @@ import sys
 import os
 import time
 import random
+import threading  
 from collections import OrderedDict
 from datetime import datetime
 from functools import wraps
@@ -1511,6 +1512,7 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ 강제 동기화 실패: {e}")
             return False
+
 
 
 
