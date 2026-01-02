@@ -27,7 +27,7 @@ class EmailService:
         self.company_domain = Config.COMPANY_DOMAIN
         self.sent_emails_log = set()  # 중복 발송 방지용 로그
         self.daily_send_count = 0  # ✅ 추가
-        self.max_daily_sends = 450  # ✅ Gmail 안전 한도
+        self.max_daily_sends = 1000  # ✅ Gmail 안전 한도
 
     def _check_daily_limit(self) -> bool:
         """일일 발송 한도 체크"""
@@ -1261,6 +1261,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
