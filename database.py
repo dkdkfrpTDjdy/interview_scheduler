@@ -1,24 +1,28 @@
+# 표준 라이브러리
 import sqlite3
 import json
 import logging
-import streamlit as st
-from collections import OrderedDict  # ← 이 줄 추가
-from typing import List, Optional, Dict, Tuple, Any
-from datetime import datetime
 import sys
 import os
+import time
+import random
+from collections import OrderedDict
+from datetime import datetime
+from functools import wraps
+from typing import List, Optional, Dict, Tuple, Any
+
+# 서드파티 라이브러리
+import streamlit as st
+import pandas as pd
+import gspread
+from google.oauth2.service_account import Credentials
 
 # 현재 디렉토리를 Python 경로에 추가
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# 프로젝트 내부 모듈
 from models import InterviewRequest, InterviewSlot
 from config import Config
-import gspread
-from google.oauth2.service_account import Credentials
-import pandas as pd
-import time
-import random
-from functools import wraps
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -1507,6 +1511,7 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ 강제 동기화 실패: {e}")
             return False
+
 
 
 
