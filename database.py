@@ -770,6 +770,7 @@ class DatabaseManager:
         
         try:
             clean_id = normalize_request_id(request_id)
+            current_time = time.time()  # ← 이 줄 추가
             
             # 캐시 정리 (주기적)
             self._cleanup_expired_cache()
@@ -1512,6 +1513,7 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ 강제 동기화 실패: {e}")
             return False
+
 
 
 
