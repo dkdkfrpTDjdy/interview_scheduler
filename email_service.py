@@ -274,7 +274,7 @@ class EmailService:
             # ✅ 중복 발송 체크만 유지 (이건 필요함)
             email_hash = self._generate_email_hash(to_emails, subject, request_id)
             if email_hash in self.sent_emails_log:
-                logger.info(f"⚠️ 중복 이메일 발송 차단: {subject} -&gt; {to_emails}")
+                logger.info(f"⚠️ 중복 이메일 발송 차단: {subject} -> {to_emails}")
                 return True  # 이미 발송했으므로 성공으로 처리
             
             # 이메일 주소 검증
@@ -284,7 +284,7 @@ class EmailService:
                 if self._check_email_deliverability(corrected_email):
                     validated_emails.append(corrected_email)
                     if was_corrected:
-                        logger.info(f"이메일 오타 교정: {email} -&gt; {corrected_email}")
+                        logger.info(f"이메일 오타 교정: {email} -> {corrected_email}")
                 else:
                     logger.error(f"전송 불가능한 이메일: {email}")
             
@@ -1246,6 +1246,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
