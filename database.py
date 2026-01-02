@@ -2,7 +2,7 @@ import sqlite3
 import json
 import logging
 import streamlit as st
-from typing import List, Optional, Tuple
+from typing import List, Optional, Dict, Tuple, Any
 from datetime import datetime
 import sys
 import os
@@ -1506,6 +1506,7 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ 강제 동기화 실패: {e}")
             return False
+
 
 
 
