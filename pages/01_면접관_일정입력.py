@@ -218,8 +218,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
         responded_count = 0
         total_count = len(interviewer_ids)
     
-    # ✅ 공고 정보 박스는 무조건 렌더링
-    components.html(f"""
+    st.markdown(f"""
     <div style="background-color: white; padding: 25px; border-radius: 10px; border-left: 5px solid #0078d4;
                 margin: 20px 0; box-shadow: 0 2px 10px rgba(0,120,212,0.1);">
         <h4 style="color: #1A1A1A; margin: 0 0 15px 0;">📋 공고 정보</h4>
@@ -245,7 +244,8 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
             </tbody>
         </table>
     </div>
-    """, height=220)
+    """, unsafe_allow_html=True)
+
 
     
     if is_multiple_interviewers:
@@ -460,6 +460,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
 if __name__ == "__main__":
 
     main()
+
 
 
 
