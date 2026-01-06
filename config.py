@@ -76,7 +76,7 @@ class Config:
     
     # 인사팀 이메일 주소 (변경필요)
     HR_EMAILS = [
-        "jyjeong@ajnet.co.kr"
+        "syj0103@ajnet.co.kr"
     ]
     
     # 구글 시트 설정
@@ -98,5 +98,6 @@ class Config:
         
         # 알림 템플릿 버전
         TEMPLATE_VERSION = "2024.1"
+
 
 
