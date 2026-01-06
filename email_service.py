@@ -388,17 +388,21 @@ class EmailService:
         """전문적인 이메일 본문 생성 - 통합 템플릿 사용"""
         # 면접 일정 테이블 HTML 생성
         slots_html = ""
-        for i, slot in enumerate(request.available_slots, 1):
-            bg_color = "#ffffff"
-            slots_html += f"""
-            <tr style="background-color: {bg_color};">
-                <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{i}</td>
-                <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{format_date_korean(slot.date)}</td>
-                <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{slot.time}</td>
-                <td style="padding: 15px; text-align: center; border: 1px solid #e7e7e7; font-size:14px;">{slot.duration}분</td>
-            </tr>
-            """
+        slot_number = 1
         
+        for date, slots in sorted(slots_by_date.items()):
+            for slot in slots:
+                bg_color = "#ffffff" if slot_number % 2 == 0 else "#f9f9f9"
+                slots_html += f"""
+                <tr style="background-color:{bg_color};">
+                    <td style="padding: 15px; border: 1px solid #e7e7e7; text-align:center; font-size:14px;">{slot_number}</td>
+                    <td style="padding: 15px; border: 1px solid #e7e7e7; text-align:center; font-size:14px;">{format_date_korean(slot.date)}</td>
+                    <td style="padding: 15px; border: 1px solid #e7e7e7; text-align:center; font-size:14px;">{slot.time}</td>
+                    <td style="padding: 15px; border: 1px solid #e7e7e7; text-align:center; font-size:14px;">30분</td>
+                </tr>
+                """
+                slot_number += 1
+                
         # 무조건 통합 템플릿 사용
         return self._create_gmail_safe_html({
             'recipient_name': request.candidate_name,
