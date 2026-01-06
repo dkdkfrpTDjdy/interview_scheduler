@@ -403,7 +403,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                             position_name=position_name,
                             candidate_count=len(requests)
                         )
-                        
+            
                         if hr_notification_sent:
                             st.success("🎉 일정 제출 완료! 모든 면접관이 완료되어 인사팀에게 알림을 보냈습니다.")
                             st.info("💡 인사팀에서 '면접자 메일 발송' 탭에서 직접 메일을 발송할 예정입니다.")
@@ -433,6 +433,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
 if __name__ == "__main__":
 
     main()
+
 
 
 
