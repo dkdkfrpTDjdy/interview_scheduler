@@ -711,7 +711,13 @@ class EmailService:
 
     # HR 알림 메일 발송 함수 추가
 
-    def send_hr_notification_on_interviewer_completion(self, group_key: str, position_name: str, candidate_count: int):
+    def send_hr_notification_on_interviewer_completion(
+        self,
+        group_key: str,
+        position_name: str,
+        detailed_position_name: str,
+        candidate_count: int
+    ):
         """
         ✅ 모든 면접관이 일정 등록 완료했을 때만 HR에게 알림 메일 발송
         group_key 기준으로 판단 (공고명만으로 판단하지 않음)
@@ -742,7 +748,9 @@ class EmailService:
                 
                 <div style="padding: 30px;">
                     <p style="font-size: 16px; line-height: 1.6;">
-                        <strong>{position_name}</strong> 공고에 대한 면접관들의 일정이 모두 선택되었습니다.
+                        <strong>{position_name}</strong>
+                        {f"(<strong>{detailed_position_name}</strong>)" if detailed_position_name else ""}
+                        공고에 대한 면접관들의 일정이 모두 선택되었습니다.
                     </p>
                     
                     <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
@@ -1271,6 +1279,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
