@@ -949,40 +949,6 @@ class DatabaseManager:
             
             # 구글시트에서 조회 (필요한 경우에만)
             logger.warning(f"⚠️ SQLite에서 못 찾음: {clean_id}")
-            
-            if not self.sheet:
-                logger.error("❌ 구글 시트 연결 없음")
-                return None
-            
-            try:
-                records = self.sheet.get_all_records()
-                logger.info(f"📊 구글 시트 레코드 수: {len(records)}")
-                
-                for i, record in enumerate(records):
-                    sheet_id = normalize_request_id(record.get('요청ID', ''))
-                    if sheet_id == clean_id:
-                        logger.info(f"✅ 구글 시트에서 요청 발견: {clean_id} (행: {i+2})")
-                        
-                        # 구글 시트 → InterviewRequest 변환
-                        request = self._convert_sheet_record_to_request(record)
-                        if request:
-                            # SQLite와 동기화
-                            self.save_interview_request(request)
-                            
-                            # ✅ 캐시에도 저장 (추가된 부분!)
-                            self._set_to_cache(clean_id, request)
-                            
-                            logger.info(f"🔄 구글시트 → SQLite 동기화 완료: {clean_id}")
-                            return request
-                
-                logger.error(f"❌ 구글 시트에서도 요청을 찾지 못함: {clean_id}")
-                
-                # 디버깅: 구글시트 내 모든 요청ID 출력
-                all_ids = [normalize_request_id(r.get('요청ID', '')) for r in records[:10]]
-                logger.info(f"🔍 구글시트 샘플 ID들: {all_ids}")
-                
-            except Exception as sheet_error:
-                logger.error(f"❌ 구글 시트 조회 중 오류: {sheet_error}")
                 
             return None
             
@@ -1652,6 +1618,7 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ 강제 동기화 실패: {e}")
             return False
+
 
 
 
