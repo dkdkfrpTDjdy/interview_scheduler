@@ -785,12 +785,12 @@ class EmailService:
             """
             
             return self.send_email(
-                    to_emails=Config.HR_EMAILS,
-                    subject=subject,
-                    body=body,
-                    is_html=True,
-                    request_id=f"hr_notification_{group_key}"  # ✅ 중복 방지 키도 group_key 기반
-                )
+                to_emails=Config.HR_EMAILS,
+                subject=subject,
+                body=body,
+                is_html=True,
+                request_id=f"hr_notification_{group_key}"
+            )
     
         except Exception as e:
             logger.error(f"HR 알림 메일 발송 실패: {e}")
@@ -1270,6 +1270,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
