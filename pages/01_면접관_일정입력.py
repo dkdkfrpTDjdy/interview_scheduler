@@ -410,23 +410,6 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                         else:
                             st.success("✅ 일정 제출 완료! 다른 면접관들의 일정 선택을 기다리고 있습니다.")
                             st.info("💡 모든 면접관이 완료되면 인사팀에 알림이 갑니다.")
-                            
-                            # 진행 상황 표시
-                            try:
-                                status = db.check_all_interviewers_completed(position_name)
-                                
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    st.metric("완료", f"{len(status['completed_interviewers'])}명")
-                                with col2:
-                                    st.metric("대기", f"{len(status['pending_interviewers'])}명")
-                                
-                                if status['pending_interviewers']:
-                                    st.write("**대기 중인 면접관:**")
-                                    for interviewer in status['pending_interviewers']:
-                                        st.write(f"• {interviewer}")
-                            except Exception as status_error:
-                                st.warning(f"진행 상황 확인 실패: {status_error}")
                         
                     except Exception as e:
                         logger.error(f"HR 알림 처리 중 오류: {e}")
@@ -449,6 +432,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
 if __name__ == "__main__":
 
     main()
+
 
 
 
