@@ -5,6 +5,7 @@ from datetime import datetime
 import sys
 import time  # 추가
 import logging  # 추가
+import streamlit.components.v1 as components
 
 # 부모 디렉토리를 Python 경로에 추가
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -217,8 +218,10 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
         responded_count = 0
         total_count = len(interviewer_ids)
     
-    st.markdown(f"""
-    <div style="background-color: white; padding: 25px; border-radius: 10px; border-left: 5px solid #0078d4; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,120,212,0.1);">
+    # ✅ 공고 정보 박스는 무조건 렌더링
+    components.html(f"""
+    <div style="background-color: white; padding: 25px; border-radius: 10px; border-left: 5px solid #0078d4;
+                margin: 20px 0; box-shadow: 0 2px 10px rgba(0,120,212,0.1);">
         <h4 style="color: #1A1A1A; margin: 0 0 15px 0;">📋 공고 정보</h4>
     
         <table style="width: 100%; border-collapse: collapse; text-align: center;">
@@ -226,6 +229,10 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                 <tr>
                     <td style="padding: 10px 0; font-weight: bold; color: #1A1A1A; width: 120px;">공고명</td>
                     <td style="padding: 10px 0; color: #333;">{position_name}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 0; font-weight: bold; color: #1A1A1A;">상세공고명</td>
+                    <td style="padding: 10px 0; color: #333;">{detailed_position_name or "-"}</td>
                 </tr>
                 <tr>
                     <td style="padding: 10px 0; font-weight: bold; color: #1A1A1A;">면접자 수</td>
@@ -238,7 +245,8 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
             </tbody>
         </table>
     </div>
-    """, unsafe_allow_html=True)
+    """, height=220)
+
     
     if is_multiple_interviewers:
         st.info(f"""
@@ -452,6 +460,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
 if __name__ == "__main__":
 
     main()
+
 
 
 
