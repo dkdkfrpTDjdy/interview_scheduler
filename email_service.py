@@ -720,7 +720,7 @@ class EmailService:
             from database import DatabaseManager
             db = DatabaseManager()
     
-            completion_status = db.check_all_interviewers_completed(group_key)  # ✅ 변경
+            completion_status = db.check_all_interviewers_completed_by_groupkey(group_key)
     
             if not completion_status['all_completed']:
                 remaining_count = len(completion_status['pending_interviewers'])
@@ -1271,6 +1271,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
