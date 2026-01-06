@@ -705,27 +705,25 @@ class EmailService:
 
     # HR 알림 메일 발송 함수 추가
 
-    def send_hr_notification_on_interviewer_completion(self, position_name: str, candidate_count: int):
+    def send_hr_notification_on_interviewer_completion(self, group_key: str, position_name: str, candidate_count: int):
         """
         ✅ 모든 면접관이 일정 등록 완료했을 때만 HR에게 알림 메일 발송
+        group_key 기준으로 판단 (공고명만으로 판단하지 않음)
         """
         try:
-            # 모든 면접관 완료 여부 확인 로직
             from database import DatabaseManager
             db = DatabaseManager()
-            
-            completion_status = db.check_all_interviewers_completed(position_name)
-            
-            # 모든 면접관이 완료하지 않았으면 메일 발송 안함
+    
+            completion_status = db.check_all_interviewers_completed(group_key)  # ✅ 변경
+    
             if not completion_status['all_completed']:
                 remaining_count = len(completion_status['pending_interviewers'])
-                logger.info(f"⏳ {position_name} - 아직 {remaining_count}명의 면접관이 일정 선택 대기 중")
+                logger.info(f"⏳ {position_name}({group_key}) - 아직 {remaining_count}명의 면접관 대기 중")
                 return False
-            
-            logger.info(f"🎉 {position_name} - 모든 면접관 일정 선택 완료! HR에게 알림 발송")
-            
-            subject = f"[긴급] {position_name} 면접관 일정 등록 완료 - 면접자 메일 발송 필요"
-            
+    
+            logger.info(f"🎉 {position_name}({group_key}) - 모든 면접관 완료! HR 알림 발송")
+    
+            subject = f"{position_name} 면접관 일정 등록 완료 - 면접자 메일 발송 필요"
             app_link = "https://interview-scheduler-ajnetworks.streamlit.app/"
             
             body = f"""
@@ -774,14 +772,14 @@ class EmailService:
             </div>
             """
             
-            return self.send_email(
+          return self.send_email(
                 to_emails=Config.HR_EMAILS,
                 subject=subject,
                 body=body,
                 is_html=True,
-                request_id=f"hr_notification_{position_name}"
+                request_id=f"hr_notification_{group_key}"  # ✅ 중복 방지 키도 group_key 기반
             )
-            
+    
         except Exception as e:
             logger.error(f"HR 알림 메일 발송 실패: {e}")
             return False
@@ -1260,6 +1258,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
