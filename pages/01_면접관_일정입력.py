@@ -113,9 +113,10 @@ def find_pending_requests_by_position(employee_id: str):
         all_requests = db.get_all_requests()
 
         # ✅ SQLite에 요청이 없으면 구글시트에서 다시 동기화
-        if not all_requests:
-            logger.warning("⚠️ DB에 요청 없음 → 구글시트 동기화 시도")
+        if not all_requests and not st.session_state.get("synced_once"):
+            logger.warning("⚠️ DB 비어있음 → 구글시트 동기화(세션 1회)")
             db.sync_from_google_sheet_to_db()
+            st.session_state["synced_once"] = True
             all_requests = db.get_all_requests()
 
         grouped = {}
@@ -468,6 +469,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
 if __name__ == "__main__":
 
     main()
+
 
 
 
