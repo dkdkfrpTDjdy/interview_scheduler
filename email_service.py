@@ -707,27 +707,24 @@ class EmailService:
 
     def send_hr_notification_on_interviewer_completion(self, position_name: str, candidate_count: int):
         """
-        ✅ 모든 면접관이 일정 등록 완료했을 때만 HR에게 알림 메일 발송 (기존 메일 내용 유지)
+        ✅ 모든 면접관이 일정 등록 완료했을 때만 HR에게 알림 메일 발송
         """
         try:
-            # ✅ 모든 면접관 완료 여부 확인 로직 추가
+            # 모든 면접관 완료 여부 확인 로직
             from database import DatabaseManager
             db = DatabaseManager()
             
             completion_status = db.check_all_interviewers_completed(position_name)
             
-            # ✅ 모든 면접관이 완료하지 않았으면 메일 발송 안함
+            # 모든 면접관이 완료하지 않았으면 메일 발송 안함
             if not completion_status['all_completed']:
                 remaining_count = len(completion_status['pending_interviewers'])
-                logger.info(f"⏳ {position_name} - 아직 {remaining_count}명의 면접관이 일정 선택 대기 중 (HR 알림 보류)")
-                logger.info(f"   완료: {', '.join(completion_status['completed_interviewers'])}")
-                logger.info(f"   대기: {', '.join(completion_status['pending_interviewers'])}")
+                logger.info(f"⏳ {position_name} - 아직 {remaining_count}명의 면접관이 일정 선택 대기 중")
                 return False
             
-            logger.info(f"🎉 {position_name} - 모든 면접관({len(completion_status['total_interviewers'])}명) 일정 선택 완료! HR에게 알림 발송")
+            logger.info(f"🎉 {position_name} - 모든 면접관 일정 선택 완료! HR에게 알림 발송")
             
-            # ✅ 기존 메일 내용 그대로 유지
-            subject = f"[{position_name}] 면접관 일정 등록 완료"
+            subject = f"[긴급] {position_name} 면접관 일정 등록 완료 - 면접자 메일 발송 필요"
             
             app_link = "https://interview-scheduler-ajnetworks.streamlit.app/"
             
@@ -1263,6 +1260,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
