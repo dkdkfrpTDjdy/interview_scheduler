@@ -479,117 +479,83 @@ def main():
                     elif not st.session_state.selected_slots:
                         st.error("1개 이상의 면접 희망 시간대를 선택해주세요.")
                     else:
-                        # Step 1: 모든 면접 요청 생성 (DB 저장)
+                        # Step 1: 모든 면접 요청 생성 (DB 저장만)
                         all_requests = []
                         failed_candidates = []
-
+                
                         for candidate in st.session_state.selected_candidates:
                             try:
-                                # 명시적으로 값 추출 (안전한 처리)
-                                position_name = st.session_state.basic_info['position_name']
-                                detailed_position_name = st.session_state.basic_info.get('detailed_position_name', '').strip()
-                                
-                                # 빈 문자열이 아닌 경우에만 전달
                                 request_kwargs = {
                                     'interviewer_id': ",".join(st.session_state.selected_interviewers),
                                     'candidate_email': candidate['email'],
                                     'candidate_name': candidate['name'],
-                                    'position_name': position_name,
+                                    'position_name': st.session_state.basic_info['position_name'],
                                     'preferred_datetime_slots': st.session_state.selected_slots.copy()
                                 }
                                 
-                                # 상세공고명이 있는 경우에만 추가
+                                detailed_position_name = st.session_state.basic_info.get('detailed_position_name', '').strip()
                                 if detailed_position_name:
                                     request_kwargs['detailed_position_name'] = detailed_position_name
                                 
                                 request = InterviewRequest.create_new(**request_kwargs)
-                                
                                 db.save_interview_request(request)
                                 all_requests.append(request)
                                 
                             except Exception as e:
                                 st.error(f"{candidate['name']} 면접 요청 생성 실패: {e}")
                                 failed_candidates.append(candidate['name'])
-
-                        # 실패한 면접자가 있으면 경고 표시
-                        if failed_candidates:
-                            st.warning(f"""
-                            ⚠️ 일부 면접자의 요청 생성 실패:
-                            {', '.join(failed_candidates)}
-                            """)
-
-                        # 성공한 요청이 없으면 중단
+                
                         if not all_requests:
-                            st.error("모든 면접 요청 생성에 실패했습니다. 다시 시도해주세요.")
+                            st.error("모든 면접 요청 생성에 실패했습니다.")
                             st.stop()
                         
-                        # Step 2: 면접관 + 포지션 조합으로 그룹핑
+                        # Step 2: 면접관에게만 메일 발송 (면접자 제외!)
                         try:
-                            from utils import group_requests_by_interviewer_and_position
                             grouped_requests = group_requests_by_interviewer_and_position(all_requests)
-                        except ImportError:
-                            st.error("utils.py에 group_requests_by_interviewer_and_position 함수가 없습니다.")
-                            st.stop()
-                        except Exception as e:
-                            st.error(f"그룹핑 중 오류 발생: {e}")
-                            st.stop()
-                        
-                        # Step 3: 그룹별로 1회만 이메일 발송
-                        success_count = 0
-                        total_groups = len(grouped_requests)
-                        total_emails_sent = 0  # 실제 발송된 이메일 수
-
-                        if total_groups == 0:
-                            st.warning("⚠️ 발송할 이메일 그룹이 없습니다.")
-                        else:
-                            progress_bar = st.progress(0)
-                            status_text = st.empty()
                             
-                            for i, (group_key, requests) in enumerate(grouped_requests.items()):
-                                # 면접관 수 계산
-                                interviewer_count = len(requests[0].interviewer_id.split(','))
-                                
-                                status_text.text(f"📧 이메일 발송 중... {i+1}/{total_groups} ({len(requests)}명 면접자, {interviewer_count}명 면접관)")
-                                
-                                try:
-                                    if email_service.send_interviewer_invitation(requests):
-                                        success_count += 1
-                                        total_emails_sent += interviewer_count  # 실제 발송 수 누적
-                                    else:
-                                        st.warning(f"⚠️ 그룹 {i+1} 발송 실패")
-                                except Exception as e:
-                                    st.error(f"그룹 {i+1} 발송 중 오류: {e}")
-                                
-                                progress_bar.progress((i + 1) / total_groups)
-                                time.sleep(0.5)
+                            success_count = 0
+                            total_groups = len(grouped_requests)
                             
-                            progress_bar.empty()
-                            status_text.empty()
-                            
-                            # 결과 표시
-                            if success_count > 0:
-                                st.session_state.submission_done = True
+                            if total_groups > 0:
+                                progress_bar = st.progress(0)
+                                status_text = st.empty()
                                 
-                                if success_count == total_groups:
+                                for i, (group_key, requests) in enumerate(grouped_requests.items()):
+                                    interviewer_count = len(requests[0].interviewer_id.split(','))
+                                    
+                                    status_text.text(f"📧 면접관에게 메일 발송 중... {i+1}/{total_groups}")
+                                    
+                                    try:
+                                        # ✅ 면접관에게만 메일 발송
+                                        if email_service.send_interviewer_invitation(requests):
+                                            success_count += 1
+                                        else:
+                                            st.warning(f"⚠️ 그룹 {i+1} 발송 실패")
+                                    except Exception as e:
+                                        st.error(f"그룹 {i+1} 발송 중 오류: {e}")
+                                    
+                                    progress_bar.progress((i + 1) / total_groups)
+                                    time.sleep(0.5)
+                                
+                                progress_bar.empty()
+                                status_text.empty()
+                                
+                                # ✅ 결과 표시 (면접자 메일 발송 언급 제거)
+                                if success_count > 0:
+                                    st.session_state.submission_done = True
+                                    
                                     st.success(f"""
-                                    모든 면접 요청이 성공적으로 생성되었습니다!
+                                    ✅ 면접 요청이 성공적으로 생성되었습니다!
                                     
                                     📊 발송 통계:
                                     • 총 면접자: {len(all_requests)}명
-                                    • 그룹 수: {total_groups}개
-                                    • 실제 이메일 발송: {total_emails_sent}통
-                                    • 중복 방지: {len(all_requests) - total_groups}회 절약
-                                    """)
-                                else:
-                                    st.warning(f"""
-                                    ⚠️ 일부 면접 요청이 생성되었습니다.
+                                    • 면접관 그룹: {total_groups}개
+                                    • 면접관 메일 발송: 완료
                                     
-                                    📊 발송 통계:
-                                    • 총 면접자: {len(all_requests)}명
-                                    • 성공한 그룹: {success_count}/{total_groups}개
-                                    • 실제 이메일 발송: {total_emails_sent}통
+                                    💡 면접관들이 일정을 선택하면 인사팀에게 알림이 갑니다.
+                                    그 후 "면접자 메일 발송" 탭에서 면접자들에게 메일을 보내주세요.
                                     """)
-                                st.rerun()
+                                    st.rerun()
 
     with tab2:
         st.subheader("📧 면접자 메일 발송")
@@ -786,7 +752,7 @@ def main():
                                 status_text.empty()
                                 
                                 # ✅ 결과 표시
-                                if success_count &gt; 0:
+                                if success_count > 0:
                                     st.success(f"✅ 면접자 메일 발송 완료: {success_count}명 성공, {fail_count}명 실패")
                                     st.info("💡 발송된 면접자들은 이제 면접 일정을 선택할 수 있습니다.")
                                     st.balloons()
@@ -949,6 +915,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
