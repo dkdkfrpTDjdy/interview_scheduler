@@ -156,24 +156,42 @@ def show_interviewer_dashboard():
         ):
             show_position_detail(position_name, group_data, i)
 
+import re
+
 def parse_datetime_slot(datetime_slot: str) -> dict:
-    """datetime_slot 파싱"""
+    """
+    ✅ 다양한 입력 형식 지원
+    - 2026-01-06 14:00~15:00
+    - 2026-01-06 14:00 ~ 15:00
+    - 2026-01-06 14:00-15:00
+    - 2026-01-06 14:00 - 15:00
+    """
     try:
-        parts = datetime_slot.split(' ')
-        date_part = parts[0]
-        time_range = parts[1] if len(parts) > 1 else None
-        
-        if time_range and '~' in time_range:
-            start_time, end_time = time_range.split('~')
+        s = datetime_slot.strip()
+
+        # 정규식: 날짜 + 시작시간 + (~ 또는 -) + 종료시간 (공백 허용)
+        match = re.match(r"(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s*[~-]\s*(\d{2}:\d{2})", s)
+        if match:
             return {
-                'date': date_part,
-                'start_time': start_time,
-                'end_time': end_time
+                "date": match.group(1),
+                "start_time": match.group(2),
+                "end_time": match.group(3)
             }
-        else:
-            return None
+
+        # 날짜만 있는 경우 처리 (표에는 뜨게 하려면)
+        match_date_only = re.match(r"(\d{4}-\d{2}-\d{2})$", s)
+        if match_date_only:
+            return {
+                "date": match_date_only.group(1),
+                "start_time": "00:00",
+                "end_time": "00:00"
+            }
+
+        return None
+
     except Exception as e:
         return None
+
 
 def show_position_detail(position_name: str, group_data: dict, index: int):
     """공고별 상세 정보 및 통합 일정 선택"""
@@ -434,6 +452,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
 if __name__ == "__main__":
 
     main()
+
 
 
 
