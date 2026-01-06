@@ -119,6 +119,100 @@ class DatabaseManager:
             
             return None
 
+    def check_all_interviewers_completed(self, position_name: str) -> dict:
+        """
+        ✅ 특정 포지션의 모든 면접관이 일정 선택을 완료했는지 확인
+        """
+        try:
+            # 해당 포지션의 모든 요청 조회
+            all_requests = self.get_requests_by_position(position_name)
+            
+            if not all_requests:
+                return {
+                    'all_completed': False,
+                    'total_interviewers': [],
+                    'completed_interviewers': [],
+                    'pending_interviewers': [],
+                    'candidate_count': 0
+                }
+            
+            # 면접관 정보 수집
+            all_interviewer_ids = set()
+            completed_interviewer_ids = set()
+            
+            for request in all_requests:
+                # 복수 면접관 처리
+                interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
+                all_interviewer_ids.update(interviewer_ids)
+                
+                # 해당 요청에 대해 일정을 선택한 면접관들 확인
+                if request.available_slots:  # 면접관이 일정을 선택했다면
+                    completed_interviewer_ids.update(interviewer_ids)
+            
+            # 면접관 이름 매핑
+            from utils import get_employee_info
+            
+            total_interviewers = []
+            completed_interviewers = []
+            pending_interviewers = []
+            
+            for interviewer_id in all_interviewer_ids:
+                interviewer_info = get_employee_info(interviewer_id)
+                interviewer_name = interviewer_info.get('name', interviewer_id)
+                
+                total_interviewers.append(interviewer_name)
+                
+                if interviewer_id in completed_interviewer_ids:
+                    completed_interviewers.append(interviewer_name)
+                else:
+                    pending_interviewers.append(interviewer_name)
+            
+            # 모든 면접관이 완료했는지 확인
+            all_completed = len(pending_interviewers) == 0 and len(completed_interviewers) > 0
+            
+            result = {
+                'all_completed': all_completed,
+                'total_interviewers': total_interviewers,
+                'completed_interviewers': completed_interviewers,
+                'pending_interviewers': pending_interviewers,
+                'candidate_count': len(set(req.candidate_email for req in all_requests))
+            }
+            
+            logger.info(f"📊 {position_name} 면접관 완료 현황: {len(completed_interviewers)}/{len(total_interviewers)}명 완료")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"면접관 완료 상태 확인 실패: {e}")
+            return {
+                'all_completed': False,
+                'total_interviewers': [],
+                'completed_interviewers': [],
+                'pending_interviewers': [],
+                'candidate_count': 0
+            }
+    
+    def get_requests_by_position(self, position_name: str) -> List[InterviewRequest]:
+        """특정 포지션의 모든 면접 요청 조회"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute(
+                    "SELECT id FROM interview_requests WHERE position_name = ? ORDER BY created_at DESC",
+                    (position_name,)
+                )
+                request_ids = [row[0] for row in cursor.fetchall()]
+            
+            requests = []
+            for req_id in request_ids:
+                request = self.get_interview_request(req_id)
+                if request:
+                    requests.append(request)
+            
+            return requests
+        except Exception as e:
+            logger.error(f"포지션별 요청 조회 실패: {e}")
+            return []
+
     def _set_to_cache(self, clean_id: str, request_data: Any):
         """캐시에 안전하게 저장"""
         with self._cache_lock:
@@ -1513,6 +1607,7 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ 강제 동기화 실패: {e}")
             return False
+
 
 
 
