@@ -111,23 +111,31 @@ def find_pending_requests_by_position(employee_id: str):
     """면접관의 대기 중인 요청을 공고별로 그룹핑"""
     try:
         all_requests = db.get_all_requests()
+
+        # ✅ SQLite에 요청이 없으면 구글시트에서 다시 동기화
+        if not all_requests:
+            logger.warning("⚠️ DB에 요청 없음 → 구글시트 동기화 시도")
+            db.sync_from_google_sheet_to_db()
+            all_requests = db.get_all_requests()
+
         grouped = {}
-        
+
         for request in all_requests:
             interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
-            
+
             if employee_id in interviewer_ids and request.status == Config.Status.PENDING_INTERVIEWER:
                 position_name = request.position_name
-                
+
                 if position_name not in grouped:
                     grouped[position_name] = {
                         'requests': [],
                         'preferred_datetime_slots': request.preferred_datetime_slots
                     }
-                
+
                 grouped[position_name]['requests'].append(request)
-        
+
         return grouped
+
     except Exception as e:
         st.error(f"요청 조회 중 오류가 발생했습니다: {e}")
         return {}
@@ -460,6 +468,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
 if __name__ == "__main__":
 
     main()
+
 
 
 
