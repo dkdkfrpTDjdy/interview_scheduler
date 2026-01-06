@@ -512,50 +512,51 @@ def main():
                         # Step 2: 면접관에게만 메일 발송 (면접자 제외!)
                         try:
                             grouped_requests = group_requests_by_interviewer_and_position(all_requests)
-                            
+                        
                             success_count = 0
                             total_groups = len(grouped_requests)
-                            
+                        
                             if total_groups > 0:
                                 progress_bar = st.progress(0)
                                 status_text = st.empty()
-                                
+                        
                                 for i, (group_key, requests) in enumerate(grouped_requests.items()):
-                                    interviewer_count = len(requests[0].interviewer_id.split(','))
-                                    
                                     status_text.text(f"📧 면접관에게 메일 발송 중... {i+1}/{total_groups}")
-                                    
+                        
                                     try:
-                                        # ✅ 면접관에게만 메일 발송
                                         if email_service.send_interviewer_invitation(requests):
                                             success_count += 1
                                         else:
                                             st.warning(f"⚠️ 그룹 {i+1} 발송 실패")
                                     except Exception as e:
                                         st.error(f"그룹 {i+1} 발송 중 오류: {e}")
-                                    
+                        
                                     progress_bar.progress((i + 1) / total_groups)
                                     time.sleep(0.5)
-                                
+                        
                                 progress_bar.empty()
                                 status_text.empty()
-                                
-                                # ✅ 결과 표시 (면접자 메일 발송 언급 제거)
+                        
                                 if success_count > 0:
                                     st.session_state.submission_done = True
-                                    
+                        
                                     st.success(f"""
                                     ✅ 면접 요청이 성공적으로 생성되었습니다!
-                                    
+                        
                                     📊 발송 통계:
                                     • 총 면접자: {len(all_requests)}명
                                     • 면접관 그룹: {total_groups}개
                                     • 면접관 메일 발송: 완료
-                                    
+                        
                                     💡 면접관들이 일정을 선택하면 인사팀에게 알림이 갑니다.
                                     그 후 "면접자 메일 발송" 탭에서 면접자들에게 메일을 보내주세요.
                                     """)
                                     st.rerun()
+                        
+                        except Exception as e:
+                            st.error(f"❌ 면접관 메일 발송 단계에서 오류가 발생했습니다: {e}")
+                            import traceback
+                            st.code(traceback.format_exc())
 
     with tab2:
         st.subheader("📧 면접자 메일 발송")
@@ -917,6 +918,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
