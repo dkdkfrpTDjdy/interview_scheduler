@@ -185,6 +185,9 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
     current_interviewer_id = st.session_state.authenticated_interviewer
     
     interviewer_ids = [id.strip() for id in first_request.interviewer_id.split(',')]
+    sorted_interviewers = "_".join(sorted(interviewer_ids))
+    group_key = f"{position_name}_{sorted_interviewers}"
+
     is_multiple_interviewers = len(interviewer_ids) > 1
     
     # ✅ 현재 응답 현황 확인 (에러 처리 강화)
@@ -358,9 +361,6 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                         except Exception as e:
                             st.error(f"❌ {request.candidate_name} 응답 저장 실패: {e}")
                     
-                    # 면접관 수 확인
-                    interviewer_ids = [id.strip() for id in first_request.interviewer_id.split(',')]
-                    
                     if len(interviewer_ids) == 1:
                         # ✅ 단일 면접관: 즉시 상태 변경 (면접자 메일 발송 안함!)
                         for request in requests:
@@ -399,6 +399,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                     # ✅ HR 알림만 발송 (면접자에게는 발송 안함!)
                     try:
                         hr_notification_sent = email_service.send_hr_notification_on_interviewer_completion(
+                            group_key=group_key,
                             position_name=position_name,
                             candidate_count=len(requests)
                         )
@@ -432,6 +433,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
 if __name__ == "__main__":
 
     main()
+
 
 
 
