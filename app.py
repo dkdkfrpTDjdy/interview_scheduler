@@ -734,7 +734,7 @@ def main():
                                 type="primary",
                                 use_container_width=True
                             ):
-                                # 메일 발송 로직
+                                # ✅ 면접자에게 메일 발송 로직
                                 success_count = 0
                                 fail_count = 0
                                 
@@ -753,20 +753,22 @@ def main():
                                             fail_count += 1
                                             continue
                                         
-                                        status_text.text(f"📧 메일 발송 중... {i+1}/{selected_count} - {row.get('면접자명', '')}")
+                                        status_text.text(f"📧 면접자에게 메일 발송 중... {i+1}/{selected_count} - {row.get('면접자명', '')}")
                                         
                                         request = db.get_interview_request(request_id)
                                         if request:
+                                            # ✅ 면접자에게 일정 선택 메일 발송
                                             result = email_service.send_candidate_invitation(request)
                                             
                                             if result:
                                                 success_count += 1
+                                                # ✅ 상태를 '면접자_메일발송'으로 변경
                                                 try:
                                                     db.update_request_status_after_email(
                                                         request_id=request.id,
-                                                        new_status=Config.Status.CANDIDATE_EMAIL_SENT
+                                                        new_status="면접자_메일발송"  # ✅ 이 상태로 변경
                                                     )
-                                                except Exception as status_error:  # ✅ 수정된 부분
+                                                except Exception as status_error:
                                                     st.warning(f"⚠️ {row.get('면접자명', '')} 상태 업데이트 실패: {status_error}")
                                             else:
                                                 fail_count += 1
@@ -783,8 +785,11 @@ def main():
                                 progress_bar.empty()
                                 status_text.empty()
                                 
-                                if success_count > 0:
-                                    st.success(f"✅ 메일 발송 완료: {success_count}명 성공, {fail_count}명 실패")
+                                # ✅ 결과 표시
+                                if success_count &gt; 0:
+                                    st.success(f"✅ 면접자 메일 발송 완료: {success_count}명 성공, {fail_count}명 실패")
+                                    st.info("💡 발송된 면접자들은 이제 면접 일정을 선택할 수 있습니다.")
+                                    st.balloons()
                                     st.session_state.email_selected_indices = set()
                                     time.sleep(2)
                                     st.rerun()
@@ -944,6 +949,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
