@@ -183,7 +183,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
     
     first_request = requests[0]
     current_interviewer_id = st.session_state.authenticated_interviewer
-    
+    detailed_position_name = getattr(first_request, "detailed_position_name", "") or ""
     interviewer_ids = [id.strip() for id in first_request.interviewer_id.split(',')]
     sorted_interviewers = "_".join(sorted(interviewer_ids))
     group_key = f"{position_name}_{sorted_interviewers}"
@@ -401,6 +401,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                         hr_notification_sent = email_service.send_hr_notification_on_interviewer_completion(
                             group_key=group_key,
                             position_name=position_name,
+                            detailed_position_name=detailed_position_name,
                             candidate_count=len(requests)
                         )
             
@@ -433,6 +434,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
 if __name__ == "__main__":
 
     main()
+
 
 
 
