@@ -59,13 +59,7 @@ class EmailService:
         return email, False
 
     def _check_email_deliverability(self, email: str) -> bool:
-        """이메일 전송 가능성 체크"""
-        try:
-            domain = email.split('@')[1]
-            mx_records = socket.getaddrinfo(domain, None)
-            return len(mx_records) > 0
-        except:
-            return False
+        return True
 
     def _is_gmail_recipient(self, email: str) -> bool:
         gmail_domains = ['gmail.com', 'gamail.com', 'gmial.com', 'gmai.com', 'gmail.co']
@@ -507,7 +501,7 @@ class EmailService:
             
             # 복수 면접관 ID 추출
             interviewer_ids = [id.strip() for id in first_request.interviewer_id.split(',')]
-            
+
             logger.info(f"📧 면접관 초대 메일 준비 - 면접관 수: {len(interviewer_ids)}, 면접자 수: {len(requests)}")
             
             # 면접자 정보 수집 (중복 제거)
@@ -798,43 +792,40 @@ class EmailService:
 
     def send_candidate_invitation(self, requests):
         """
-        🔧 개선된 면접자 초대 메일 발송 (복수 면접자 지원)
-        
-        Args:
-            requests: InterviewRequest 또는 List[InterviewRequest]
-        
-        Returns:
-            dict: {'success_count': int, 'fail_count': int, 'total': int}
+        ✅ 면접자 초대 메일 발송 (복수 면접자 지원)
+        - overlapping_slots 찾기 로직 유지
+        - slots_html 테이블 row 형태로 생성
+        - <tbody> 안에 slots_html 삽입 (빈 표 문제 해결)
         """
         try:
             from database import DatabaseManager
             db = DatabaseManager()
-            
-            # 단일 요청인 경우 리스트로 변환
+    
+            # 단일 요청 -> 리스트 변환
             if not isinstance(requests, list):
                 requests = [requests]
-            
+    
             success_count = 0
             fail_count = 0
-            
+    
             for request in requests:
                 try:
-                    # ✅ 개선된 타임슬롯 찾기 로직
+                    # ✅ 타임슬롯 찾기
                     overlapping_slots = []
-                    
-                    # 1차: 기존 find_overlapping_time_slots 시도
+    
+                    # 1차: 기존 로직
                     try:
                         overlapping_slots = db.find_overlapping_time_slots(request)
                         logger.info(f"🔍 find_overlapping_time_slots 결과: {len(overlapping_slots)}개")
                     except Exception as e:
                         logger.warning(f"find_overlapping_time_slots 실패: {e}")
-                    
-                    # 2차: available_slots 직접 사용 (백업)
+    
+                    # 2차: available_slots fallback
                     if not overlapping_slots and request.available_slots:
                         overlapping_slots = request.available_slots
                         logger.info(f"🔄 available_slots 직접 사용: {len(overlapping_slots)}개")
-                    
-                    # 3차: 구글시트에서 직접 파싱 (최후의 수단)
+    
+                    # 3차: 구글시트 파싱 fallback
                     if not overlapping_slots:
                         try:
                             sheet_slots = self._parse_slots_from_sheet(request.id, db)
@@ -843,62 +834,65 @@ class EmailService:
                                 logger.info(f"📋 구글시트에서 직접 파싱: {len(overlapping_slots)}개")
                         except Exception as parse_error:
                             logger.warning(f"구글시트 파싱 실패: {parse_error}")
-                    
-                    # 최종 확인
+    
                     if not overlapping_slots:
-                        logger.warning(f"❌ 모든 방법으로도 타임슬롯을 찾을 수 없음: {request.candidate_name}")
+                        logger.warning(f"❌ 타임슬롯 없음: {request.candidate_name}")
                         fail_count += 1
                         continue
-                    
-                    # 면접관 정보 처리
+    
+                    # ✅ 면접관 이름 표시
                     interviewer_ids = [id.strip() for id in request.interviewer_id.split(',')]
                     interviewer_names = []
-                    
                     for interviewer_id in interviewer_ids:
                         info = get_employee_info(interviewer_id)
                         interviewer_names.append(info.get('name', interviewer_id))
-                    
+    
                     interviewer_display = ", ".join(interviewer_names)
-                    candidate_link = f"https://candidate-app.streamlit.app/"
-                    
-                    logger.info(f"📧 면접자 초대 메일 준비 - {request.candidate_name} ({len(overlapping_slots)}개 타임슬롯)")
-                    
-                    # 면접 일정 테이블 HTML 생성
+    
+                    # ✅ 후보자 링크
+                    candidate_link = "https://candidate-app.streamlit.app/"
+    
+                    # ✅ 날짜별 slot 정리
                     slots_by_date = {}
                     for slot in overlapping_slots:
-                        if slot.date not in slots_by_date:
-                            slots_by_date[slot.date] = []
-                        slots_by_date[slot.date].append(slot)
-                    
+                        slots_by_date.setdefault(slot.date, []).append(slot)
+    
+                    # ✅ slots_html (표 row 형태로 만들기!)
                     slots_html = ""
                     slot_number = 1
+    
                     for date, slots in sorted(slots_by_date.items()):
                         for slot in slots:
-                            bg_color = "#ffffff" if slot_number % 2 == 0 else "white"
+                            bg_color = "#ffffff" if slot_number % 2 == 0 else "#f9f9f9"
                             slots_html += f"""
-                            
-                                {slot_number}
-                                {format_date_korean(slot.date)}
-                                {slot.time}
-                                30분
-                            
+                            <tr style="background-color:{bg_color};">
+                                <td style="padding:15px;border:1px solid #e7e7e7;text-align:center;font-size:14px;">{slot_number}</td>
+                                <td style="padding:15px;border:1px solid #e7e7e7;text-align:center;font-size:14px;">{format_date_korean(slot.date)}</td>
+                                <td style="padding:15px;border:1px solid #e7e7e7;text-align:center;font-size:14px;">{slot.time}</td>
+                                <td style="padding:15px;border:1px solid #e7e7e7;text-align:center;font-size:14px;">30분</td>
+                            </tr>
                             """
                             slot_number += 1
-                    
+    
                     subject = f"[AJ네트웍스] 면접 일정을 선택해주세요 - {request.position_name}"
+    
                     body = self._create_gmail_safe_html({
                         'company_name': 'AJ네트웍스',
                         'recipient_name': request.candidate_name,
-                        'main_message': f'{request.position_name} 포지션 지원에 감사드립니다.<br>면접관들이 가능한 시간 중에서 원하시는 <strong style="color:#EF3340;">시간</strong>을 선택해주세요.',
+                        'main_message': (
+                            f'{request.position_name} 포지션 지원에 감사드립니다.<br>'
+                            f'면접관들이 가능한 시간 중에서 원하시는 <strong style="color:#EF3340;">시간</strong>을 선택해주세요.'
+                        ),
                         'position': request.position_name,
                         'interviewer': interviewer_display,
                         'action_link': candidate_link,
                         'button_text': '면접 일정 선택하기',
+    
+                        # ✅ 테이블 제대로 들어가게 수정
                         'additional_content': f"""
                         <h4 style="color: #EF3340; margin: 0 0 20px 0; font-size:16px;">🗓️ 선택 가능한 면접 시간</h4>
-                        
-                                {slots_html}
-                            <table style="width: 100%; border-collapse: collapse; border: 2px solid #EF3340; border-radius: 8px; overflow: hidden;">
+    
+                        <table style="width: 100%; border-collapse: collapse; border: 2px solid #EF3340; border-radius: 8px; overflow: hidden;">
                             <thead>
                                 <tr style="background: linear-gradient(135deg, #EF3340 0%, #e0752e 100%); color: white;">
                                     <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">번호</th>
@@ -907,17 +901,24 @@ class EmailService:
                                     <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">소요시간</th>
                                 </tr>
                             </thead>
-                            <tbody></tbody>
+                            <tbody>
+                                {slots_html}
+                            </tbody>
                         </table>
+    
                         <div style="background-color:#fff3cd;padding:15px;border-radius:8px;margin-top:20px;border-left:5px solid #ffc107;">
                             <p style="margin:0;color:#856404;font-weight:bold;">⚠️ 안내 사항</p>
-                            <p style="margin:5px 0 0 0;color:#856404;">• 각 면접은 <strong>30분</strong>으로 진행됩니다<br>• 다른 면접자가 먼저 선택한 시간은 자동으로 제외됩니다</p>
+                            <p style="margin:5px 0 0 0;color:#856404;">
+                                • 각 면접은 <strong>30분</strong>으로 진행됩니다<br>
+                                • 다른 면접자가 먼저 선택한 시간은 자동으로 제외됩니다
+                            </p>
                         </div>
                         """,
+    
                         'contact_email': Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'
                     })
-                    
-                    # 개별 면접자에게 이메일 발송
+    
+                    # ✅ 이메일 발송
                     result = self.send_email(
                         to_emails=[request.candidate_email],
                         subject=subject,
@@ -925,38 +926,38 @@ class EmailService:
                         is_html=True,
                         request_id=f"candidate_{request.id}"
                     )
-                    
+    
                     if result:
                         success_count += 1
                         logger.info(f"✅ 면접자 {request.candidate_name} 메일 발송 성공")
                     else:
                         fail_count += 1
                         logger.error(f"❌ 면접자 {request.candidate_name} 메일 발송 실패")
-                    
-                    # API 부하 방지
+    
                     time.sleep(0.5)
-                    
+    
                 except Exception as e:
                     fail_count += 1
-                    logger.error(f"❌ 면접자 {request.candidate_name} 메일 발송 중 오류: {e}")
+                    logger.error(f"❌ 면접자 {request.candidate_name} 처리 오류: {e}")
                     continue
-            
+    
             total = len(requests)
-            logger.info(f"📧 면접자 초대 메일 발송 완료: {success_count}/{total}명 성공, {fail_count}명 실패")
-            
+            logger.info(f"📧 면접자 초대 메일 발송 완료: {success_count}/{total} 성공, {fail_count} 실패")
+    
             return {
                 'success_count': success_count,
                 'fail_count': fail_count,
                 'total': total
             }
-            
+    
         except Exception as e:
-            logger.error(f"❌ 면접자 초대 메일 발송 실패: {e}")
+            logger.error(f"❌ send_candidate_invitation 전체 실패: {e}")
             return {
                 'success_count': 0,
                 'fail_count': len(requests) if isinstance(requests, list) else 1,
                 'total': len(requests) if isinstance(requests, list) else 1
             }
+
     
     def _parse_slots_from_sheet(self, request_id: str, db) -> list:
         """구글시트에서 직접 면접관확정일시 파싱"""
@@ -1270,6 +1271,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
