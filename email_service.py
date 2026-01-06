@@ -385,10 +385,10 @@ class EmailService:
             return False
 
     def _create_professional_email_body(self, request, interviewer_info, candidate_link, is_gmail_optimized=False):
+        """전문적인 이메일 본문 생성 - 통합 템플릿 사용"""
         slots_by_date = {}
         for slot in request.available_slots or []:
             slots_by_date.setdefault(slot.date, []).append(slot)
-        """전문적인 이메일 본문 생성 - 통합 템플릿 사용"""
         # 면접 일정 테이블 HTML 생성
         slots_html = ""
         slot_number = 1
@@ -1274,6 +1274,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
