@@ -185,7 +185,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
     current_interviewer_id = st.session_state.authenticated_interviewer
     
     interviewer_ids = [id.strip() for id in first_request.interviewer_id.split(',')]
-    is_multiple_interviewers = len(interviewer_ids) > 1
+    is_multiple_interviewers = len(interviewer_ids) &gt; 1
     
     # ✅ 현재 응답 현황 확인 (에러 처리 강화)
     try:
@@ -199,17 +199,17 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
     st.markdown(f"""
     <div style="background-color: white; padding: 25px; border-radius: 10px; border-left: 5px solid #0078d4; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,120,212,0.1);">
         <h4 style="color: #1A1A1A; margin: 0 0 15px 0;">📋 공고 정보</h4>
+        
+            {'' if is_multiple_interviewers else ''}
         <table style="width: 100%; border-collapse: collapse; text-align: center;">
-            <tr>
+            <tbody><tr>
                 <td style="padding: 10px 0; font-weight: bold; color: #1A1A1A; width: 120px;">공고명</td>
                 <td style="padding: 10px 0; color: #333;">{position_name}</td>
             </tr>
             <tr>
                 <td style="padding: 10px 0; font-weight: bold; color: #1A1A1A;">면접자 수</td>
                 <td style="padding: 10px 0; color: #333;">{len(requests)}명</td>
-            </tr>
-            {'<tr><td style="padding: 10px 0; font-weight: bold; color: #1A1A1A;">면접관 응답</td><td style="padding: 10px 0; color: #EF3340;">' + str(responded_count) + '/' + str(total_count) + '명 완료</td></tr>' if is_multiple_interviewers else ''}
-        </table>
+            </tr><tr><td style="padding: 10px 0; font-weight: bold; color: #1A1A1A;">면접관 응답</td><td style="padding: 10px 0; color: #EF3340;">' + str(responded_count) + '/' + str(total_count) + '명 완료</td></tr></tbody></table>
     </div>
     """, unsafe_allow_html=True)
     
@@ -280,7 +280,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                             end_hour, end_min = map(int, parsed['end_time'].split(':'))
                             total_minutes = (end_hour * 60 + end_min) - (start_hour * 60 + start_min)
                             slot_count = total_minutes // 30
-                            st.markdown(f"<div style='margin-top:8px;color:#4caf50;font-weight:bold;'>{slot_count}개 슬롯</div>", unsafe_allow_html=True)
+                            st.markdown(f"<div style="margin-top:8px;color:#4caf50;font-weight:bold;">{slot_count}개</div>", unsafe_allow_html=True)
                     
                     if is_selected:
                         selected_datetime_slots.append(datetime_slot)
@@ -324,7 +324,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                 st.error("최소 1개 이상의 날짜를 선택해주세요.")
             else:
                 try:
-                    # 30분 단위 슬롯 생성
+                    # 30분 단위 시간 생성
                     all_slots = []
                     for datetime_slot in selected_datetime_slots:
                         parsed = parse_datetime_slot(datetime_slot)
@@ -374,7 +374,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                                 all_responded, responded_count, total_count = db.check_all_interviewers_responded(request)
                                 
                                 if all_responded:
-                                    # 공통 슬롯 계산
+                                    # 공통 시간 계산
                                     common_slots = db.get_common_available_slots(request)
                                     
                                     if common_slots:
@@ -385,19 +385,46 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                                         db.save_interview_request(request)
                                         db.update_google_sheet(request)
                                         
-                                        st.write(f"✅ {request.candidate_name} 공통 슬롯 저장 완료")
+                                        st.write(f"✅ {request.candidate_name} 공통 시간 저장 완료")
                             except Exception as e:
                                 st.error(f"❌ {request.candidate_name} 처리 오류: {e}")
                     
-                    # ✅ HR 팀에 알림 메일 발송
+                    # ✅ 수정된 HR 알림 로직 (모든 면접관이 완료했을 때만)
                     try:
-                        email_service.send_hr_notification_on_interviewer_completion(
+                        hr_notification_sent = email_service.send_hr_notification_on_interviewer_completion(
                             position_name=position_name,
                             candidate_count=len(requests)
                         )
-                        st.success("✅ 인사팀에 알림이 전송되었습니다.")
+                        
+                        if hr_notification_sent:
+                            st.success("🎉 일정 제출 완료! 모든 면접관이 완료되어 인사팀에게 알림을 보냈습니다.")
+                            st.info("💡 인사팀에서 면접자들에게 직접 메일을 발송할 예정입니다.")
+                            st.balloons()
+                        else:
+                            st.success("✅ 일정 제출 완료! 다른 면접관들의 일정 선택을 기다리고 있습니다.")
+                            st.info("💡 모든 면접관이 완료되면 인사팀에 알림이 갑니다.")
+                            
+                            # 진행 상황 표시
+                            try:
+                                status = db.check_all_interviewers_completed(position_name)
+                                
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.metric("완료", f"{len(status['completed_interviewers'])}명")
+                                with col2:
+                                    st.metric("대기", f"{len(status['pending_interviewers'])}명")
+                                
+                                if status['pending_interviewers']:
+                                    st.write("**대기 중인 면접관:**")
+                                    for interviewer in status['pending_interviewers']:
+                                        st.write(f"• {interviewer}")
+                            except Exception as status_error:
+                                st.warning(f"진행 상황 확인 실패: {status_error}")
+                        
                     except Exception as e:
-                        st.warning(f"⚠️ 인사팀 알림 전송 실패: {e}")
+                        logger.error(f"HR 알림 처리 중 오류: {e}")
+                        st.success("✅ 일정 제출 완료!")
+                        st.info("💡 인사팀에 별도로 연락하여 진행 상황을 알려주세요.")
                     
                     # 세션 정리
                     if 'grouped_requests' in st.session_state:
@@ -415,4 +442,5 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
 if __name__ == "__main__":
 
     main()
+
 
