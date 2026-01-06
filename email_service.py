@@ -29,13 +29,9 @@ class EmailService:
         
 
 
-    def _generate_email_hash(self, to_emails: List[str], subject: str, request_id: str = None) -> str:
-        """
-        🔧 이메일 중복 발송 방지용 해시 생성
-        
-        문제점: 동일한 그룹에 대해 여러 번 이메일 발송
-        해결책: 수신자+제목+요청ID 조합으로 고유 해시 생성하여 중복 체크
-        """
+    def _generate_email_hash(self, to_emails, subject: str, request_id: str = None) -> str:
+        if not isinstance(to_emails, list):
+            to_emails = [to_emails]
         content = f"{sorted(to_emails)}_{subject}_{request_id or ''}"
         return hashlib.md5(content.encode()).hexdigest()
 
@@ -1274,6 +1270,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
