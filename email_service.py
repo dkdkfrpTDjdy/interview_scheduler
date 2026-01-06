@@ -707,21 +707,38 @@ class EmailService:
 
     def send_hr_notification_on_interviewer_completion(self, position_name: str, candidate_count: int):
         """
-        면접관 일정 등록 완료 시 HR에게 알림 메일 발송
+        ✅ 모든 면접관이 일정 등록 완료했을 때만 HR에게 알림 메일 발송 (기존 메일 내용 유지)
         """
         try:
+            # ✅ 모든 면접관 완료 여부 확인 로직 추가
+            from database import DatabaseManager
+            db = DatabaseManager()
+            
+            completion_status = db.check_all_interviewers_completed(position_name)
+            
+            # ✅ 모든 면접관이 완료하지 않았으면 메일 발송 안함
+            if not completion_status['all_completed']:
+                remaining_count = len(completion_status['pending_interviewers'])
+                logger.info(f"⏳ {position_name} - 아직 {remaining_count}명의 면접관이 일정 선택 대기 중 (HR 알림 보류)")
+                logger.info(f"   완료: {', '.join(completion_status['completed_interviewers'])}")
+                logger.info(f"   대기: {', '.join(completion_status['pending_interviewers'])}")
+                return False
+            
+            logger.info(f"🎉 {position_name} - 모든 면접관({len(completion_status['total_interviewers'])}명) 일정 선택 완료! HR에게 알림 발송")
+            
+            # ✅ 기존 메일 내용 그대로 유지
             subject = f"[{position_name}] 면접관 일정 등록 완료"
             
             app_link = "https://interview-scheduler-ajnetworks.streamlit.app/"
             
             body = f"""
             <div style="font-family: 'Apple SD Gothic Neo', Arial, sans-serif; max-width: 640px; margin: 0 auto; background-color: #ffffff;">
-                <!-- Header -->
+                
                 <div style="background-color: #EF3340; color: white; padding: 30px; text-align: center;">
                     <h1 style="margin: 0; font-size: 22px;">면접관 일정 등록 완료</h1>
                 </div>
-
-                <!-- Body -->
+    
+                
                 <div style="padding: 30px;">
                     <p style="font-size: 16px; line-height: 1.6;">
                         <strong>{position_name}</strong> 공고에 대한 면접관들의 일정이 모두 선택되었습니다.
@@ -736,12 +753,11 @@ class EmailService:
                     <p style="font-size: 15px; color: #737272; line-height: 1.6;">
                         면접 조율 앱에서 확인하시고 면접자들에게 <strong style="color: #EF3340;">늦지 않게 메일을 발송</strong>해 주세요.
                     </p>
-
-                    <!-- Button -->
+    
+                    
                     <div style="text-align: center; margin: 30px 0;">
-                        <a href="{app_link}" 
-                        style="display: inline-block; padding: 18px 35px; background-color: #EF3340; color: #ffffff;
-                                text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+                        <a style="display: inline-block; padding: 18px 35px; background-color: #EF3340; color: #ffffff;
+                                text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;" href="{app_link}">
                             📅 면접 조율 앱 열기
                         </a>
                     </div>
@@ -753,8 +769,8 @@ class EmailService:
                         </p>
                     </div>
                 </div>
-
-                <!-- Footer -->
+    
+                
                 <div style="background-color: #f9f9f9; padding: 20px; text-align: center; font-size: 12px; color: #737272;">
                     본 메일은 AI 면접 일정 조율 시스템에서 자동 발송되었습니다.
                 </div>
@@ -765,7 +781,8 @@ class EmailService:
                 to_emails=Config.HR_EMAILS,
                 subject=subject,
                 body=body,
-                is_html=True
+                is_html=True,
+                request_id=f"hr_notification_{position_name}"
             )
             
         except Exception as e:
@@ -1246,6 +1263,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
