@@ -69,6 +69,51 @@ class DatabaseManager:
         self.init_google_sheet()
         self.migrate_database_schema()
 
+    def check_all_interviewers_completed_by_groupkey(self, group_key: str) -> dict:
+        """
+        ✅ group_key 기준으로 면접관 응답 완료 여부 체크
+        group_key = f"{position_name}_{sorted_interviewers}"
+        """
+        try:
+            # group_key에서 position_name / interviewer_ids 복원
+            parts = group_key.split("_")
+            position_name = parts[0]
+            interviewer_ids = parts[1:]
+    
+            # 포지션 내 모든 request 가져오기
+            all_requests = self.get_requests_by_position(position_name)
+            if not all_requests:
+                return {"all_completed": False, "pending_interviewers": interviewer_ids}
+    
+            # request_id 목록
+            request_ids = [req.id for req in all_requests]
+    
+            # interviewer_responses 테이블에서 응답한 면접관 집합 구하기
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute(
+                    f"""
+                    SELECT DISTINCT interviewer_id 
+                    FROM interviewer_responses 
+                    WHERE request_id IN ({','.join(['?']*len(request_ids))})
+                    """,
+                    request_ids
+                )
+                responded_ids = {row[0] for row in cursor.fetchall()}
+    
+            pending = [i for i in interviewer_ids if i not in responded_ids]
+    
+            return {
+                "all_completed": len(pending) == 0,
+                "pending_interviewers": pending,
+                "responded_interviewers": list(responded_ids),
+                "candidate_count": len(set(req.candidate_email for req in all_requests))
+            }
+    
+        except Exception as e:
+            logger.error(f"group_key 기반 완료 체크 실패: {e}")
+            return {"all_completed": False, "pending_interviewers": []}
+
+
     def _cleanup_expired_cache(self):
         """만료된 캐시 항목 정리 (스레드 안전)"""
         with self._cache_lock:
@@ -1607,6 +1652,7 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ 강제 동기화 실패: {e}")
             return False
+
 
 
 
