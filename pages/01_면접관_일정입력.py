@@ -280,7 +280,10 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                             end_hour, end_min = map(int, parsed['end_time'].split(':'))
                             total_minutes = (end_hour * 60 + end_min) - (start_hour * 60 + start_min)
                             slot_count = total_minutes // 30
-                            st.markdown(f"<div style="margin-top:8px;color:#4caf50;font-weight:bold;">{slot_count}개</div>", unsafe_allow_html=True)
+                            st.markdown(
+                                f'<div style="margin-top:8px;color:#4caf50;font-weight:bold;">{slot_count}개</div>',
+                                unsafe_allow_html=True
+                            )
                     
                     if is_selected:
                         selected_datetime_slots.append(datetime_slot)
@@ -440,6 +443,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
 if __name__ == "__main__":
 
     main()
+
 
 
 
