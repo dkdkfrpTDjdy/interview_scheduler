@@ -185,7 +185,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
     current_interviewer_id = st.session_state.authenticated_interviewer
     
     interviewer_ids = [id.strip() for id in first_request.interviewer_id.split(',')]
-    is_multiple_interviewers = len(interviewer_ids) &gt; 1
+    is_multiple_interviewers = len(interviewer_ids) > 1
     
     # ✅ 현재 응답 현황 확인 (에러 처리 강화)
     try:
@@ -338,7 +338,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                             slots = time_range.generate_30min_slots()
                             all_slots.extend(slots)
                     
-                    # ✅ 모든 요청에 대해 면접관 응답 저장
+                    # 모든 요청에 대해 면접관 응답 저장
                     for request in requests:
                         try:
                             db.save_interviewer_response(
@@ -349,18 +349,17 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                         except Exception as e:
                             st.error(f"❌ {request.candidate_name} 응답 저장 실패: {e}")
                     
-                    # ✅ 단일 면접관 처리 개선
+                    # 면접관 수 확인
                     interviewer_ids = [id.strip() for id in first_request.interviewer_id.split(',')]
                     
                     if len(interviewer_ids) == 1:
-                        # ✅ 단일 면접관: 즉시 상태 변경
+                        # ✅ 단일 면접관: 즉시 상태 변경 (면접자 메일 발송 안함!)
                         for request in requests:
                             try:
                                 request.available_slots = all_slots.copy()
                                 request.status = Config.Status.PENDING_CANDIDATE
                                 request.updated_at = datetime.now()
                                 
-                                # DB 및 구글시트 저장
                                 db.save_interview_request(request)
                                 db.update_google_sheet(request)
                                 
@@ -374,7 +373,6 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                                 all_responded, responded_count, total_count = db.check_all_interviewers_responded(request)
                                 
                                 if all_responded:
-                                    # 공통 시간 계산
                                     common_slots = db.get_common_available_slots(request)
                                     
                                     if common_slots:
@@ -389,7 +387,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                             except Exception as e:
                                 st.error(f"❌ {request.candidate_name} 처리 오류: {e}")
                     
-                    # ✅ 수정된 HR 알림 로직 (모든 면접관이 완료했을 때만)
+                    # ✅ HR 알림만 발송 (면접자에게는 발송 안함!)
                     try:
                         hr_notification_sent = email_service.send_hr_notification_on_interviewer_completion(
                             position_name=position_name,
@@ -398,7 +396,7 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
                         
                         if hr_notification_sent:
                             st.success("🎉 일정 제출 완료! 모든 면접관이 완료되어 인사팀에게 알림을 보냈습니다.")
-                            st.info("💡 인사팀에서 면접자들에게 직접 메일을 발송할 예정입니다.")
+                            st.info("💡 인사팀에서 '면접자 메일 발송' 탭에서 직접 메일을 발송할 예정입니다.")
                             st.balloons()
                         else:
                             st.success("✅ 일정 제출 완료! 다른 면접관들의 일정 선택을 기다리고 있습니다.")
@@ -442,5 +440,6 @@ def show_position_detail(position_name: str, group_data: dict, index: int):
 if __name__ == "__main__":
 
     main()
+
 
 
