@@ -50,7 +50,7 @@ class EmailService:
             'hotmial.com': 'hotmail.com'
         }
         
-        if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\$', email):
+        if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
             return email, False
         
         local_part, domain = email.split('@')
@@ -385,6 +385,9 @@ class EmailService:
             return False
 
     def _create_professional_email_body(self, request, interviewer_info, candidate_link, is_gmail_optimized=False):
+        slots_by_date = {}
+        for slot in request.available_slots or []:
+            slots_by_date.setdefault(slot.date, []).append(slot)
         """전문적인 이메일 본문 생성 - 통합 템플릿 사용"""
         # 면접 일정 테이블 HTML 생성
         slots_html = ""
@@ -412,20 +415,29 @@ class EmailService:
             'action_link': candidate_link,
             'button_text': '면접 일정 선택하기',
             'additional_content': f"""
-            <h4 style="color: #EF3340; margin: 0 0 20px 0; font-size:16px;">🗓️ 제안된 면접 일정</h4>
+            <h4 style="color: #EF3340; margin: 0 0 20px 0; font-size:16px;">🗓️ 선택 가능한 면접 시간</h4>
+            
             <table style="width: 100%; border-collapse: collapse; border: 2px solid #EF3340; border-radius: 8px; overflow: hidden;">
                 <thead>
                     <tr style="background: linear-gradient(135deg, #EF3340 0%, #e0752e 100%); color: white;">
-                        <th style="padding: 14px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">번호</th>
-                        <th style="padding: 14px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">날짜</th>
-                        <th style="padding: 14px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">시간</th>
-                        <th style="padding: 14px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">소요시간</th>
+                        <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">번호</th>
+                        <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">날짜</th>
+                        <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">시간</th>
+                        <th style="padding: 15px; border: 1px solid #e7e7e7; font-weight: bold; font-size:14px;">소요시간</th>
                     </tr>
                 </thead>
                 <tbody>
                     {slots_html}
                 </tbody>
             </table>
+
+            <div style="background-color:#fff3cd;padding:15px;border-radius:8px;margin-top:20px;border-left:5px solid #ffc107;">
+                <p style="margin:0;color:#856404;font-weight:bold;">⚠️ 안내 사항</p>
+                <p style="margin:5px 0 0 0;color:#856404;">
+                    • 각 면접은 <strong>30분</strong>으로 진행됩니다<br>
+                    • 다른 면접자가 먼저 선택한 시간은 자동으로 제외됩니다
+                </p>
+            </div>
             """,
             'contact_email': Config.HR_EMAILS[0] if Config.HR_EMAILS else 'hr@ajnet.co.kr'
         })
@@ -776,13 +788,13 @@ class EmailService:
             </div>
             """
             
-          return self.send_email(
-                to_emails=Config.HR_EMAILS,
-                subject=subject,
-                body=body,
-                is_html=True,
-                request_id=f"hr_notification_{group_key}"  # ✅ 중복 방지 키도 group_key 기반
-            )
+            return self.send_email(
+                    to_emails=Config.HR_EMAILS,
+                    subject=subject,
+                    body=body,
+                    is_html=True,
+                    request_id=f"hr_notification_{group_key}"  # ✅ 중복 방지 키도 group_key 기반
+                )
     
         except Exception as e:
             logger.error(f"HR 알림 메일 발송 실패: {e}")
@@ -969,7 +981,7 @@ class EmailService:
                         slot_parts = [s.strip() for s in proposed_str.split('|')]
                         
                         for part in slot_parts:
-                            match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})$(\d+)분$', part)
+                            match = re.match(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s+(\d+)분$', part)
                             if match:
                                 slot = InterviewSlot(
                                     date=match.group(1),
@@ -1262,6 +1274,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
