@@ -368,6 +368,8 @@ class DatabaseManager:
     def init_google_sheet(self):
         """구글 시트 초기화"""
         try:
+            logger.info("📋 구글 시트 초기화 시작...")
+            
             scope = [
                 'https://spreadsheets.google.com/feeds',
                 'https://www.googleapis.com/auth/drive'
@@ -380,36 +382,69 @@ class DatabaseManager:
                 if hasattr(st, 'secrets') and "google_credentials" in st.secrets:
                     logger.info("🔍 TOML 구조로 Secrets 읽기 시도...")
                     
-                    private_key = st.secrets["google_credentials"]["private_key"]
+                    # secrets.toml에서 각 필드를 개별적으로 가져오기
+                    google_creds = st.secrets["google_credentials"]
+                    
+                    # 필수 필드 체크
+                    required_fields = [
+                        "type", "project_id", "private_key_id", "private_key",
+                        "client_email", "client_id", "auth_uri", "token_uri"
+                    ]
+                    
+                    missing_fields = []
+                    for field in required_fields:
+                        if field not in google_creds:
+                            missing_fields.append(field)
+                    
+                    if missing_fields:
+                        raise Exception(f"필수 필드 누락: {missing_fields}")
+                    
+                    # private_key 처리 (줄바꿈 문자 정규화)
+                    private_key = google_creds["private_key"]
+                    logger.info(f"🔑 Private key 길이: {len(private_key)}")
                     
                     if "\\n" in private_key:
                         private_key = private_key.replace("\\n", "\n")
+                        logger.info("🔧 Private key \\n → 줄바꿈 변환")
                     
-                    private_key = private_key.strip()
-                    lines = private_key.split('\n')
-                    cleaned_lines = [line.strip() for line in lines if line.strip()]
-                    private_key = '\n'.join(cleaned_lines)
+                    # private_key 형식 검증
+                    if not private_key.startswith("-----BEGIN PRIVATE KEY-----"):
+                        logger.warning("⚠️ Private key 형식이 올바르지 않을 수 있습니다.")
                     
                     service_account_info = {
-                        "type": st.secrets["google_credentials"]["type"],
-                        "project_id": st.secrets["google_credentials"]["project_id"],
-                        "private_key_id": st.secrets["google_credentials"]["private_key_id"],
+                        "type": google_creds["type"],
+                        "project_id": google_creds["project_id"], 
+                        "private_key_id": google_creds["private_key_id"],
                         "private_key": private_key,
-                        "client_email": st.secrets["google_credentials"]["client_email"],
-                        "client_id": st.secrets["google_credentials"]["client_id"],
-                        "auth_uri": st.secrets["google_credentials"]["auth_uri"],
-                        "token_uri": st.secrets["google_credentials"]["token_uri"],
-                        "auth_provider_x509_cert_url": st.secrets["google_credentials"]["auth_provider_x509_cert_url"],
-                        "client_x509_cert_url": st.secrets["google_credentials"]["client_x509_cert_url"],
-                        "universe_domain": st.secrets["google_credentials"]["universe_domain"]
+                        "client_email": google_creds["client_email"],
+                        "client_id": google_creds["client_id"],
+                        "auth_uri": google_creds["auth_uri"],
+                        "token_uri": google_creds["token_uri"],
+                        "auth_provider_x509_cert_url": google_creds.get("auth_provider_x509_cert_url", "https://www.googleapis.com/oauth2/v1/certs"),
+                        "client_x509_cert_url": google_creds.get("client_x509_cert_url", ""),
+                        "universe_domain": google_creds.get("universe_domain", "googleapis.com")
                     }
-                    logger.info("✅ Streamlit Secrets에서 인증 정보 로드")
                     
-            except Exception as e:
-                logger.warning(f"TOML Secrets 읽기 실패: {e}")
+                    logger.info(f"✅ Streamlit Secrets에서 인증 정보 로드 완료")
+                    logger.info(f"📧 Service Account Email: {service_account_info['client_email']}")
+                    logger.info(f"🏗️ Project ID: {service_account_info['project_id']}")
+                    
+            except Exception as secrets_error:
+                logger.error(f"❌ TOML Secrets 읽기 실패: {secrets_error}")
+                
+            # 방법 2: 환경 변수에서 JSON 문자열로 읽기 (fallback)
+            if not service_account_info:
+                try:
+                    import json
+                    credentials_json = os.getenv("GOOGLE_CREDENTIALS")
+                    if credentials_json:
+                        service_account_info = json.loads(credentials_json)
+                        logger.info("✅ 환경 변수에서 인증 정보 로드")
+                except Exception as env_error:
+                    logger.warning(f"환경 변수 읽기 실패: {env_error}")
             
             if not service_account_info:
-                logger.error("❌ 인증 정보를 가져올 수 없습니다")
+                logger.error("❌ 모든 방법으로 인증 정보를 가져올 수 없습니다")
                 self.gc = None
                 self.sheet = None
                 return
@@ -417,50 +452,117 @@ class DatabaseManager:
             # Google 인증
             try:
                 import tempfile
+                import json
                 
+                # 임시 파일에 인증 정보 저장
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as temp_file:
-                    json.dump(service_account_info, temp_file)
+                    json.dump(service_account_info, temp_file, indent=2)
                     temp_path = temp_file.name
                 
+                logger.info(f"📄 임시 인증 파일 생성: {temp_path}")
+                
+                # 인증 객체 생성
                 credentials = Credentials.from_service_account_file(temp_path, scopes=scope)
+                
+                # 임시 파일 삭제
                 os.unlink(temp_path)
+                logger.info("✅ 임시 파일 삭제 완료")
                 
                 logger.info("✅ Google 인증 성공")
                 
-            except Exception as e:
-                logger.error(f"❌ Google 인증 실패: {e}")
-                raise
+            except Exception as auth_error:
+                logger.error(f"❌ Google 인증 실패: {auth_error}")
+                logger.error(f"❌ 인증 오류 타입: {type(auth_error).__name__}")
+                self.gc = None
+                self.sheet = None
+                return
             
-            self.gc = gspread.authorize(credentials)
+            # gspread 클라이언트 생성
+            try:
+                self.gc = gspread.authorize(credentials)
+                logger.info("✅ gspread 클라이언트 생성 성공")
+            except Exception as gspread_error:
+                logger.error(f"❌ gspread 클라이언트 생성 실패: {gspread_error}")
+                self.gc = None
+                self.sheet = None
+                return
             
-            sheet_id = st.secrets["GOOGLE_SHEET_ID"]
-            self.sheet = self.gc.open_by_key(sheet_id).sheet1
-            logger.info("✅ 구글 시트 연결 성공")
+            # 구글 시트 열기
+            try:
+                # secrets.toml에서 GOOGLE_SHEET_ID 가져오기
+                sheet_id = None
+                try:
+                    sheet_id = st.secrets["GOOGLE_SHEET_ID"]
+                    logger.info(f"📊 시트 ID (secrets): {sheet_id[:10]}...{sheet_id[-10:]}")
+                except:
+                    sheet_id = os.getenv("GOOGLE_SHEET_ID")
+                    if sheet_id:
+                        logger.info(f"📊 시트 ID (env): {sheet_id[:10]}...{sheet_id[-10:]}")
+                    else:
+                        logger.error("❌ GOOGLE_SHEET_ID가 설정되지 않았습니다")
+                        self.gc = None
+                        self.sheet = None
+                        return
+                
+                # 시트 열기
+                spreadsheet = self.gc.open_by_key(sheet_id)
+                logger.info(f"📋 스프레드시트 제목: {spreadsheet.title}")
+                
+                # 첫 번째 워크시트 가져오기
+                self.sheet = spreadsheet.sheet1
+                logger.info(f"📄 워크시트 제목: {self.sheet.title}")
+                
+                # 시트 접근 테스트
+                try:
+                    test_values = self.sheet.row_values(1)
+                    logger.info(f"✅ 시트 접근 테스트 성공: {len(test_values)}개 컬럼")
+                except Exception as access_error:
+                    logger.warning(f"⚠️ 시트 접근 테스트 실패: {access_error}")
+                
+                logger.info("✅ 구글 시트 연결 성공")
+                
+            except Exception as sheet_error:
+                logger.error(f"❌ 구글 시트 열기 실패: {sheet_error}")
+                logger.error(f"❌ 시트 오류 타입: {type(sheet_error).__name__}")
+                self.gc = None
+                self.sheet = None
+                return
             
             # 헤더 설정
-            headers = [
-                "요청ID", "생성일시", "공고명", "상세공고명",
-                "면접관ID", "면접관이름", "면접자명", 
-                "면접자이메일", "면접자전화번호", 
-                "상태", "상태변경일시", "인사팀제안일시", "면접관확정일시",  # ✅ 변경
-                "면접자확정일시", "면접자요청사항", "마지막업데이트", "처리소요시간", "비고"  # ✅ 변경
-            ]
-            
             try:
-                existing_headers = self.sheet.row_values(1)
+                headers = [
+                    "요청ID", "생성일시", "공고명", "상세공고명",
+                    "면접관ID", "면접관이름", "면접자명", 
+                    "면접자이메일", "면접자전화번호", 
+                    "상태", "상태변경일시", "인사팀제안일시", "면접관확정일시",
+                    "면접자확정일시", "면접자요청사항", "마지막업데이트", "처리소요시간", "비고"
+                ]
                 
-                if not existing_headers or "면접자확정일시" not in existing_headers:  # ✅ 변경
-                    self._setup_sheet_headers(headers)
-                else:
-                    logger.info("구글시트 헤더 이미 존재함")
+                try:
+                    existing_headers = self.sheet.row_values(1)
+                    logger.info(f"📋 기존 헤더: {len(existing_headers)}개")
                     
-            except Exception as e:
-                self._setup_sheet_headers(headers)
+                    if not existing_headers or "면접자확정일시" not in existing_headers:
+                        logger.info("📝 헤더 설정 필요")
+                        self._setup_sheet_headers(headers)
+                    else:
+                        logger.info("✅ 구글시트 헤더 이미 존재함")
+                        
+                except Exception as header_error:
+                    logger.warning(f"⚠️ 기존 헤더 확인 실패, 새로 설정: {header_error}")
+                    self._setup_sheet_headers(headers)
                 
-            logger.info("🎉 구글 시트 초기화 완료!")
+                logger.info("🎉 구글 시트 초기화 완료!")
+                
+            except Exception as header_setup_error:
+                logger.error(f"❌ 헤더 설정 실패: {header_setup_error}")
+                # 헤더 설정 실패해도 시트 연결은 유지
                 
         except Exception as e:
-            logger.error(f"❌ 구글 시트 초기화 실패: {e}")
+            logger.error(f"❌ 구글 시트 초기화 전체 실패: {e}")
+            logger.error(f"❌ 전체 오류 타입: {type(e).__name__}")
+            import traceback
+            logger.error(f"❌ 상세 스택 트레이스: {traceback.format_exc()}")
             self.gc = None
             self.sheet = None
     
@@ -1618,6 +1720,7 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ 강제 동기화 실패: {e}")
             return False
+
 
 
 
