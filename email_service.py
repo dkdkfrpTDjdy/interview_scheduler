@@ -535,7 +535,7 @@ class EmailService:
                     logger.info(f"📧 면접관 {interviewer_info['name']}({interviewer_id})에게 메일 발송 중...")
                     
                     # 제목 생성
-                    candidate_count_text = f"{len(candidates)}명" if len(candidates) &gt; 1 else candidates[0]['name']
+                    candidate_count_text = f"{len(candidates)}명" if len(candidates) > 1 else candidates[0]['name']
                     subject = f"[인사팀] 면접 일정 입력 요청드립니다 - {position_name} ({candidate_count_text})"
                     
                     # 본문 생성 (개별 면접관 정보 사용)
@@ -668,7 +668,7 @@ class EmailService:
             logger.info(f"📧 면접관 초대 메일 발송 완료: {success_count}/{total_interviewers}명 성공")
             
             # 1명이라도 성공하면 True 반환
-            return success_count &gt; 0
+            return success_count > 0
             
         except Exception as e:
             logger.error(f"면접관 초대 메일 발송 실패: {e}")
@@ -1280,6 +1280,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
