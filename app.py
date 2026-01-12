@@ -40,27 +40,39 @@ def init_services():
         db = DatabaseManager()
         email_service = EmailService()
         
+        # 구글 시트 연결 상태 확인 및 알림
+        if not db.sheet:
+            st.warning("⚠️ 구글 시트에 연결할 수 없습니다. SQLite 데이터베이스만 사용합니다.")
+            st.info("💡 면접 요청 생성은 가능하지만, 실시간 동기화는 제한됩니다.")
+            
+            # 구글 시트 연결 재시도 버튼 추가
+            if st.button("🔄 구글 시트 연결 재시도"):
+                st.cache_resource.clear()
+                st.rerun()
+        else:
+            st.success("✅ 구글 시트 연결 성공")
+        
         sync_manager = None
         try:
             from sync_manager import SyncManager
             sync_manager = SyncManager(db, email_service)
-            sync_manager.start_monitoring()
+            if db.sheet:  # 구글 시트가 연결된 경우에만 모니터링 시작
+                sync_manager.start_monitoring()
+                st.info("🔄 자동 모니터링 시작됨")
         except ImportError:
-            st.warning("⚠️ 자동 모니터링 모듈을 찾을 수 없습니다. 수동 모드로 실행됩니다.")
-            sync_manager = None  # 명시적으로 None 설정
+            st.info("ℹ️ 자동 모니터링 모듈 없음 (수동 모드)")
+            sync_manager = None
         except Exception as e:
             st.warning(f"⚠️ 자동 모니터링 시작 실패: {e}")
-            sync_manager = None  # 명시적으로 None 설정
+            sync_manager = None
         
-        # 반드시 3개의 값을 반환
         return db, email_service, sync_manager
         
     except Exception as e:
-        st.error(f"서비스 초기화 실패: {e}")
+        st.error(f"❌ 서비스 초기화 실패: {e}")
         import traceback
         st.code(traceback.format_exc())
         
-        # st.stop() 대신 None 값들을 반환
         return None, None, None
         
 @st.cache_data
@@ -918,6 +930,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
