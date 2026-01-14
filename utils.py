@@ -192,17 +192,17 @@ def get_employee_info_with_position(employee_id: str) -> dict:
 
 def format_employee_greeting(employee_id: str) -> str:
     """
-    ✅ 직원 인사말 포맷팅
+    ✅ 직원 인사말 포맷팅 (항상 "님" 포함)
     
     Args:
         employee_id: 사번
         
     Returns:
-        str: "홍길동 팀장" 또는 "홍길동님" 형태
+        str: "홍길동 팀장님" 또는 "홍길동님" 형태
         
     Examples:
-        208081 → "강미영 팀장"
-        216825 → "강민석 팀장"  
+        208081 → "강미영 팀장님"
+        216825 → "강민석 팀장님"  
         999999 → "미확인님" (직책이 없는 경우)
     """
     try:
@@ -211,8 +211,8 @@ def format_employee_greeting(employee_id: str) -> str:
         position = employee_info.get('position', '').strip()
         
         if position:
-            # 직책이 있는 경우: "이름 직책"
-            return f"{name} {position}"
+            # 직책이 있는 경우: "이름 직책님"
+            return f"{name} {position}님"
         else:
             # 직책이 없는 경우: "이름님"
             return f"{name}님"
@@ -602,5 +602,6 @@ def is_business_hour(time_str: str) -> bool:
         return business_start <= time_obj <= business_end
     except:
         return False
+
 
 
