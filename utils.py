@@ -106,47 +106,36 @@ def load_employee_data():
         if not os.path.exists(Config.EMPLOYEE_DATA_PATH):
             print(f"조직도 파일을 찾을 수 없습니다: {Config.EMPLOYEE_DATA_PATH}")
             return []
-        
-        # 엑셀 파일 읽기
-        df = pd.read_excel(Config.EMPLOYEE_DATA_PATH)
-        
-        # ✅ 필요한 컬럼: 사번, 성명, 부서, 직책, 이메일 (직책 추가)
-        required_columns = ['사번', '성명', '부서', '직책', '이메일']
-        
-        # 영문 컬럼명으로도 시도
-        if not all(col in df.columns for col in required_columns):
-            required_columns = ['employee_id', 'name', 'department', 'position', 'email']
-        
-        # ✅ 한글 컬럼명 기준으로 매핑 (실제 엑셀 파일에 맞춤)
-        column_mapping = {
-            '사번': 'employee_id',
-            '성명': 'name', 
-            '부문': 'division',
-            '본부': 'headquarters',
-            '부서': 'department',
-            '직책': 'position',
-            '이메일': 'email'
-        }
-        
+
+        # ✅ 사번을 문자열로 강제 (중요)
+        df = pd.read_excel(Config.EMPLOYEE_DATA_PATH, dtype={'사번': str})
+
         print(f"엑셀 파일 컬럼: {list(df.columns)}")
-        
+
         employees = []
         for _, row in df.iterrows():
-            if pd.notna(row.get('사번')):  # 사번이 있는 경우만
-                employee = {
-                    'employee_id': str(row.get('사번', '')).strip(),
-                    'name': str(row.get('성명', '')).strip(),
-                    'division': str(row.get('부문', '')).strip(),
-                    'headquarters': str(row.get('본부', '')).strip(), 
-                    'department': str(row.get('부서', '')).strip(),
-                    'position': str(row.get('직책', '')).strip(),  # ✅ 직책 추가
-                    'email': str(row.get('이메일', '')).strip() if pd.notna(row.get('이메일')) else f"{str(row.get('사번', '')).strip().lower()}@{Config.COMPANY_DOMAIN}"
-                }
-                employees.append(employee)
-        
+            emp_id_raw = row.get('사번')
+
+            if pd.isna(emp_id_raw):
+                continue
+
+            # ✅ "223286.0" 같은 꼴 방지 + 공백 제거
+            employee_id = str(emp_id_raw).strip().replace('.0', '')
+
+            employee = {
+                'employee_id': employee_id,
+                'name': str(row.get('성명', '')).strip(),
+                'division': str(row.get('부문', '')).strip(),
+                'headquarters': str(row.get('본부', '')).strip(),
+                'department': str(row.get('부서', '')).strip(),
+                'position': str(row.get('직책', '')).strip(),  # ✅ 직책
+                'email': str(row.get('이메일', '')).strip() if pd.notna(row.get('이메일')) else f"{employee_id.lower()}@{Config.COMPANY_DOMAIN}"
+            }
+            employees.append(employee)
+
         print(f"조직도 데이터 로드 성공: {len(employees)}명")
         return employees
-        
+
     except Exception as e:
         print(f"조직도 데이터 로드 실패: {e}")
         return []
@@ -602,6 +591,7 @@ def is_business_hour(time_str: str) -> bool:
         return business_start <= time_obj <= business_end
     except:
         return False
+
 
 
 
