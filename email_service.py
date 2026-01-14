@@ -149,35 +149,31 @@ class EmailService:
                 
         return msg
 
-    def _create_gmail_safe_html(self, content_data: dict) -> str:
+    def _create_gmail_safe_html(self, content_data: dict) - str:
         """Gmail 안전 HTML 생성 - AJ 로고 포함"""
         # AJ 로고 URL
         logo_url = "https://imgur.com/JxtMWx3.png"
         
-        return f"""<!DOCTYPE html>
-    <html lang="ko">
-    <head>
-        <meta charset="UTF-8">
-        <title>{content_data.get('title', '이메일 알림')}</title>
-    </head>
-    <body style="margin:0;padding:0;font-family: 'Apple SD Gothic Neo', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;background-color:#ffffff;">
+        return f"""
+    
+    
+        <span><span style="color: rgb(150, 34, 73); font-weight: bold;"><meta</span><span style="color: black; font-weight: normal;"></span></span>
+        <span><span style="color: rgb(150, 34, 73); font-weight: bold;"><title</span><span style="color: black; font-weight: normal;">{content_data.get('title', '이메일 알림')}</span><span style="color: rgb(150, 34, 73); font-weight: bold;"></title</span><br><br></span>
+    
+    
         <div style="max-width:600px;margin:0 auto;background-color:#ffffff;">
-            <!-- Header with AJ Logo -->
+            
             <div style="background-color:#f9f9f9; color:#1A1A1A; padding:30px; text-align:center; border-bottom:2px solid #e7e7e7;">
-                <img src="{logo_url}" 
-                    alt="AJ네트웍스 로고" 
-                    style="max-width:180px;height:auto;margin-bottom:15px;display:block;margin-left:auto;margin-right:auto;">
+                <img style="max-width:180px;height:auto;margin-bottom:15px;display:block;margin-left:auto;margin-right:auto;" alt="AJ네트웍스 로고" src="{logo_url}">
             </div>
             
-            <!-- Body -->
+            
             <div style="padding:30px;">
-                <h2 style="color:#1A1A1A;margin:0 0 20px 0;font-size:18px;">
-                    안녕하세요, <span style="color:#1A1A1A;">{content_data.get('recipient_name', '고객')}</span>님
-                </h2>
                 
-                <p style="color:#737272;margin:0 0 25px 0;line-height:1.6;">
+                <div style="color:#737272;margin:0 0 25px 0;line-height:1.6;">
                     {content_data.get('main_message', '메시지 내용')}
-                </p>
+                </div>
+
                 
                 <!-- 면접 정보 테이블 (외곽선 포함) -->
                 <div style="border: 2px solid #e7e7e7; border-radius: 8px; overflow: hidden; margin: 20px 0;">
@@ -545,7 +541,7 @@ class EmailService:
                     # 본문 생성 (개별 면접관 정보 사용)
                     if len(candidates) == 1:
                         intro_message = f"""
-                        안녕하세요 {format_employee_greeting(interviewer_id)},<br>
+                        안녕하세요, <strong>{format_employee_greeting(interviewer_id)}</strong>.<br><br>
                         인사팀 채용 담당자입니다.<br>
                         아래 후보자 <strong style="color: #1A1A1A;">면접일정 조율</strong>을 위해 연락드립니다.<br>
                         <strong style="color: #EF3340;">면접 참여가 가능한 날짜와 시간대를 모두 선택</strong>해 주시면, 확인 후 면접 일정을 확정하여 다시 안내 드리겠습니다.
@@ -1284,6 +1280,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
