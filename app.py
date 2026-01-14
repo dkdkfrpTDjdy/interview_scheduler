@@ -20,7 +20,10 @@ try:
         validate_email, 
         get_next_weekdays, 
         format_date_korean,
-        group_requests_by_interviewer_and_position
+        group_requests_by_interviewer_and_position,
+        format_employee_greeting,  # ✅ 추가
+        get_employee_info,         # ✅ 추가 (혹시 필요할 수 있음)
+        get_employee_email         # ✅ 추가 (혹시 필요할 수 있음)
     )
 except ImportError as e:
     st.error(f"utils.py에서 필요한 함수를 import할 수 없습니다: {e}")
@@ -930,6 +933,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
