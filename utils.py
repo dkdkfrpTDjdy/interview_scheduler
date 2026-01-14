@@ -101,7 +101,7 @@ def validate_email(email: str) -> bool:
     return True
 
 def load_employee_data():
-    """조직도 엑셀 파일에서 직원 데이터 로드"""
+    """조직도 엑셀 파일에서 직원 데이터 로드 (직책 정보 포함)"""
     try:
         if not os.path.exists(Config.EMPLOYEE_DATA_PATH):
             print(f"조직도 파일을 찾을 수 없습니다: {Config.EMPLOYEE_DATA_PATH}")
@@ -110,27 +110,37 @@ def load_employee_data():
         # 엑셀 파일 읽기
         df = pd.read_excel(Config.EMPLOYEE_DATA_PATH)
         
-        # 필요한 컬럼: 사번, 이름, 부서, 이메일
-        # 한글 컬럼명 우선 시도
-        required_columns = ['사번', '이름', '부서', '이메일']
+        # ✅ 필요한 컬럼: 사번, 성명, 부서, 직책, 이메일 (직책 추가)
+        required_columns = ['사번', '성명', '부서', '직책', '이메일']
         
         # 영문 컬럼명으로도 시도
         if not all(col in df.columns for col in required_columns):
-            required_columns = ['employee_id', 'name', 'department', 'email']
+            required_columns = ['employee_id', 'name', 'department', 'position', 'email']
         
-        if not all(col in df.columns for col in required_columns):
-            print(f"필요한 컬럼을 찾을 수 없습니다. 현재 컬럼: {list(df.columns)}")
-            print("필요한 컬럼: ['사번', '이름', '부서', '이메일'] 또는 ['employee_id', 'name', 'department', 'email']")
-            return []
+        # ✅ 한글 컬럼명 기준으로 매핑 (실제 엑셀 파일에 맞춤)
+        column_mapping = {
+            '사번': 'employee_id',
+            '성명': 'name', 
+            '부문': 'division',
+            '본부': 'headquarters',
+            '부서': 'department',
+            '직책': 'position',
+            '이메일': 'email'
+        }
+        
+        print(f"엑셀 파일 컬럼: {list(df.columns)}")
         
         employees = []
         for _, row in df.iterrows():
-            if pd.notna(row[required_columns[0]]):  # 사번이 있는 경우만
+            if pd.notna(row.get('사번')):  # 사번이 있는 경우만
                 employee = {
-                    'employee_id': str(row[required_columns[0]]).strip(),
-                    'name': str(row[required_columns[1]]).strip(),
-                    'department': str(row[required_columns[2]]).strip(),
-                    'email': str(row[required_columns[3]]).strip() if pd.notna(row[required_columns[3]]) else f"{str(row[required_columns[0]]).strip().lower()}@{Config.COMPANY_DOMAIN}"
+                    'employee_id': str(row.get('사번', '')).strip(),
+                    'name': str(row.get('성명', '')).strip(),
+                    'division': str(row.get('부문', '')).strip(),
+                    'headquarters': str(row.get('본부', '')).strip(), 
+                    'department': str(row.get('부서', '')).strip(),
+                    'position': str(row.get('직책', '')).strip(),  # ✅ 직책 추가
+                    'email': str(row.get('이메일', '')).strip() if pd.notna(row.get('이메일')) else f"{str(row.get('사번', '')).strip().lower()}@{Config.COMPANY_DOMAIN}"
                 }
                 employees.append(employee)
         
@@ -154,7 +164,7 @@ def get_employee_email(employee_id: str) -> str:
     return f"{employee_id.lower()}@{Config.COMPANY_DOMAIN}"
 
 def get_employee_info(employee_id: str) -> dict:
-    """사번으로 직원 정보 조회"""
+    """사번으로 직원 정보 조회 (직책 포함)"""
     employees = load_employee_data()
     
     for emp in employees:
@@ -166,28 +176,102 @@ def get_employee_info(employee_id: str) -> dict:
     return {
         'employee_id': employee_id,
         'name': employee_id,
+        'division': '미확인',
+        'headquarters': '미확인',
         'department': '미확인',
+        'position': '',  # ✅ 빈 직책
         'email': f"{employee_id.lower()}@{Config.COMPANY_DOMAIN}"
     }
 
-def get_employees_by_department(department: str) -> List[dict]:
-    """부서별 직원 목록 조회"""
-    employees = load_employee_data()
-    return [emp for emp in employees if department.lower() in emp['department'].lower()]
+def get_employee_info_with_position(employee_id: str) -> dict:
+    """
+    ✅ 직책 정보 포함한 사원 정보 조회 (별칭 함수)
+    기존 get_employee_info와 동일하지만 명시적으로 직책 정보를 원할 때 사용
+    """
+    return get_employee_info(employee_id)
 
-def search_employee(keyword: str) -> List[dict]:
-    """키워드로 직원 검색 (이름, 사번, 부서)"""
-    employees = load_employee_data()
-    keyword = keyword.lower()
+def format_employee_greeting(employee_id: str) -> str:
+    """
+    ✅ 직원 인사말 포맷팅
     
-    results = []
-    for emp in employees:
-        if (keyword in emp['name'].lower() or 
-            keyword in emp['employee_id'].lower() or 
-            keyword in emp['department'].lower()):
-            results.append(emp)
+    Args:
+        employee_id: 사번
+        
+    Returns:
+        str: "홍길동 팀장" 또는 "홍길동님" 형태
+        
+    Examples:
+        208081 → "강미영 팀장"
+        216825 → "강민석 팀장"  
+        999999 → "미확인님" (직책이 없는 경우)
+    """
+    try:
+        employee_info = get_employee_info(employee_id)
+        name = employee_info.get('name', f'사원{employee_id}')
+        position = employee_info.get('position', '').strip()
+        
+        if position:
+            # 직책이 있는 경우: "이름 직책"
+            return f"{name} {position}"
+        else:
+            # 직책이 없는 경우: "이름님"
+            return f"{name}님"
+            
+    except Exception as e:
+        print(f"직원 인사말 포맷팅 실패: {e}")
+        return f"사원{employee_id}님"
+
+# ✅ 여러 면접관 처리용 함수 추가
+def format_multiple_interviewers_greeting(interviewer_ids: str) -> str:
+    """
+    복수 면접관 인사말 포맷팅
     
-    return results
+    Args:
+        interviewer_ids: "208081,216825" 형태의 쉼표 구분 면접관 ID
+        
+    Returns:
+        str: "강미영 팀장, 강민석 팀장" 형태
+    """
+    try:
+        ids = [id.strip() for id in interviewer_ids.split(',')]
+        greetings = []
+        
+        for interviewer_id in ids:
+            greeting = format_employee_greeting(interviewer_id)
+            # "님"을 제거하고 직책만 남김 (복수일 때는 님 제거)
+            if greeting.endswith('님'):
+                greeting = greeting[:-1]  # "홍길동님" → "홍길동"
+            greetings.append(greeting)
+        
+        return ", ".join(greetings)
+        
+    except Exception as e:
+        print(f"복수 면접관 인사말 포맷팅 실패: {e}")
+        return "면접관"
+
+def get_employee_department_info(employee_id: str) -> str:
+    """
+    ✅ 직원 부서 정보 상세 조회
+    
+    Returns:
+        str: "영업지원본부 지원3팀" 형태
+    """
+    try:
+        employee_info = get_employee_info(employee_id)
+        
+        parts = []
+        if employee_info.get('division'):
+            parts.append(employee_info['division'])
+        if employee_info.get('headquarters'):
+            parts.append(employee_info['headquarters'])
+        if employee_info.get('department'):
+            parts.append(employee_info['department'])
+        
+        return " ".join(parts) if parts else "미확인"
+        
+    except Exception as e:
+        print(f"부서 정보 조회 실패: {e}")
+        return "미확인"
 
 from collections import defaultdict
 from typing import Dict, List
@@ -518,4 +602,5 @@ def is_business_hour(time_str: str) -> bool:
         return business_start <= time_obj <= business_end
     except:
         return False
+
 
