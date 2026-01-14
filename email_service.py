@@ -645,7 +645,8 @@ class EmailService:
                         to_emails=[interviewer_email],
                         # cc_emails=Config.HR_EMAILS,
                         subject=subject,
-                        body=body
+                        body=body,
+                        request_id=f"interviewer_invite_{first_request.id}_{interviewer_id}"
                     )
                     
                     if result:
@@ -1278,6 +1279,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
