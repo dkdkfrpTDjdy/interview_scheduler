@@ -14,7 +14,7 @@ import socket
 from typing import List, Optional, Tuple
 from config import Config
 from models import InterviewRequest, InterviewSlot
-from utils import get_employee_email, get_employee_info, format_date_korean, create_calendar_invite
+from utils import format_employee_greeting, get_employee_email, get_employee_info, format_date_korean, create_calendar_invite
 import logging
 
 # 로깅 설정
@@ -528,9 +528,13 @@ class EmailService:
             
             for interviewer_id in interviewer_ids:
                 try:
-                    # 개별 면접관 정보 조회
+                    # ✅ 개별 면접관 정보 조회
                     interviewer_info = get_employee_info(interviewer_id)
                     interviewer_email = get_employee_email(interviewer_id)
+                    
+                    # ✅ 인사말 포맷팅 (직책 + 님 포함)
+                    greeting_name = format_employee_greeting(interviewer_id)
+        
                     
                     logger.info(f"📧 면접관 {interviewer_info['name']}({interviewer_id})에게 메일 발송 중...")
                     
@@ -541,7 +545,7 @@ class EmailService:
                     # 본문 생성 (개별 면접관 정보 사용)
                     if len(candidates) == 1:
                         intro_message = f"""
-                        안녕하세요 {interviewer_info['name']}님,<br>
+                        안녕하세요 {format_employee_greeting(interviewer_id)},<br>
                         인사팀 채용 담당자입니다.<br>
                         아래 후보자 <strong style="color: #1A1A1A;">면접일정 조율</strong>을 위해 연락드립니다.<br>
                         <strong style="color: #EF3340;">면접 참여가 가능한 날짜와 시간대를 모두 선택</strong>해 주시면, 확인 후 면접 일정을 확정하여 다시 안내 드리겠습니다.
@@ -549,7 +553,7 @@ class EmailService:
                         candidate_section_title = "👤 면접자 정보"
                     else:
                         intro_message = f"""
-                        안녕하세요 {interviewer_info['name']}님,<br>
+                        안녕하세요 {format_employee_greeting(interviewer_id)},<br>
                         인사팀 채용 담당자입니다.<br>
                         아래 <strong style="color: #1A1A1A;">{len(candidates)}명의 후보자 면접일정 조율</strong>을 위해 연락드립니다.<br>
                         <strong style="color: #EF3340;">면접 참여가 가능한 날짜와 시간대를 모두 선택</strong>해 주시면, 확인 후 면접 일정을 확정하여 다시 안내 드리겠습니다.
@@ -574,7 +578,7 @@ class EmailService:
                             <tr>
                                 <td style="padding: 32px;">
                                     <p style="font-size: 15px; margin: 0 0 12px;">
-                                        안녕하세요, <strong>{interviewer_info['name']} ({interviewer_info['employee_id']})</strong>님.
+                                        안녕하세요, <strong>{format_employee_greeting(interviewer_id)}</strong>.
                                     </p>
                                     
                                     <p style="font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
@@ -1280,6 +1284,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
