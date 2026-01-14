@@ -149,7 +149,7 @@ class EmailService:
                 
         return msg
 
-    def _create_gmail_safe_html(self, content_data: dict) - str:
+    def _create_gmail_safe_html(self, content_data: dict) -> str:
         """Gmail 안전 HTML 생성 - AJ 로고 포함"""
         # AJ 로고 URL
         logo_url = "https://imgur.com/JxtMWx3.png"
@@ -1280,6 +1280,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"HTML 테스트 메일 발송 실패: {e}")
             return False
+
 
 
 
