@@ -21,9 +21,9 @@ try:
         get_next_weekdays, 
         format_date_korean,
         group_requests_by_interviewer_and_position,
-        format_employee_greeting,  # ✅ 추가
-        get_employee_info,         # ✅ 추가 (혹시 필요할 수 있음)
-        get_employee_email         # ✅ 추가 (혹시 필요할 수 있음)
+        format_employee_greeting,  # 추가
+        get_employee_info,         # 추가 (혹시 필요할 수 있음)
+        get_employee_email         # 추가 (혹시 필요할 수 있음)
     )
 except ImportError as e:
     st.error(f"utils.py에서 필요한 함수를 import할 수 없습니다: {e}")
@@ -53,7 +53,7 @@ def init_services():
                 st.cache_resource.clear()
                 st.rerun()
         else:
-            st.success("✅ 구글 시트 연결 성공")
+            st.success("구글 시트 연결 성공")
         
         sync_manager = None
         try:
@@ -78,11 +78,52 @@ def init_services():
         
         return None, None, None
         
-@st.cache_data
-def load_organization_data():
-    """조직도 데이터 로드"""
+@st.cache_data(show_spinner=False)
+def load_organization_data(uploaded_bytes: bytes | None, uploaded_name: str | None):
+    """
+    업로드 파일이 있으면 그 파일을 우선 사용.
+    없으면 기존 load_employee_data() fallback.
+    org_data는 [{'employee_id':..., 'name':..., 'department':...}, ...] 형태로 반환.
+    """
     try:
+        if uploaded_bytes:
+            import io
+
+            # 엑셀/CSV 자동 처리
+            if uploaded_name and uploaded_name.lower().endswith((".xlsx", ".xls")):
+                df = pd.read_excel(io.BytesIO(uploaded_bytes))
+            else:
+                # CSV도 허용하고 싶으면
+                df = pd.read_csv(io.BytesIO(uploaded_bytes))
+
+            # 컬럼명 표준화 (엑셀 컬럼명이 조금 달라도 대응)
+            col_map = {}
+            for c in df.columns:
+                c2 = str(c).strip().lower()
+                if c2 in ["사번", "employee_id", "emp_id", "id"]:
+                    col_map[c] = "employee_id"
+                elif c2 in ["이름", "name", "employee_name"]:
+                    col_map[c] = "name"
+                elif c2 in ["부서", "department", "dept"]:
+                    col_map[c] = "department"
+
+            df = df.rename(columns=col_map)
+
+            required = ["employee_id", "name", "department"]
+            missing = [c for c in required if c not in df.columns]
+            if missing:
+                raise ValueError(f"업로드 파일에 필수 컬럼이 없습니다: {missing} (필요: {required})")
+
+            df["employee_id"] = df["employee_id"].astype(str).str.strip()
+            df["name"] = df["name"].astype(str).str.strip()
+            df["department"] = df["department"].astype(str).str.strip()
+
+            org_data = df[["employee_id", "name", "department"]].dropna().to_dict("records")
+            return org_data
+
+        # 업로드 없으면 기존 방식 유지
         return load_employee_data()
+
     except Exception as e:
         st.warning(f"⚠️ 조직도 데이터 로드 실패: {e}")
         return []
@@ -556,7 +597,7 @@ def main():
                                     st.session_state.submission_done = True
                         
                                     st.success(f"""
-                                    ✅ 면접 요청이 성공적으로 생성되었습니다!
+                                    면접 요청이 성공적으로 생성되었습니다!
                         
                                     📊 발송 통계:
                                     • 총 면접자: {len(all_requests)}명
@@ -716,7 +757,7 @@ def main():
                                 type="primary",
                                 use_container_width=True
                             ):
-                                # ✅ 면접자에게 메일 발송 로직
+                                # 면접자에게 메일 발송 로직
                                 success_count = 0
                                 fail_count = 0
                                 
@@ -739,16 +780,16 @@ def main():
                                         
                                         request = db.get_interview_request(request_id)
                                         if request:
-                                            # ✅ 면접자에게 일정 선택 메일 발송
+                                            # 면접자에게 일정 선택 메일 발송
                                             result = email_service.send_candidate_invitation(request)
                                             
                                             if result:
                                                 success_count += 1
-                                                # ✅ 상태를 '면접자_메일발송'으로 변경
+                                                # 상태를 '면접자_메일발송'으로 변경
                                                 try:
                                                     db.update_request_status_after_email(
                                                         request_id=request.id,
-                                                        new_status="면접자_메일발송"  # ✅ 이 상태로 변경
+                                                        new_status="면접자_메일발송"  # 이 상태로 변경
                                                     )
                                                 except Exception as status_error:
                                                     st.warning(f"⚠️ {row.get('면접자명', '')} 상태 업데이트 실패: {status_error}")
@@ -767,9 +808,9 @@ def main():
                                 progress_bar.empty()
                                 status_text.empty()
                                 
-                                # ✅ 결과 표시
+                                # 결과 표시
                                 if success_count > 0:
-                                    st.success(f"✅ 면접자 메일 발송 완료: {success_count}명 성공, {fail_count}명 실패")
+                                    st.success(f"면접자 메일 발송 완료: {success_count}명 성공, {fail_count}명 실패")
                                     st.info("💡 발송된 면접자들은 이제 면접 일정을 선택할 수 있습니다.")
                                     st.balloons()
                                     st.session_state.email_selected_indices = set()
@@ -782,7 +823,7 @@ def main():
                         
                         col1, col2, col3 = st.columns([2, 1, 2])
                         with col2:
-                            if st.button("✅ 전체 선택", use_container_width=True):
+                            if st.button("전체 선택", use_container_width=True):
                                 st.session_state.email_selected_indices = set(range(len(pending_candidates)))
                                 st.rerun()
             else:
@@ -844,11 +885,11 @@ def main():
                         display_columns.append('상세공고명')
                     if '면접관이름' in df.columns:
                         display_columns.append('면접관이름')
-                    if '인사팀제안일시' in df.columns:  # ✅ 변경
+                    if '인사팀제안일시' in df.columns:  # 변경
                         display_columns.append('인사팀제안일시')
-                    if '면접관확정일시' in df.columns:  # ✅ 변경  
+                    if '면접관확정일시' in df.columns:  # 변경  
                         display_columns.append('면접관확정일시')
-                    if '면접자확정일시' in df.columns:  # ✅ 변경
+                    if '면접자확정일시' in df.columns:  # 변경
                         display_columns.append('면접자확정일시')
                     if '면접자명' in df.columns:
                         display_columns.append('면접자명')
@@ -933,6 +974,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
