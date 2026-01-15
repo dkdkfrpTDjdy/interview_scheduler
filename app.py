@@ -332,6 +332,7 @@ def main():
     with st.sidebar:
         st.markdown("## 조직도 파일 업로드")
         uploaded_emp_file = st.file_uploader(
+            label="",
             type=["xlsx", "xls", "csv"],
             help="조직도를 업로드하세요."
         )
@@ -991,6 +992,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
