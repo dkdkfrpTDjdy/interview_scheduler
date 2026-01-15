@@ -327,8 +327,26 @@ def main():
         st.error("시스템 초기화에 실패했습니다.")
         st.error("페이지를 새로고침하거나 관리자에게 문의하세요.")
         return  # 함수 종료
-    
-    org_data = load_organization_data()
+
+    # 사이드바 업로드 UI 추가
+    with st.sidebar:
+        st.markdown("## 조직도 파일 업로드")
+        uploaded_emp_file = st.file_uploader(
+            "employee_data 업로드 (xlsx / csv)",
+            type=["xlsx", "xls", "csv"],
+            help="조직도를 업로드하세요."
+        )
+
+        if uploaded_emp_file:
+            st.success(f"업로드됨: {uploaded_emp_file.name}")
+            if st.button("🔄 업로드 파일로 다시 로드"):
+                st.cache_data.clear()
+                st.rerun()
+
+    # org_data 로딩도 업로드 기반으로 변경 
+    uploaded_bytes = uploaded_emp_file.getvalue() if uploaded_emp_file else None
+    uploaded_name = uploaded_emp_file.name if uploaded_emp_file else None
+    org_data = load_organization_data(uploaded_bytes, uploaded_name)
         
     # 탭 구성 변경: 새 탭 추가
     tab1, tab2, tab3 = st.tabs(["새 면접 요청", "면접자 메일 발송", "진행 현황"])
@@ -974,6 +992,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
