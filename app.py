@@ -245,65 +245,47 @@ def render_interviewer_selection(key_suffix, org_data):
 
 # 면접자 선택 섹션
 def render_candidate_selection(key_suffix):
-    """면접자 선택 섹션 렌더링 (n명)"""
+    """면접자 선택 섹션 렌더링 (이름만 입력)"""
     st.markdown("**👤 면접자 선택**")
-    
-    # 동적 key 생성 (카운터 사용)
+
     input_key = f"candidate_input_{key_suffix}_{st.session_state.candidate_input_counter}"
-    
-    col1, col2, col3 = st.columns([2, 2, 1])
-    
+
+    col1, col2 = st.columns([3, 1])
+
     with col1:
         new_candidate_name = st.text_input(
             "면접자 이름",
             placeholder="정면접",
             key=f"new_candidate_name_{input_key}"
         )
-    
+
     with col2:
-        new_candidate_email = st.text_input(
-            "면접자 이메일",
-            placeholder="candidate@example.com",
-            key=f"new_candidate_email_{input_key}"
-        )
-    
-    with col3:
         st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
         add_candidate_clicked = st.button(
             "➕ 면접자 추가",
-            disabled=(not new_candidate_name.strip() or not new_candidate_email.strip()),
+            disabled=(not new_candidate_name.strip()),
             key=f"add_candidate_{input_key}"
         )
-    
+
     if add_candidate_clicked:
-        if new_candidate_name.strip() and new_candidate_email.strip():
-            if validate_email(new_candidate_email):
-                candidate_info = {
-                    'name': new_candidate_name.strip(),
-                    'email': new_candidate_email.strip()
-                }
-                
-                existing_emails = [c['email'] for c in st.session_state.selected_candidates]
-                if new_candidate_email not in existing_emails:
-                    st.session_state.selected_candidates.append(candidate_info)
-                    
-                    # 카운터 증가 → 입력 필드 key 변경 → 강제 초기화
-                    st.session_state.candidate_input_counter += 1
-                    
-                    st.success(f"면접자 {new_candidate_name}이(가) 추가되었습니다.")
-                    time.sleep(0.5)
-                    st.rerun()
-                else:
-                    st.warning("⚠️ 이미 등록된 이메일입니다.")
-            else:
-                st.error("올바른 이메일 형식을 입력해주세요.")
-    
+        if new_candidate_name.strip():
+            candidate_info = {
+                "name": new_candidate_name.strip(),
+                "email": ""  # 이메일은 비워둠
+            }
+
+            st.session_state.selected_candidates.append(candidate_info)
+            st.session_state.candidate_input_counter += 1
+            st.success(f"면접자 {new_candidate_name}이(가) 추가되었습니다.")
+            time.sleep(0.5)
+            st.rerun()
+
     if st.session_state.selected_candidates:
         st.markdown("**선택된 면접자:**")
         for i, candidate in enumerate(st.session_state.selected_candidates):
             col1, col2 = st.columns([4, 1])
             with col1:
-                st.text(f"{i+1}. {candidate['name']} ({candidate['email']})")
+                st.text(f"{i+1}. {candidate['name']}")
             with col2:
                 if st.button("❌", key=f"remove_candidate_{i}_{key_suffix}"):
                     st.session_state.selected_candidates.pop(i)
@@ -992,6 +974,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
